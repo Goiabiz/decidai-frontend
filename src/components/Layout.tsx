@@ -1,23 +1,137 @@
-import { useEffect, useRef, useState } from 'react';
-import { Bell, BookOpen, ChartNoAxesCombined, ChevronLeft, ChevronRight, CircleHelp, Cog, Headphones, Home, Menu, Search, ShieldAlert, UserRound } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  Bell,
+  BookOpen,
+  Building2,
+  ChartNoAxesCombined,
+  ChevronDown,
+  CircleHelp,
+  ClipboardList,
+  Cog,
+  FileBarChart2,
+  Headphones,
+  Home,
+  LayoutTemplate,
+  ListChecks,
+  Menu,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Plug,
+  Search,
+  ShieldAlert,
+  SlidersHorizontal,
+  UserCog,
+  UserRound,
+  Users,
+  Workflow,
+} from 'lucide-react';
 import type { PageKey } from '../App';
 import { loadWorkspacePreferences } from '../lib/preferences';
 
-const navItems: Array<{ key: PageKey; label: string; icon: React.ReactNode }> = [
-  { key: 'dashboard', label: 'Área de Trabalho', icon: <Home size={21} /> },
-  { key: 'base', label: 'Base de Conhecimento', icon: <BookOpen size={21} /> },
-  { key: 'alertas', label: 'Central de Alertas', icon: <ShieldAlert size={21} /> },
-  { key: 'atendimento', label: 'Central de Atendimento', icon: <Headphones size={21} /> },
-  { key: 'analise', label: 'Roadmap', icon: <ChartNoAxesCombined size={21} /> },
-  { key: 'config', label: 'Parametrização', icon: <Cog size={21} /> }
+type NavChild = {
+  key: PageKey;
+  label: string;
+  icon?: React.ReactNode;
+};
+
+type NavGroup = {
+  key: string;
+  label: string;
+  icon: React.ReactNode;
+  defaultPage?: PageKey;
+  children: NavChild[];
+};
+
+const navGroups: NavGroup[] = [
+  {
+    key: 'workspace',
+    label: 'Área de Trabalho',
+    icon: <Home size={22} />,
+    defaultPage: 'dashboard',
+    children: [{ key: 'dashboard', label: 'Visão geral' }],
+  },
+  {
+    key: 'cadastros',
+    label: 'Cadastros',
+    icon: <BookOpen size={22} />,
+    defaultPage: 'base',
+    children: [
+      { key: 'base', label: 'Base', icon: <BookOpen size={18} /> },
+      { key: 'cad-campos', label: 'Campos', icon: <SlidersHorizontal size={18} /> },
+      { key: 'cad-formularios', label: 'Formulários', icon: <LayoutTemplate size={18} /> },
+      { key: 'cad-unidades', label: 'Unidades', icon: <Building2 size={18} /> },
+      { key: 'cad-usuarios', label: 'Usuários', icon: <Users size={18} /> },
+    ],
+  },
+  {
+    key: 'central-atendimento',
+    label: 'Central de Atendimento',
+    icon: <Headphones size={22} />,
+    defaultPage: 'alertas',
+    children: [
+      { key: 'alertas', label: 'Alertas', icon: <ShieldAlert size={18} /> },
+      { key: 'atendimento', label: 'Atendimentos', icon: <Headphones size={18} /> },
+      { key: 'atendimento-servicos', label: 'Serviços', icon: <Workflow size={18} /> },
+    ],
+  },
+  {
+    key: 'roadmap',
+    label: 'Roadmap',
+    icon: <ChartNoAxesCombined size={22} />,
+    defaultPage: 'analise',
+    children: [{ key: 'analise', label: 'Tarefas', icon: <ClipboardList size={18} /> }],
+  },
+  {
+    key: 'parametrizacao',
+    label: 'Parametrização',
+    icon: <Cog size={22} />,
+    defaultPage: 'param-admin',
+    children: [
+      { key: 'param-admin', label: 'Administração', icon: <Cog size={18} /> },
+      { key: 'param-agentes', label: 'Agentes', icon: <UserCog size={18} /> },
+      { key: 'param-integracoes', label: 'Integrações', icon: <Plug size={18} /> },
+      { key: 'param-preferencias', label: 'Preferências', icon: <SlidersHorizontal size={18} /> },
+      { key: 'param-seguranca', label: 'Segurança', icon: <ShieldAlert size={18} /> },
+    ],
+  },
+  {
+    key: 'relatorios',
+    label: 'Relatórios',
+    icon: <FileBarChart2 size={22} />,
+    defaultPage: 'rel-alertas',
+    children: [
+      { key: 'rel-alertas', label: 'Alertas', icon: <ShieldAlert size={18} /> },
+      { key: 'rel-atendimentos', label: 'Atendimentos', icon: <Headphones size={18} /> },
+      { key: 'rel-auditoria', label: 'Auditoria', icon: <ListChecks size={18} /> },
+      { key: 'rel-conhecimentos', label: 'Conhecimentos', icon: <BookOpen size={18} /> },
+      { key: 'rel-integracoes', label: 'Integrações', icon: <Plug size={18} /> },
+      { key: 'rel-tarefas', label: 'Tarefas', icon: <ClipboardList size={18} /> },
+    ],
+  },
 ];
+
+function getActiveGroupKey(activePage: PageKey) {
+  return navGroups.find((group) => group.children.some((child) => child.key === activePage))?.key || 'workspace';
+}
 
 export function Layout({ activePage, onNavigate, children, rightPanel }: { activePage: PageKey; onNavigate: (page: PageKey) => void; children: React.ReactNode; rightPanel?: React.ReactNode }) {
   const [prefs, setPrefs] = useState(() => loadWorkspacePreferences());
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => window.localStorage.getItem('radar-sus-sidebar-collapsed') === 'true');
+  const [isSidebarHovered, setIsSidebarHovered] = useState(false);
   const [panelSize, setPanelSize] = useState(() => window.localStorage.getItem('radar-sus-right-panel-size') || 'medium');
   const [panelWidth, setPanelWidth] = useState(() => Number(window.localStorage.getItem('radar-sus-right-panel-width') || 0));
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() => {
+    const activeGroup = getActiveGroupKey(activePage);
+    return { [activeGroup]: true };
+  });
   const isResizing = useRef(false);
+
+  const isSidebarExpanded = !isSidebarCollapsed || isSidebarHovered;
+  const activeGroupKey = useMemo(() => getActiveGroupKey(activePage), [activePage]);
+
+  useEffect(() => {
+    setOpenGroups((current) => ({ ...current, [activeGroupKey]: true }));
+  }, [activeGroupKey]);
 
   useEffect(() => {
     const refresh = () => setPrefs(loadWorkspacePreferences());
@@ -52,36 +166,112 @@ export function Layout({ activePage, onNavigate, children, rightPanel }: { activ
       window.removeEventListener('mouseup', handleMouseUp);
     };
   }, []);
+
+  const toggleSidebarPinned = () => {
+    const next = !isSidebarCollapsed;
+    setIsSidebarCollapsed(next);
+    setIsSidebarHovered(false);
+    window.localStorage.setItem('radar-sus-sidebar-collapsed', String(next));
+  };
+
   return (
-    <div className={`app-shell ${isSidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
-      <aside className="sidebar">
+    <div className={`app-shell ${isSidebarCollapsed ? 'sidebar-collapsed' : ''} ${isSidebarExpanded ? 'sidebar-expanded' : ''}`}>
+      <aside
+        className="sidebar"
+        onMouseEnter={() => {
+          if (isSidebarCollapsed) setIsSidebarHovered(true);
+        }}
+        onMouseLeave={() => {
+          if (isSidebarCollapsed) setIsSidebarHovered(false);
+        }}
+      >
         <div className="brand">
-          <Menu size={22} />
-          <span>Radar <strong>SUS</strong></span>
+          <div className="brand-left">
+            <Menu size={23} />
+            <span>Radar <strong>SUS</strong></span>
+          </div>
           <div className="radar-mark" />
         </div>
-        <nav>
-          {navItems.map((item) => (
-            <button key={item.key} className={activePage === item.key ? 'active' : ''} onClick={() => onNavigate(item.key)}>
-              {item.icon}<span>{item.label}</span>
-            </button>
-          ))}
+
+        <nav className="sidebar-nav">
+          {navGroups.map((group) => {
+            const isActiveGroup = activeGroupKey === group.key;
+            const isOpen = isSidebarExpanded && (openGroups[group.key] || isActiveGroup);
+            const singleChild = group.children.length === 1;
+
+            if (singleChild) {
+              const onlyChild = group.children[0];
+
+              return (
+                <button
+                  key={group.key}
+                  className={`nav-group-button ${activePage === onlyChild.key ? 'active' : ''}`}
+                  onClick={() => onNavigate(onlyChild.key)}
+                  title={group.label}
+                >
+                  {group.icon}
+                  <span>{group.label}</span>
+                </button>
+              );
+            }
+
+            return (
+              <div key={group.key} className={`nav-group ${isOpen ? 'open' : ''} ${isActiveGroup ? 'active-group' : ''}`}>
+                <button
+                  type="button"
+                  className={`nav-group-button ${isActiveGroup ? 'active' : ''}`}
+                  onClick={() => {
+                    if (!isSidebarExpanded && group.defaultPage) {
+                      onNavigate(group.defaultPage);
+                      return;
+                    }
+
+                    setOpenGroups((current) => ({
+                      ...current,
+                      [group.key]: !isOpen,
+                    }));
+                  }}
+                  title={group.label}
+                >
+                  {group.icon}
+                  <span>{group.label}</span>
+                  <ChevronDown size={17} className="nav-group-chevron" />
+                </button>
+
+                {isOpen && (
+                  <div className="nav-submenu">
+                    {group.children.map((child) => (
+                      <button
+                        key={child.key}
+                        type="button"
+                        className={activePage === child.key ? 'active' : ''}
+                        onClick={() => onNavigate(child.key)}
+                      >
+                        {child.icon}
+                        <span>{child.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </nav>
-        <button
-          className="collapse-btn icon-only"
-          title={isSidebarCollapsed ? 'Expandir menu' : 'Recolher menu'}
-          onClick={() => {
-            const next = !isSidebarCollapsed;
-            setIsSidebarCollapsed(next);
-            window.localStorage.setItem('radar-sus-sidebar-collapsed', String(next));
-          }}
-        >
-          {isSidebarCollapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
-        </button>
       </aside>
+
       <main className="workspace">
         <header className="topbar">
-          <div className="search-box"><Search size={18} /><input placeholder="Buscar por documentos, alertas, atendimentos, alertas, conhecimentos ou tarefas..." /><kbd>⌘ K</kbd></div>
+          <div className="topbar-left-tools">
+            <button
+              className="topbar-tool-btn"
+              title={isSidebarCollapsed ? 'Fixar menu aberto' : 'Recolher menu'}
+              onClick={toggleSidebarPinned}
+            >
+              {isSidebarCollapsed ? <PanelLeftOpen size={20} /> : <PanelLeftClose size={20} />}
+            </button>
+          </div>
+
+          <div className="search-box"><Search size={18} /><input placeholder="Buscar por atendimentos, alertas, conhecimentos ou tarefas..." /><kbd>⌘ K</kbd></div>
           <div className="topbar-actions">
             <button className="environment"><span /> Ambiente: <strong>Produção</strong></button>
             <button className="icon-btn"><Bell size={19} /><em>12</em></button>
@@ -89,6 +279,7 @@ export function Layout({ activePage, onNavigate, children, rightPanel }: { activ
             <div className="user-area"><div className="avatar">{prefs.userPhotoUrl ? <img src={prefs.userPhotoUrl} alt={prefs.userName} /> : <UserRound size={18} />}</div><div><strong>{prefs.userName}</strong><small>{prefs.userEmail || 'Administrador'}</small></div></div>
           </div>
         </header>
+
         <div className={`content-grid ${rightPanel ? `panel-${panelSize}` : 'panel-hidden'}`} style={rightPanel && panelWidth ? ({ '--right-panel-width': `${panelWidth}px` } as React.CSSProperties) : undefined}>
           <section className="page-content">{children}</section>
           {rightPanel && (

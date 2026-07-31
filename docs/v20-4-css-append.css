@@ -1,0 +1,61 @@
+
+/* v20.4 - Menu limpo, nomes simples e scrollbar suave */
+
+.sidebar-nav {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(185, 255, 240, .34) rgba(0, 63, 42, .18);
+}
+
+.sidebar-nav::-webkit-scrollbar {
+  width: 6px;
+}
+
+.sidebar-nav::-webkit-scrollbar-track {
+  background: rgba(0, 63, 42, .18);
+  border-radius: 999px;
+}
+
+.sidebar-nav::-webkit-scrollbar-thumb {
+  background: rgba(185, 255, 240, .34);
+  border-radius: 999px;
+}
+
+.sidebar-nav::-webkit-scrollbar-thumb:hover {
+  background: rgba(185, 255, 240, .54);
+}
+
+.topbar-left-tools {
+  padding-right: 10px;
+  margin-right: 2px;
+}
+
+.topbar-left-tools .topbar-tool-btn:not(:first-child) {
+  display: none !important;
+}
+
+.nav-submenu {
+  padding-left: 46px !important;
+}
+
+.nav-submenu button {
+  min-height: 38px !important;
+  padding-top: 8px !important;
+  padding-bottom: 8px !important;
+}
+
+.nav-submenu button span {
+  white-space: normal;
+}
+
+.nav-group-button span,
+.nav-submenu button span {
+  letter-spacing: -0.02em;
+}
+
+.sidebar-collapsed:not(.sidebar-expanded) .sidebar-nav {
+  scrollbar-width: none;
+}
+
+.sidebar-collapsed:not(.sidebar-expanded) .sidebar-nav::-webkit-scrollbar {
+  display: none;
+}

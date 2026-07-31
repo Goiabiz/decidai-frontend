@@ -1,22 +1,22 @@
 ﻿import { LayoutGrid, Columns3, Filter, PanelRight, X, Save, RotateCcw } from 'lucide-react';
 import type { PageKey } from '../App';
 
-const labels: Record<PageKey, string> = {
+const labels: Partial<Record<PageKey, string>> = {
   dashboard: 'Dashboard',
   alertas: 'Alertas Inteligentes',
   analise: 'AnÃ¡lise e AÃ§Ãµes',
   base: 'Base de Conhecimento',
   atendimento: 'Central de Atendimento',
-  config: 'ParametrizaÃ§Ã£o'
+  'param-admin': 'ParametrizaÃ§Ã£o'
 };
 
-const moduleOptions: Record<PageKey, string[]> = {
+const moduleOptions: Partial<Record<PageKey, string[]>> = {
   dashboard: ['Cards executivos', 'EvoluÃ§Ã£o de alertas', 'Resumo do dia', 'Impactos recentes'],
   alertas: ['KPIs de alertas', 'Lista de alertas', 'Filtros por criticidade', 'Painel de detalhe'],
   analise: ['Fila de pendÃªncias', 'HistÃ³rico de decisÃ£o', 'ResponsÃ¡vel', 'Prazo e validaÃ§Ã£o'],
   base: ['Documentos', 'Fontes', 'Curadoria', 'Tags e trechos indexados'],
   atendimento: ['Atendimentos', 'Tickets', 'IntegraÃ§Ãµes', 'SLA e canal'],
-  config: ['Clientes', 'IntegraÃ§Ãµes', 'UsuÃ¡rios', 'AparÃªncia e permissÃµes']
+  'param-admin': ['Clientes', 'IntegraÃ§Ãµes', 'UsuÃ¡rios', 'AparÃªncia e permissÃµes']
 };
 
 export function WorkspaceCustomizeModal({
@@ -107,4 +107,5 @@ export function WorkspaceCustomizeModal({
     </div>
   );
 }
+
 

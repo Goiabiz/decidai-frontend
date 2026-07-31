@@ -1,0 +1,80 @@
+
+/* v20 - Submenus e telas por funcionalidade */
+
+.sidebar-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+.nav-group {
+  display: grid;
+  gap: 4px;
+}
+
+.nav-group-button {
+  width: 100%;
+  position: relative;
+}
+
+.nav-group-button .nav-group-chevron {
+  margin-left: auto;
+  transition: transform .16s ease;
+  opacity: .76;
+}
+
+.nav-group.open .nav-group-chevron {
+  transform: rotate(180deg);
+}
+
+.nav-submenu {
+  display: grid;
+  gap: 3px;
+  padding: 2px 0 8px 36px;
+}
+
+.nav-submenu button {
+  min-height: 34px;
+  padding: 8px 10px !important;
+  border-radius: 10px !important;
+  gap: 8px !important;
+  font-size: 13px;
+  opacity: .92;
+}
+
+.nav-submenu button svg {
+  flex: 0 0 auto;
+  opacity: .86;
+}
+
+.nav-group.active-group > .nav-group-button {
+  background: rgba(255,255,255,.08);
+}
+
+.sidebar-collapsed .nav-group-chevron,
+.sidebar-collapsed .nav-submenu {
+  display: none !important;
+}
+
+.sidebar-collapsed .nav-group-button {
+  justify-content: center;
+}
+
+.sidebar-collapsed .nav-group-button span {
+  display: none;
+}
+
+.sidebar-collapsed .sidebar-nav {
+  align-items: stretch;
+}
+
+.integrations-page {
+  display: grid;
+  gap: 14px;
+}
+
+.workspace-settings-panel {
+  margin-top: 18px;
+}

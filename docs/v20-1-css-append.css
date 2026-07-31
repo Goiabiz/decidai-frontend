@@ -1,0 +1,89 @@
+
+/* v20.1 - Menu recolhivel com hover e fixacao */
+
+.sidebar {
+  transition: width .18s ease, box-shadow .18s ease;
+}
+
+.brand {
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.brand-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.sidebar-pin-btn {
+  width: 38px;
+  height: 38px;
+  border-radius: 13px;
+  border: 1px solid rgba(255,255,255,.16);
+  background: rgba(255,255,255,.08);
+  color: #d9fff4;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: background .16s ease, transform .16s ease, border-color .16s ease;
+}
+
+.sidebar-pin-btn:hover {
+  background: rgba(0,210,160,.22);
+  border-color: rgba(185,255,240,.38);
+  transform: translateY(-1px);
+}
+
+.sidebar-collapsed .sidebar {
+  width: 84px;
+  z-index: 30;
+}
+
+.sidebar-collapsed.sidebar-expanded .sidebar {
+  width: 280px;
+  box-shadow: 24px 0 60px rgba(0, 18, 12, .22);
+}
+
+.sidebar-collapsed:not(.sidebar-expanded) .brand {
+  justify-content: center;
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.sidebar-collapsed:not(.sidebar-expanded) .brand-left span,
+.sidebar-collapsed:not(.sidebar-expanded) .radar-mark,
+.sidebar-collapsed:not(.sidebar-expanded) .nav-group-button span,
+.sidebar-collapsed:not(.sidebar-expanded) .nav-group-chevron,
+.sidebar-collapsed:not(.sidebar-expanded) .nav-submenu {
+  display: none !important;
+}
+
+.sidebar-collapsed:not(.sidebar-expanded) .brand-left {
+  display: none;
+}
+
+.sidebar-collapsed:not(.sidebar-expanded) .sidebar-pin-btn {
+  width: 44px;
+  height: 44px;
+}
+
+.sidebar-collapsed:not(.sidebar-expanded) .nav-group-button {
+  justify-content: center;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+}
+
+.sidebar-collapsed.sidebar-expanded .nav-group-button span,
+.sidebar-collapsed.sidebar-expanded .brand-left span {
+  display: inline;
+}
+
+.sidebar-collapsed.sidebar-expanded .nav-submenu {
+  display: grid;
+}
+
+.collapse-btn {
+  display: none !important;
+}
