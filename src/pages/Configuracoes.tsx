@@ -1,3 +1,4 @@
+import { Integracoes } from './Integracoes';
 import { useEffect, useMemo, useState } from 'react';
 import { Maximize2 } from 'lucide-react';
 import { PageHeader } from '../components/PageHeader';
@@ -174,40 +175,9 @@ export function Configuracoes({ onSelectDetail, onOpenDetail }: PageProps) {
           </table>
         </section>
 
-        <section className="card">
-          <div className="section-title-row"><h3>Integrações</h3><span className="small-muted">{filteredIntegracoes.length} registros</span></div>
-          <table>
-            <thead><tr><th>Integração</th><th>Provedor</th><th>Cliente</th><th>Status</th><th>Ações</th></tr></thead>
-            <tbody>
-              {filteredIntegracoes.map((integracao) => {
-                const detail = {
-                  title: integracao.nome,
-                  subtitle: integracao.provedor,
-                  badge: integracao.status,
-                  badgeTone: integracao.status,
-                  description: 'Integração selecionada para revisão de acesso, autenticação e status.',
-                  meta: [
-                    { label: 'Provedor', value: integracao.provedor },
-                    { label: 'Cliente', value: integracao.cliente },
-                    { label: 'Autenticação', value: integracao.autenticacao },
-                    { label: 'Atualizado em', value: formatDate(integracao.atualizadoEm) }
-                  ],
-                  actions: ['Editar integração', 'Testar conexão', 'Desativar']
-                };
-                return (
-                  <tr className="clickable-row" key={`${integracao.nome}-${integracao.provedor}-${integracao.cliente}`} onClick={() => selectDetail(detail)}>
-                    <td><strong>{integracao.nome}</strong><div className="table-subtitle">{integracao.autenticacao}</div></td>
-                    <td>{integracao.provedor}</td>
-                    <td>{integracao.cliente}</td>
-                    <td><Badge tone={integracao.status.toLowerCase().includes('ativo') ? 'green' : 'orange'}>{integracao.status}</Badge></td>
-                    <td><InlineRowActions detail={detail} status={integracao.status} prioridade="Média" responsavel="Bruno Oliveira" onOpenDetail={onOpenDetail} /></td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </section>
       </div>
+
+      <Integracoes />
 
       <div className="card config-users-card">
         <div className="section-title-row"><h3>Usuários</h3><span className="small-muted">{filteredUsuarios.length} registros</span></div>
