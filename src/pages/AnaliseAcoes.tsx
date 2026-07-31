@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ClipboardList, PlusCircle } from 'lucide-react';
+import { PlusCircle } from 'lucide-react';
 import { PageHeader } from '../components/PageHeader';
 import { KpiCard } from '../components/KpiCard';
 import { CollapsibleKpiSection } from '../components/CollapsibleKpiSection';
@@ -139,6 +139,10 @@ export function AnaliseAcoes({ onSelectDetail, onOpenDetail }: PageProps) {
       <SmartFilters search={search} onSearch={setSearch} status={status} onStatus={setStatus} prioridade={prioridade} onPrioridade={setPrioridade} responsavel={responsavel} onResponsavel={setResponsavel} placeholder="Buscar tarefa, origem, responsável ou prazo..." />
 
       <div className="card">
+        <div className="section-title-row roadmap-list-title">
+          <h3>Tarefas registradas</h3>
+          <span className="small-muted">{filtered.length} registros</span>
+        </div>
         <table>
           <thead><tr><th>Descrição da tarefa</th><th>Origem</th><th>Status</th><th>Prioridade</th><th>Responsável</th><th>Prazo</th><th>Ações</th></tr></thead>
           <tbody>
@@ -146,7 +150,7 @@ export function AnaliseAcoes({ onSelectDetail, onOpenDetail }: PageProps) {
               const detail = buildDetail(tarefa);
               return (
                 <tr className="clickable-row" key={tarefa.id} onClick={() => onSelectDetail?.(detail)}>
-                  <td><span className="row-title-with-edit"><strong>{tarefa.descricao}</strong><button className="row-hover-edit" title="Editar tarefa">✎</button></span><small>{tarefa.id}</small></td>
+                  <td><strong>{tarefa.descricao}</strong><small>{tarefa.id}</small></td>
                   <td><Badge tone="blue">{tarefa.origem}</Badge><small>{tarefa.origemRegistro}</small></td>
                   <td><Badge tone={tarefa.status === 'Concluído' ? 'green' : tarefa.status === 'Aguardando validação' ? 'orange' : 'blue'}>{tarefa.status}</Badge></td>
                   <td><Badge tone={tarefa.prioridade.toLowerCase()}>{tarefa.prioridade}</Badge></td>

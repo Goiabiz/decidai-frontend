@@ -3840,3 +3840,236 @@ td small {
   color: var(--slate-500);
   font-size: 12px;
 }
+
+
+
+/* v19.2 - Roadmap alinhado ao padrão das listas */
+.roadmap-list-title {
+  margin-bottom: 12px;
+}
+
+.roadmap-list-title h3 {
+  margin: 0;
+
+/* Integrações */
+
+.integrations-page .kpi-grid {
+  margin-top: 14px;
+}
+
+.integration-section {
+  margin-top: 18px;
+  background: var(--surface, #fff);
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 18px;
+  padding: 18px;
+}
+
+.section-title-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.section-title-row h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.section-title-row p {
+  margin: 4px 0 0;
+  color: var(--muted-foreground, #64748b);
+  font-size: 13px;
+}
+
+.records-count {
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 999px;
+  color: var(--muted-foreground, #64748b);
+  font-size: 12px;
+  padding: 6px 10px;
+  white-space: nowrap;
+}
+
+.integrations-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(310px, 1fr));
+  gap: 14px;
+}
+
+.integration-card {
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 16px;
+  padding: 16px;
+  background: var(--card, #fff);
+  min-height: 218px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.integration-card-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.integration-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  border: 1px solid var(--border, #e5e7eb);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--muted, #f8fafc);
+}
+
+.integration-title-block {
+  flex: 1;
+  min-width: 0;
+}
+
+.integration-title-block h3 {
+  margin: 0 0 6px;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.integration-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border-radius: 999px;
+  font-size: 11px;
+  padding: 4px 8px;
+  border: 1px solid var(--border, #e5e7eb);
+}
+
+.integration-status.connected {
+  background: #ecfdf5;
+  color: #047857;
+  border-color: #a7f3d0;
+}
+
+.integration-status.idle {
+  background: #f8fafc;
+  color: #475569;
+}
+
+.integration-status.planned {
+  background: #fff7ed;
+  color: #c2410c;
+  border-color: #fed7aa;
+}
+
+.integration-status.warning {
+  background: #fffbeb;
+  color: #b45309;
+  border-color: #fde68a;
+}
+
+.integration-status.error {
+  background: #fef2f2;
+  color: #b91c1c;
+  border-color: #fecaca;
+}
+
+.integration-status.disabled {
+  background: #f1f5f9;
+  color: #64748b;
+}
+
+.integration-description {
+  color: var(--muted-foreground, #64748b);
+  font-size: 13px;
+  line-height: 1.45;
+  margin: 0;
+  flex: 1;
+}
+
+.integration-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  color: var(--muted-foreground, #64748b);
+  font-size: 12px;
+}
+
+.integration-meta span {
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 999px;
+  padding: 4px 8px;
+}
+
+.integration-error {
+  border: 1px solid #fecaca;
+  background: #fef2f2;
+  color: #991b1b;
+  border-radius: 10px;
+  padding: 8px 10px;
+  font-size: 12px;
+}
+
+.integration-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: auto;
+}
+
+.integration-action-notice {
+  margin-top: 14px;
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 14px;
+  padding: 14px;
+  background: var(--muted, #f8fafc);
+}
+
+.integration-action-notice p {
+  margin: 6px 0 10px;
+  color: var(--muted-foreground, #64748b);
+  font-size: 13px;
+}
+
+.secondary-button,
+.ghost-button,
+.icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border-radius: 10px;
+  border: 1px solid var(--border, #e5e7eb);
+  min-height: 34px;
+  padding: 0 10px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.secondary-button {
+  background: var(--foreground, #0f172a);
+  color: var(--background, #fff);
+  border-color: var(--foreground, #0f172a);
+}
+
+.ghost-button,
+.icon-button.ghost {
+  background: transparent;
+  color: var(--foreground, #0f172a);
+}
+
+.secondary-button:disabled,
+.ghost-button:disabled {
+  opacity: .45;
+  cursor: not-allowed;
+}
+
+.icon-button {
+  width: 34px;
+  padding: 0;
+}
+}

@@ -1,8 +1,8 @@
-import { universoSupabase, pocSupabase } from '../lib/supabase';
+﻿import { universoSupabase, pocSupabase } from '../lib/supabase';
 import { acoes, alertas, atendimentos, clientes, documentos, impactos, kpis } from '../data/mock';
 
 function getPocClient() {
-  if (!pocSupabase) throw new Error('Supabase POC não configurado');
+  if (!pocSupabase) throw new Error('Supabase POC nÃ£o configurado');
   return pocSupabase;
 }
 
@@ -55,7 +55,7 @@ async function tryQuery<T>(query: () => Promise<{ data: T | null; error: { messa
 
 export async function fetchDashboard() {
   if (!supabaseUniverso) {
-    return { data: kpis, source: 'mock' as DataSource, error: 'Supabase não configurado' };
+    return { data: kpis, source: 'mock' as DataSource, error: 'Supabase nÃ£o configurado' };
   }
 
   return tryQuery(async () => {
@@ -64,9 +64,9 @@ export async function fetchDashboard() {
     const mapped = data
       ? [
           { label: 'Documentos monitorados', value: String(data.total_documentos ?? 0), trend: 'base atual', tone: 'green' },
-          { label: 'Alertas críticos', value: String(data.alertas_pendentes_revisao ?? 0), trend: 'pendentes', tone: 'red' },
+          { label: 'Alertas crÃ­ticos', value: String(data.alertas_pendentes_revisao ?? 0), trend: 'pendentes', tone: 'red' },
           { label: 'Impactos identificados', value: String(data.total_impactos_produto ?? 0), trend: 'mapeados', tone: 'blue' },
-          { label: 'Ações pendentes', value: String(data.total_decisoes_po ?? 0), trend: 'decisões', tone: 'orange' },
+          { label: 'AÃ§Ãµes pendentes', value: String(data.total_decisoes_po ?? 0), trend: 'decisÃµes', tone: 'orange' },
           { label: 'Trechos indexados', value: String(data.total_trechos ?? 0), trend: 'base IA', tone: 'cyan' }
         ]
       : null;
@@ -77,7 +77,7 @@ export async function fetchDashboard() {
 
 export async function fetchAlertas() {
   if (!supabaseUniverso) {
-    return { data: alertas, source: 'mock' as DataSource, error: 'Supabase não configurado' };
+    return { data: alertas, source: 'mock' as DataSource, error: 'Supabase nÃ£o configurado' };
   }
 
   return tryQuery(async () => {
@@ -88,9 +88,9 @@ export async function fetchAlertas() {
       .limit(20);
 
     const mapped = data?.map((item) => ({
-      criticidade: safeText(item.criticidade_validada, item.criticidade_sugerida, 'Médio'),
+      criticidade: safeText(item.criticidade_validada, item.criticidade_sugerida, 'MÃ©dio'),
       titulo: safeText(item.titulo_alerta, item.resumo),
-      fonte: safeText(item.documento_titulo, 'Fonte não informada'),
+      fonte: safeText(item.documento_titulo, 'Fonte nÃ£o informada'),
       data: formatDateTime(item.criado_em),
       modulo: safeText(item.modulo_validado, item.modulo_sugerido),
       funcionalidade: safeText(item.funcionalidade_validada, item.funcionalidade_sugerida),
@@ -103,7 +103,7 @@ export async function fetchAlertas() {
 
 export async function fetchDocumentos() {
   if (!supabaseUniverso) {
-    return { data: documentos, source: 'mock' as DataSource, error: 'Supabase não configurado' };
+    return { data: documentos, source: 'mock' as DataSource, error: 'Supabase nÃ£o configurado' };
   }
 
   return tryQuery(async () => {
@@ -128,7 +128,7 @@ export async function fetchDocumentos() {
 
 export async function fetchImpactos() {
   if (!supabaseUniverso) {
-    return { data: impactos, source: 'mock' as DataSource, error: 'Supabase não configurado' };
+    return { data: impactos, source: 'mock' as DataSource, error: 'Supabase nÃ£o configurado' };
   }
 
   return tryQuery(async () => {
@@ -142,9 +142,9 @@ export async function fetchImpactos() {
       modulo: safeText(item.modulo_nome),
       funcionalidade: safeText(item.funcionalidade_nome),
       origem: safeText(item.tipo_impacto_nome, item.tipo_impacto, 'Impacto identificado'),
-      criticidade: safeText(item.nivel_impacto, item.prioridade_produto, 'Médio'),
+      criticidade: safeText(item.nivel_impacto, item.prioridade_produto, 'MÃ©dio'),
       cliente: safeText(item.impacto_cliente, item.serie_titulo, 'Produto'),
-      status: safeText(item.status_acao_nome, item.status_acao_codigo, 'Em análise')
+      status: safeText(item.status_acao_nome, item.status_acao_codigo, 'Em anÃ¡lise')
     }));
 
     return { data: mapped, error };
@@ -153,7 +153,7 @@ export async function fetchImpactos() {
 
 export async function fetchAcoes() {
   if (!supabaseUniverso) {
-    return { data: acoes, source: 'mock' as DataSource, error: 'Supabase não configurado' };
+    return { data: acoes, source: 'mock' as DataSource, error: 'Supabase nÃ£o configurado' };
   }
 
   return tryQuery(async () => {
@@ -164,9 +164,9 @@ export async function fetchAcoes() {
       .limit(20);
 
     const mapped = data?.map((item) => ({
-      origem: safeText(item.titulo_alerta, item.documento_titulo, 'Análise'),
+      origem: safeText(item.titulo_alerta, item.documento_titulo, 'AnÃ¡lise'),
       resumo: safeText(item.titulo_decisao, item.resumo_decisao, item.acao_recomendada),
-      criticidade: item.requer_requisito ? 'Alta' : 'Média',
+      criticidade: item.requer_requisito ? 'Alta' : 'MÃ©dia',
       responsavel: safeText(item.decidido_por_nome, 'Equipe PO'),
       prazo: item.decidido_em ? formatDateTime(item.decidido_em).slice(0, 10) : '-',
       status: safeText(item.status_nome, item.status_codigo)
@@ -178,7 +178,7 @@ export async function fetchAcoes() {
 
 export async function fetchAtendimentos() {
   if (!supabasePoc) {
-    return { data: atendimentos, source: 'mock' as DataSource, error: 'Supabase POC não configurado' };
+    return { data: atendimentos, source: 'mock' as DataSource, error: 'Supabase POC nÃ£o configurado' };
   }
 
   return tryQuery(async () => {
@@ -192,20 +192,20 @@ export async function fetchAtendimentos() {
       canal: safeText(item.canal_origem),
       cliente: safeText(item.organizacao_atendida_nome, item.cliente_contratante_nome),
       assunto: safeText(item.titulo, item.intencao_detectada, item.titulo_ticket),
-      prioridade: safeText(item.prioridade, 'Média'),
-      responsavel: safeText(item.responsavel_nome, 'Não atribuído'),
+      prioridade: safeText(item.prioridade, 'MÃ©dia'),
+      responsavel: safeText(item.responsavel_nome, 'NÃ£o atribuÃ­do'),
       ultimaInteracao: item.atualizado_em ?? item.iniciado_em ?? '-',
       ticket: safeText(item.ticket_externo_codigo, item.ticket_externo_url, ''),
       status: safeText(item.status)
     }));
 
     return { data: mapped, error };
-  }, atendimentos);
+  }, atendimentos as any) as any;
 }
 
 export async function fetchClientes() {
   if (!supabasePoc) {
-    return { data: clientes, source: 'mock' as DataSource, error: 'Supabase POC não configurado' };
+    return { data: clientes, source: 'mock' as DataSource, error: 'Supabase POC nÃ£o configurado' };
   }
 
   return tryQuery(async () => {
@@ -218,7 +218,7 @@ export async function fetchClientes() {
     const mapped = data?.map((item) => ({
       cliente: safeText(item.nome_fantasia),
       plano: safeText(item.tipo_cliente, 'Contratante'),
-      ambiente: 'Produção',
+      ambiente: 'ProduÃ§Ã£o',
       status: safeText(item.status),
       integracoes: 0,
       atualizado: formatDateTime(item.atualizado_em)
@@ -259,10 +259,10 @@ export type UsuarioConfig = {
 const fallbackClientesConfig: ClienteConfig[] = [
   {
     nome: 'Prefeitura Demonstrativa',
-    tipo: 'Município',
+    tipo: 'MunicÃ­pio',
     status: 'ativo',
-    plano: 'Padrão',
-    ambiente: 'Produção',
+    plano: 'PadrÃ£o',
+    ambiente: 'ProduÃ§Ã£o',
     integracoes: '3',
     atualizadoEm: '2026-07-19',
   },
@@ -292,7 +292,7 @@ const fallbackUsuariosConfig: UsuarioConfig[] = [
 
 export async function fetchClientesConfig(): Promise<QueryResult<ClienteConfig[]>> {
   if (!supabasePoc) {
-    return { data: fallbackClientesConfig, source: 'mock', error: 'Supabase POC não configurado' };
+    return { data: fallbackClientesConfig, source: 'mock', error: 'Supabase POC nÃ£o configurado' };
   }
 
   return tryQuery(async () => {
@@ -305,8 +305,8 @@ export async function fetchClientesConfig(): Promise<QueryResult<ClienteConfig[]
       nome: item.nome ?? '-',
       tipo: item.tipo ?? '-',
       status: item.status ?? '-',
-      plano: item.plano ?? 'Padrão',
-      ambiente: item.ambiente ?? 'Produção',
+      plano: item.plano ?? 'PadrÃ£o',
+      ambiente: item.ambiente ?? 'ProduÃ§Ã£o',
       integracoes: String(item.integracoes ?? '0'),
       atualizadoEm: item.atualizado_em ?? '-',
     }));
@@ -317,7 +317,7 @@ export async function fetchClientesConfig(): Promise<QueryResult<ClienteConfig[]
 
 export async function fetchIntegracoesConfig(): Promise<QueryResult<IntegracaoConfig[]>> {
   if (!supabasePoc) {
-    return { data: fallbackIntegracoesConfig, source: 'mock', error: 'Supabase POC não configurado' };
+    return { data: fallbackIntegracoesConfig, source: 'mock', error: 'Supabase POC nÃ£o configurado' };
   }
 
   return tryQuery(async () => {
@@ -330,7 +330,7 @@ export async function fetchIntegracoesConfig(): Promise<QueryResult<IntegracaoCo
       nome: item.nome ?? '-',
       provedor: item.provedor ?? '-',
       status: item.status ?? '-',
-      autenticacao: item.autenticacao ?? 'não informada',
+      autenticacao: item.autenticacao ?? 'nÃ£o informada',
       cliente: item.cliente ?? 'Geral',
       atualizadoEm: item.atualizado_em ?? '-',
     }));
@@ -341,7 +341,7 @@ export async function fetchIntegracoesConfig(): Promise<QueryResult<IntegracaoCo
 
 export async function fetchUsuariosConfig(): Promise<QueryResult<UsuarioConfig[]>> {
   if (!supabasePoc) {
-    return { data: fallbackUsuariosConfig, source: 'mock', error: 'Supabase POC não configurado' };
+    return { data: fallbackUsuariosConfig, source: 'mock', error: 'Supabase POC nÃ£o configurado' };
   }
 
   return tryQuery(async () => {
@@ -362,3 +362,5 @@ export async function fetchUsuariosConfig(): Promise<QueryResult<UsuarioConfig[]
     return { data: mapped, error };
   }, fallbackUsuariosConfig);
 }
+
+
