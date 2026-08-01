@@ -1,0 +1,61 @@
+
+/* v23.2 - Fix menu hover/fixo e telefone usuario */
+
+.sidebar-collapsed.sidebar-expanded .nav-submenu,
+.sidebar-expanded .nav-submenu {
+  display: grid !important;
+  padding-left: 46px !important;
+}
+
+.sidebar-collapsed.sidebar-expanded .nav-submenu button,
+.sidebar-expanded .nav-submenu button {
+  justify-content: flex-start !important;
+  padding-left: 10px !important;
+  padding-right: 10px !important;
+  gap: 10px !important;
+}
+
+.sidebar-collapsed.sidebar-expanded .nav-submenu button span,
+.sidebar-expanded .nav-submenu button span,
+.sidebar-collapsed.sidebar-expanded .nav-group-button span,
+.sidebar-expanded .nav-group-button span,
+.sidebar-collapsed.sidebar-expanded .brand-left span,
+.sidebar-expanded .brand-left span {
+  display: inline !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+.sidebar-collapsed.sidebar-expanded .nav-submenu button svg,
+.sidebar-expanded .nav-submenu button svg {
+  margin: 0 !important;
+}
+
+.sidebar-collapsed.sidebar-expanded .nav-group-chevron,
+.sidebar-expanded .nav-group-chevron {
+  display: inline-flex !important;
+  opacity: .9 !important;
+  visibility: visible !important;
+}
+
+.sidebar-collapsed:not(.sidebar-expanded) .nav-submenu {
+  display: none !important;
+}
+
+.sidebar-collapsed:not(.sidebar-expanded) .nav-group-button span,
+.sidebar-collapsed:not(.sidebar-expanded) .brand-left span {
+  display: none !important;
+}
+
+.phone-card-row {
+  grid-template-columns: 44px 130px 260px minmax(0, 1fr) 42px !important;
+}
+
+.phone-card-row select.country-code {
+  min-width: 260px !important;
+}
+
+.phone-type-icon svg {
+  width: 19px !important;
+  height: 19px !important;
+}

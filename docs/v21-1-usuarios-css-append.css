@@ -1,0 +1,239 @@
+
+/* v21.1 - Cadastros > Usuarios sem indicadores */
+
+.header-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.header-actions button,
+.primary-small {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.user-functional-card {
+  margin-top: 4px;
+}
+
+.user-functional-card .section-title-row p {
+  margin: 5px 0 0;
+}
+
+.smart-filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: #fff;
+  border: 1px solid var(--slate-200);
+  border-radius: 16px;
+  padding: 12px;
+  margin-bottom: 18px;
+}
+
+.users-filter-bar {
+  margin-top: 16px;
+}
+
+.smart-search {
+  min-width: 260px;
+  flex: 1;
+  height: 44px;
+  border: 1px solid var(--slate-200);
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 12px;
+  color: var(--slate-500);
+}
+
+.smart-search input {
+  width: 100%;
+  border: 0;
+  outline: 0;
+  color: var(--slate-700);
+}
+
+.smart-filter-bar select {
+  height: 44px;
+  min-width: 170px;
+  border: 1px solid var(--slate-200);
+  border-radius: 12px;
+  padding: 0 12px;
+  background: #fff;
+  color: var(--slate-700);
+  font-weight: 700;
+}
+
+.users-layout-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 360px;
+  gap: 18px;
+}
+
+.users-table-wrap {
+  min-width: 0;
+  overflow-x: auto;
+}
+
+.user-detail-inline {
+  align-self: start;
+  border: 1px solid var(--slate-200);
+  border-radius: 16px;
+  padding: 16px;
+  background: #fbfcff;
+}
+
+.security-flags,
+.row-action-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.security-flags span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.security-flags .ok {
+  color: var(--green-700);
+}
+
+.security-flags .warn {
+  color: var(--orange-500);
+}
+
+.security-flags .muted {
+  color: var(--slate-500);
+}
+
+.row-action-group button {
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--slate-200);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--slate-700);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+
+.row-action-group button:hover {
+  color: var(--green-700);
+  background: #f2fbf7;
+  border-color: rgba(0, 120, 77, .22);
+}
+
+.user-profile-box {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px;
+  border: 1px solid var(--slate-200);
+  border-radius: 16px;
+  background: #fff;
+  margin-bottom: 16px;
+}
+
+.user-profile-box strong,
+.user-profile-box span {
+  display: block;
+}
+
+.user-profile-box span {
+  color: var(--slate-500);
+  font-size: 13px;
+  margin-top: 4px;
+}
+
+.user-avatar-large {
+  width: 54px;
+  height: 54px;
+  border-radius: 16px;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(135deg, var(--green-700), var(--blue-700));
+  color: #fff;
+  font-weight: 900;
+}
+
+.detail-grid.compact {
+  grid-template-columns: 110px 1fr;
+  margin-bottom: 16px;
+}
+
+.user-actions {
+  margin-top: 14px;
+}
+
+.user-form-modal {
+  width: min(880px, calc(100vw - 64px));
+  max-height: calc(100vh - 64px);
+  overflow: auto;
+  background: #fff;
+  border-radius: 24px;
+  box-shadow: 0 28px 90px rgba(0, 48, 38, .24);
+  border: 1px solid rgba(0, 90, 64, .14);
+}
+
+.user-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  padding: 22px 26px;
+}
+
+.user-form-grid label {
+  display: grid;
+  gap: 7px;
+  color: var(--slate-700);
+  font-weight: 800;
+  font-size: 13px;
+}
+
+.user-form-grid input,
+.user-form-grid select {
+  height: 44px;
+  border: 1px solid var(--slate-200);
+  border-radius: 12px;
+  padding: 0 12px;
+  color: var(--slate-700);
+  background: #fff;
+}
+
+.user-form-grid .inline-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.user-form-grid .inline-check input {
+  width: 18px;
+  height: 18px;
+}
+
+@media (max-width: 1280px) {
+  .users-layout-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 760px) {
+  .smart-filter-bar,
+  .header-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .user-form-grid {
+    grid-template-columns: 1fr;
+  }
+}

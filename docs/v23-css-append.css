@@ -1,0 +1,62 @@
+/* v23 - Refino Cadastros Usuarios e Unidades */
+
+.topbar-left-tools .topbar-tool-btn:not(:first-child) {
+  display: none !important;
+}
+
+.sidebar-collapsed.sidebar-expanded .nav-submenu,
+.sidebar-expanded .nav-submenu {
+  display: grid !important;
+}
+
+.sidebar-collapsed.sidebar-expanded .nav-group-button span,
+.sidebar-collapsed.sidebar-expanded .brand-left span,
+.sidebar-expanded .nav-group-button span,
+.sidebar-expanded .brand-left span {
+  display: inline !important;
+}
+
+.sidebar-collapsed.sidebar-expanded .nav-group-chevron,
+.sidebar-expanded .nav-group-chevron {
+  display: inline-flex !important;
+}
+
+.city-filter {
+  display: none !important;
+}
+
+.units-filter-bar {
+  grid-template-columns: minmax(0, 1fr) 190px 190px !important;
+}
+
+.phone-card-row {
+  grid-template-columns: 44px 128px 230px minmax(0, 1fr) 42px !important;
+}
+
+.phone-type-icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.phone-card-row .country-code {
+  font-weight: 900 !important;
+}
+
+.small-action-modal-body p {
+  color: var(--slate-600);
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.action-options-grid button:hover {
+  color: var(--green-700);
+  background: #f2fbf7;
+  border-color: rgba(0, 120, 77, .22);
+}
+
+@media (max-width: 760px) {
+  .units-filter-bar,
+  .phone-card-row {
+    grid-template-columns: 1fr !important;
+  }
+}

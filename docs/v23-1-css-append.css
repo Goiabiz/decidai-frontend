@@ -1,0 +1,43 @@
+
+/* v23.1 - Refino seguro Cadastros */
+
+.topbar-left-tools .topbar-tool-btn:not(:first-child) {
+  display: none !important;
+}
+
+.sidebar-collapsed.sidebar-expanded .nav-submenu,
+.sidebar-expanded .nav-submenu {
+  display: grid !important;
+}
+
+.sidebar-collapsed.sidebar-expanded .nav-group-button span,
+.sidebar-collapsed.sidebar-expanded .brand-left span,
+.sidebar-expanded .nav-group-button span,
+.sidebar-expanded .brand-left span {
+  display: inline !important;
+}
+
+.sidebar-collapsed.sidebar-expanded .nav-group-chevron,
+.sidebar-expanded .nav-group-chevron {
+  display: inline-flex !important;
+}
+
+.unit-form-section h3 {
+  letter-spacing: -0.02em;
+}
+
+.units-filter-bar {
+  grid-template-columns: minmax(0, 1fr) 190px 190px !important;
+}
+
+.small-action-modal-body p {
+  color: var(--slate-600);
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.action-options-grid button:hover {
+  color: var(--green-700);
+  background: #f2fbf7;
+  border-color: rgba(0, 120, 77, .22);
+}
