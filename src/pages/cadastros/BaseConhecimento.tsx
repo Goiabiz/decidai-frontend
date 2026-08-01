@@ -19,9 +19,9 @@ import {
   Trash2,
   X,
 } from 'lucide-react';
-import { Badge } from '../components/Badge';
-import { PageHeader } from '../components/PageHeader';
-import { normalizeFilterText } from '../components/SmartFilters';
+import { Badge } from '../../components/Badge';
+import { PageHeader } from '../../components/PageHeader';
+import { normalizeFilterText } from '../../components/SmartFilters';
 
 type KnowledgeState = 'Ativo' | 'Arquivado';
 

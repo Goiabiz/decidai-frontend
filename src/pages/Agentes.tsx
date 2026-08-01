@@ -18,10 +18,10 @@ import {
   Trash2,
   X,
 } from 'lucide-react';
-import { PageHeader } from '../../components/PageHeader';
-import { Badge } from '../../components/Badge';
-import { normalizeFilterText } from '../../components/SmartFilters';
-import { showAppToast } from '../../lib/appToast';
+import { PageHeader } from '../components/PageHeader';
+import { Badge } from '../components/Badge';
+import { normalizeFilterText } from '../components/SmartFilters';
+import { showAppToast } from '../lib/appToast';
 
 type AgentStatus = 'Ativo' | 'Pausado' | 'Em configuração';
 type AutonomyLevel = 'Responde e orienta' | 'Sugere ações' | 'Cria rascunhos' | 'Executa ações permitidas' | 'Executa com aprovação';

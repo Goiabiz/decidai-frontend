@@ -1,0 +1,104 @@
+
+/* v25.4 - Ajustes builder abas e remover campo */
+
+.jira-like-builder.v25-4 .cadastro-modal-header {
+  min-height: 64px;
+}
+
+.only-preview {
+  justify-content: flex-end !important;
+  min-height: 56px;
+}
+
+.only-preview > div,
+.only-preview span,
+.only-preview strong {
+  display: none !important;
+}
+
+.v25-4-tabs {
+  min-height: 52px;
+  padding: 8px 10px !important;
+  gap: 10px !important;
+  border-radius: 16px !important;
+}
+
+.v25-4-tabs button {
+  min-height: 38px !important;
+  min-width: 140px !important;
+  padding: 7px 12px !important;
+  border-radius: 12px !important;
+  display: grid !important;
+  place-items: center !important;
+}
+
+.v25-4-tabs button.active {
+  background: #e9fbf3 !important;
+  color: var(--green-700) !important;
+  box-shadow: inset 0 -3px 0 var(--green-700);
+}
+
+.v25-4-tabs input {
+  width: 126px !important;
+  height: 26px !important;
+  text-align: center;
+  cursor: text;
+}
+
+.v25-4-tabs .tab-plus-button {
+  min-width: 42px !important;
+  width: 42px !important;
+  font-size: 20px;
+  font-weight: 950;
+}
+
+.v25-4-sidebar {
+  gap: 12px;
+}
+
+.v25-4-sidebar .field-sidebar-section {
+  min-height: 100%;
+}
+
+.v25-4-sidebar .jira-field-list {
+  max-height: calc(100vh - 370px);
+}
+
+.trash-drop-zone {
+  display: none !important;
+}
+
+.danger-inline-btn {
+  height: 36px;
+  border: 1px solid rgba(239,68,68,.28);
+  border-radius: 10px;
+  background: #fff7f7;
+  color: #dc2626;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.inline-field-config {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.inline-field-config .danger-inline-btn {
+  grid-column: 1 / -1;
+}
+
+.jira-mini-main,
+.jira-mini-context {
+  transition: border-color .15s ease, background .15s ease;
+}
+
+.jira-mini-main:hover,
+.jira-mini-context:hover {
+  border-color: rgba(0, 120, 77, .34);
+  background: #fcfffe;
+}
+
+@media (max-width: 1280px) {
+  .inline-field-config {
+    grid-template-columns: 1fr;
+  }
+}

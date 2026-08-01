@@ -1,0 +1,206 @@
+
+/* v25.5 - Telas com secoes, contexto global e acoes funcionais */
+
+.v25-5 .cadastro-modal-header {
+  min-height: 64px;
+}
+
+.v25-5-tabs {
+  min-height: 58px;
+  padding: 8px 10px !important;
+  gap: 10px !important;
+  border-radius: 16px !important;
+}
+
+.v25-5-tabs button {
+  min-height: 40px !important;
+  min-width: 140px !important;
+  padding: 7px 12px !important;
+  border-radius: 12px !important;
+  display: grid !important;
+  place-items: center !important;
+}
+
+.v25-5-tabs button.active {
+  background: #e9fbf3 !important;
+  color: var(--green-700) !important;
+  box-shadow: inset 0 -3px 0 var(--green-700);
+}
+
+.v25-5-tabs input {
+  width: 126px !important;
+  height: 28px !important;
+  text-align: center;
+  cursor: text;
+}
+
+.v25-5-tabs .tab-plus-button {
+  min-width: 42px !important;
+  width: 42px !important;
+  font-size: 20px;
+  font-weight: 950;
+}
+
+.tab-toolbar-inline {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.tab-toolbar-inline label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--slate-500);
+  font-weight: 900;
+}
+
+.tab-toolbar-inline select {
+  height: 38px;
+  border: 1px solid var(--slate-200);
+  border-radius: 10px;
+  padding: 0 10px;
+  background: #fff;
+  color: var(--slate-700);
+  font-weight: 800;
+}
+
+.v25-5-sidebar .field-sidebar-help,
+.no-origin em {
+  display: none !important;
+}
+
+.no-origin button {
+  grid-template-areas: "icon name type" !important;
+  grid-template-rows: 1fr !important;
+  min-height: 50px !important;
+}
+
+.sectioned-builder {
+  display: grid;
+  gap: 18px;
+  align-content: start;
+}
+
+.screen-section-block {
+  border: 2px dashed rgba(0, 120, 77, .18);
+  border-radius: 20px;
+  background: #fff;
+  padding: 16px;
+  min-height: 210px;
+  display: grid;
+  gap: 14px;
+  align-content: start;
+}
+
+.screen-section-block:hover {
+  border-color: rgba(0, 120, 77, .34);
+  background: #fcfffe;
+}
+
+.screen-section-header {
+  display: grid;
+  grid-template-columns: 22px minmax(180px, 1fr) 140px;
+  align-items: center;
+  gap: 10px;
+  color: var(--green-700);
+  font-weight: 950;
+}
+
+.screen-section-header input {
+  height: 38px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--green-700);
+  font-weight: 950;
+  padding: 0 8px;
+  outline: 0;
+}
+
+.screen-section-header input:focus {
+  border-color: rgba(0,120,77,.26);
+  background: #fff;
+}
+
+.screen-section-header select {
+  height: 38px;
+  border: 1px solid var(--slate-200);
+  border-radius: 10px;
+  padding: 0 8px;
+  background: #fff;
+  color: var(--slate-700);
+  font-weight: 800;
+}
+
+.screen-section-header.preview-only {
+  grid-template-columns: 22px 1fr;
+}
+
+.jira-mini-main.sectioned-builder {
+  border: 0 !important;
+  padding: 0 !important;
+  background: transparent !important;
+}
+
+.screen-section-block.columns-1 .mini-field-grid {
+  grid-template-columns: 1fr;
+}
+
+.screen-section-block.columns-2 .mini-field-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.screen-section-block.columns-3 .mini-field-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.global-context {
+  position: sticky;
+  top: 0;
+  align-self: start;
+}
+
+.global-context > p {
+  margin: -4px 0 12px;
+  color: var(--slate-500);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.inline-field-config {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.inline-field-config .danger-inline-btn {
+  grid-column: 1 / -1;
+}
+
+.danger-inline-btn {
+  height: 36px;
+  border: 1px solid rgba(239,68,68,.28);
+  border-radius: 10px;
+  background: #fff7f7;
+  color: #dc2626;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+@media (max-width: 1280px) {
+  .tab-toolbar-inline {
+    margin-left: 0;
+    width: 100%;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .screen-section-header,
+  .inline-field-config {
+    grid-template-columns: 1fr;
+  }
+
+  .global-context {
+    position: static;
+  }
+}

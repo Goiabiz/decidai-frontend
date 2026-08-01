@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Layout } from './components/Layout';
 import { RightPanel, type PanelDetail } from './components/RightPanel';
 import { DetailModal } from './components/DetailModal';
@@ -10,6 +10,7 @@ import { CentralAtendimento } from './pages/CentralAtendimento';
 import { Configuracoes } from './pages/Configuracoes';
 import { Integracoes } from './pages/Integracoes';
 import { Agentes } from './pages/parametrizacao/Agentes';
+import { Canais } from './pages/parametrizacao/Canais';
 import { CamposContexto } from './pages/cadastros/CamposContexto';
 import { FormulariosTelas } from './pages/cadastros/FormulariosTelas';
 import { Preferencias } from './pages/parametrizacao/Preferencias';
@@ -39,6 +40,7 @@ export type PageKey =
   | 'param-admin'
   | 'param-integracoes'
   | 'param-agentes'
+  | 'param-canais'
   | 'param-preferencias'
   | 'param-seguranca'
   | 'rel-conhecimentos'
@@ -62,6 +64,7 @@ const rightPanelByPage: Record<PageKey, React.ComponentProps<typeof RightPanel>[
   'param-admin': 'config',
   'param-integracoes': 'config',
   'param-agentes': 'config',
+  'param-canais': 'config',
   'param-preferencias': 'config',
   'param-seguranca': 'config',
   'rel-conhecimentos': 'documento',
@@ -117,6 +120,7 @@ export function App() {
     'param-admin': <Configuracoes onSelectDetail={handleSelectDetail} onOpenDetail={setExpandedDetail} />,
     'param-integracoes': <Integracoes />,
     'param-agentes': <Agentes />,
+    'param-canais': <Canais />,
     'param-preferencias': <Preferencias />,
     'param-seguranca': <SegurancaAuditoria />,
 
@@ -139,4 +143,6 @@ export function App() {
     </Layout>
   );
 }
+
+
 

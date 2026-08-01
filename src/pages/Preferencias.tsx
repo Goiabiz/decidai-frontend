@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Image, Monitor, Moon, Save, Sun } from 'lucide-react';
-import { PageHeader } from '../../components/PageHeader';
-import { getBrandingConfig, saveBrandingConfig } from '../../lib/branding';
+import { PageHeader } from '../components/PageHeader';
+import { getBrandingConfig, saveBrandingConfig } from '../lib/branding';
 
 type ThemeMode = 'system' | 'light' | 'dark';
 

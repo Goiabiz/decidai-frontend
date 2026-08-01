@@ -1,4 +1,4 @@
-﻿import { useState } from 'react';
+import { useState } from 'react';
 import {
   AlertTriangle,
   Bot,
@@ -64,8 +64,8 @@ const origemIcon = {
   Telefone: Phone
 } satisfies Record<OrigemTipo, typeof MessageCircle>;
 
-const statusOptions = ['Novo', 'Em andamento', 'Aguardando resposta', 'ConcluÃ­do', 'Cancelado'];
-const prioridadeOptions = ['Baixa', 'MÃ©dia', 'Alta', 'CrÃ­tica'];
+const statusOptions = ['Novo', 'Em andamento', 'Aguardando resposta', 'Concluído', 'Cancelado'];
+const prioridadeOptions = ['Baixa', 'Média', 'Alta', 'Crítica'];
 const responsaveis = ['Moises Mattos', 'Bruno Oliveira', 'Juliana Costa', 'Mariana Lima'];
 
 const atendimentoSeed: AtendimentoChat[] = [
@@ -74,12 +74,12 @@ const atendimentoSeed: AtendimentoChat[] = [
     canal: 'Portal',
     origem: 'Liliane Maria Bolla Polonio',
     cliente: 'Barra Bonita - Conectasus',
-    assunto: 'Consulta nÃ£o encontrada no histÃ³rico',
-    resumo: 'Paciente passou por consulta e nÃ£o aparece no histÃ³rico do atendimento mÃ©dico.',
+    assunto: 'Consulta não encontrada no histórico',
+    resumo: 'Paciente passou por consulta e não aparece no histórico do atendimento médico.',
     prioridade: 'Alta',
     status: 'Em andamento',
     responsavel: 'Moises Mattos',
-    fila: 'Atendimento NÃ­vel 1',
+    fila: 'Atendimento Nível 1',
     recebidoEm: '20/07/2026 03:10',
     ultimaInteracao: 'Hoje 15:12',
     naoLidas: 2,
@@ -90,26 +90,26 @@ const atendimentoSeed: AtendimentoChat[] = [
     origemDados: [
       { label: 'Canal', value: 'Portal' },
       { label: 'Solicitante', value: 'Liliane Maria Bolla Polonio' },
-      { label: 'OrganizaÃ§Ã£o', value: 'Barra Bonita - Conectasus' },
+      { label: 'Organização', value: 'Barra Bonita - Conectasus' },
       { label: 'Sistema', value: 'Conectasus - 2.0' },
-      { label: 'VersÃ£o afetada', value: '2.58.6' },
-      { label: 'MÃ³dulo', value: 'AmbulatÃ³rio' },
-      { label: 'Funcionalidade', value: 'HistÃ³rico de Atendimento' }
+      { label: 'Versão afetada', value: '2.58.6' },
+      { label: 'Módulo', value: 'Ambulatório' },
+      { label: 'Funcionalidade', value: 'Histórico de Atendimento' }
     ],
     mensagens: [
-      { tipo: 'entrada', autor: 'Liliane Maria Bolla Polonio', texto: 'O paciente passou por consulta em 22/06/26, no PAS Vila Habitacional e nÃ£o aparece no HistÃ³rico do Atendimento mÃ©dico.', data: '20/07/2026 03:10' },
-      { tipo: 'entrada', autor: 'Liliane Maria Bolla Polonio', texto: 'O mÃ©dico precisa consultar o histÃ³rico do paciente. Unidade: PAS Vila Habitacional. Paciente: Leonardo Meschiato. Profissional: Dr. Renan.', data: '20/07/2026 03:11' },
-      { tipo: 'sistema', autor: 'Sistema', texto: 'SolicitaÃ§Ã£o registrada pelo Portal e classificada para Atendimento NÃ­vel 1.', data: '20/07/2026 03:12' },
-      { tipo: 'interno', autor: 'Moises Mattos', texto: 'Validar se existe vÃ­nculo com agenda, atendimento mÃ©dico e histÃ³rico antes de encaminhar para desenvolvimento.', data: 'Hoje 15:12' }
+      { tipo: 'entrada', autor: 'Liliane Maria Bolla Polonio', texto: 'O paciente passou por consulta em 22/06/26, no PAS Vila Habitacional e não aparece no Histórico do Atendimento médico.', data: '20/07/2026 03:10' },
+      { tipo: 'entrada', autor: 'Liliane Maria Bolla Polonio', texto: 'O médico precisa consultar o histórico do paciente. Unidade: PAS Vila Habitacional. Paciente: Leonardo Meschiato. Profissional: Dr. Renan.', data: '20/07/2026 03:11' },
+      { tipo: 'sistema', autor: 'Sistema', texto: 'Solicitação registrada pelo Portal e classificada para Atendimento Nível 1.', data: '20/07/2026 03:12' },
+      { tipo: 'interno', autor: 'Moises Mattos', texto: 'Validar se existe vínculo com agenda, atendimento médico e histórico antes de encaminhar para desenvolvimento.', data: 'Hoje 15:12' }
     ]
   },
   {
     id: 'EMAIL-2026-0719',
     canal: 'E-mail',
     origem: 'financeiro@prefeitura.gov.br',
-    cliente: 'Prefeitura de MairiporÃ£',
-    assunto: 'Erro na geraÃ§Ã£o do BPA competÃªncia 07/2026',
-    resumo: 'E-mail recebido com relato de inconsistÃªncia na geraÃ§Ã£o do arquivo BPA.',
+    cliente: 'Prefeitura de Mairiporã',
+    assunto: 'Erro na geração do BPA competência 07/2026',
+    resumo: 'E-mail recebido com relato de inconsistência na geração do arquivo BPA.',
     prioridade: 'Alta',
     status: 'Novo',
     responsavel: 'Bruno Oliveira',
@@ -128,26 +128,26 @@ const atendimentoSeed: AtendimentoChat[] = [
       { label: 'Thread ID', value: 'thread-20260719-001' },
       { label: 'Message ID', value: 'msg-48922' },
       { label: 'Anexos', value: 2 },
-      { label: 'Cliente', value: 'Prefeitura de MairiporÃ£' }
+      { label: 'Cliente', value: 'Prefeitura de Mairiporã' }
     ],
     mensagens: [
-      { tipo: 'entrada', autor: 'financeiro@prefeitura.gov.br', texto: 'Estamos com erro na geraÃ§Ã£o do BPA da competÃªncia 07/2026. Seguem prints e arquivo TXT para anÃ¡lise.', data: 'Hoje 09:18' },
-      { tipo: 'sistema', autor: 'Sistema', texto: 'E-mail capturado pela integraÃ§Ã£o e associado ao cliente Prefeitura de MairiporÃ£.', data: 'Hoje 09:19' }
+      { tipo: 'entrada', autor: 'financeiro@prefeitura.gov.br', texto: 'Estamos com erro na geração do BPA da competência 07/2026. Seguem prints e arquivo TXT para análise.', data: 'Hoje 09:18' },
+      { tipo: 'sistema', autor: 'Sistema', texto: 'E-mail capturado pela integração e associado ao cliente Prefeitura de Mairiporã.', data: 'Hoje 09:19' }
     ]
   },
   {
     id: 'WPP-8831',
     canal: 'WhatsApp',
     origem: 'Maria Silva',
-    cliente: 'Prefeitura de MairiporÃ£',
-    assunto: 'DÃºvida sobre confirmaÃ§Ã£o de vaga',
-    resumo: 'UsuÃ¡ria questiona regra de confirmaÃ§Ã£o e perda de vaga.',
-    prioridade: 'MÃ©dia',
+    cliente: 'Prefeitura de Mairiporã',
+    assunto: 'Dúvida sobre confirmação de vaga',
+    resumo: 'Usuária questiona regra de confirmação e perda de vaga.',
+    prioridade: 'Média',
     status: 'Aguardando resposta',
     responsavel: 'Juliana Costa',
-    fila: 'Atendimento CidadÃ£o',
+    fila: 'Atendimento Cidadão',
     recebidoEm: 'Hoje 10:42',
-    ultimaInteracao: 'HÃ¡ 12 min',
+    ultimaInteracao: 'Há 12 min',
     naoLidas: 3,
     slaResposta: 'Aguardando retorno',
     slaResolucao: 'Hoje 18:00',
@@ -157,45 +157,45 @@ const atendimentoSeed: AtendimentoChat[] = [
       { label: 'Canal', value: 'WhatsApp' },
       { label: 'Contato', value: 'Maria Silva' },
       { label: 'Telefone', value: '(11) 99999-9999' },
-      { label: 'NÃºmero conectado', value: 'Atendimento SaÃºde' },
-      { label: 'Cliente', value: 'Prefeitura de MairiporÃ£' },
+      { label: 'Número conectado', value: 'Atendimento Saúde' },
+      { label: 'Cliente', value: 'Prefeitura de Mairiporã' },
       { label: 'Opt-in', value: 'Registrado' }
     ],
     mensagens: [
-      { tipo: 'entrada', autor: 'Maria Silva', texto: 'NÃ£o consigo confirmar minha vaga pelo aplicativo.', data: 'Hoje 10:42' },
-      { tipo: 'saida', autor: 'Atendente', texto: 'Pode me informar seu CPF ou CNS para localizarmos a solicitaÃ§Ã£o?', data: 'Hoje 10:44' },
-      { tipo: 'entrada', autor: 'Maria Silva', texto: 'Enviei no atendimento anterior, mas nÃ£o recebi retorno.', data: 'HÃ¡ 12 min' }
+      { tipo: 'entrada', autor: 'Maria Silva', texto: 'Não consigo confirmar minha vaga pelo aplicativo.', data: 'Hoje 10:42' },
+      { tipo: 'saida', autor: 'Atendente', texto: 'Pode me informar seu CPF ou CNS para localizarmos a solicitação?', data: 'Hoje 10:44' },
+      { tipo: 'entrada', autor: 'Maria Silva', texto: 'Enviei no atendimento anterior, mas não recebi retorno.', data: 'Há 12 min' }
     ]
   },
   {
     id: 'API-7710',
     canal: 'API',
-    origem: 'IntegraÃ§Ã£o Cliente X',
+    origem: 'Integração Cliente X',
     cliente: 'Cliente X',
     assunto: 'Falha recorrente na consulta de procedimento',
-    resumo: 'Evento automÃ¡tico recebido por API com repetiÃ§Ã£o acima do limite configurado.',
-    prioridade: 'CrÃ­tica',
+    resumo: 'Evento automático recebido por API com repetição acima do limite configurado.',
+    prioridade: 'Crítica',
     status: 'Em andamento',
     responsavel: 'Mariana Lima',
-    fila: 'IntegraÃ§Ãµes',
+    fila: 'Integrações',
     recebidoEm: 'Hoje 08:55',
     ultimaInteracao: 'Hoje 09:05',
     naoLidas: 0,
-    slaResposta: 'NÃ£o aplicÃ¡vel',
+    slaResposta: 'Não aplicável',
     slaResolucao: 'Hoje 16:55',
     anexos: 1,
     vinculados: 4,
     origemDados: [
       { label: 'Canal', value: 'API' },
-      { label: 'Sistema de origem', value: 'IntegraÃ§Ã£o Cliente X' },
+      { label: 'Sistema de origem', value: 'Integração Cliente X' },
       { label: 'Evento', value: 'Falha recorrente' },
       { label: 'Identificador externo', value: 'evt-000123' },
       { label: 'Capturado em', value: 'Hoje 08:55' },
-      { label: 'Payload', value: 'Resumo disponÃ­vel' }
+      { label: 'Payload', value: 'Resumo disponível' }
     ],
     mensagens: [
-      { tipo: 'sistema', autor: 'API', texto: 'Evento capturado: falha recorrente na consulta de procedimento. OcorrÃªncias: 18 em 30 minutos.', data: 'Hoje 08:55' },
-      { tipo: 'interno', autor: 'Mariana Lima', texto: 'Gerar aÃ§Ã£o para avaliaÃ§Ã£o da integraÃ§Ã£o e comunicaÃ§Ã£o da equipe.', data: 'Hoje 09:05' }
+      { tipo: 'sistema', autor: 'API', texto: 'Evento capturado: falha recorrente na consulta de procedimento. Ocorrências: 18 em 30 minutos.', data: 'Hoje 08:55' },
+      { tipo: 'interno', autor: 'Mariana Lima', texto: 'Gerar ação para avaliação da integração e comunicação da equipe.', data: 'Hoje 09:05' }
     ]
   }
 ];
@@ -204,16 +204,16 @@ const actionTypes = [
   'Gerar tarefa',
   'Gerar alerta',
   'Cadastrar conhecimento',
-  'Criar solicitaÃ§Ã£o',
+  'Criar solicitação',
   'Analisar impacto',
-  'Registrar orientaÃ§Ã£o',
+  'Registrar orientação',
   'Acionar agente'
 ];
 
 const normalize = (value: string) => value.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 
 export function CentralAtendimento({ onOpenDetail }: PageProps) {
-  const result = useAsyncData(fetchAtendimentos as any, mockAtendimentos as any);
+  const result = useAsyncData(fetchAtendimentos, mockAtendimentos);
   const [search, setSearch] = useState('');
   const [activeId, setActiveId] = useState(atendimentoSeed[0].id);
   const [activeTab, setActiveTab] = useState<'conversa' | 'anexos'>('conversa');
@@ -233,27 +233,27 @@ export function CentralAtendimento({ onOpenDetail }: PageProps) {
   const active = filtered.find((item) => item.id === activeId) ?? filtered[0] ?? atendimentoSeed.find((item) => item.id === activeId) ?? atendimentoSeed[0];
   const Icon = origemIcon[active.canal];
 
-  const abertas = atendimentoSeed.filter((item) => !['ConcluÃ­do', 'Cancelado'].includes(item.status)).length;
+  const abertas = atendimentoSeed.filter((item) => !['Concluído', 'Cancelado'].includes(item.status)).length;
   const novas = atendimentoSeed.filter((item) => item.status === 'Novo').length;
   const aguardando = atendimentoSeed.filter((item) => item.status === 'Aguardando resposta').length;
   const andamento = atendimentoSeed.filter((item) => item.status === 'Em andamento').length;
-  const concluidas = atendimentoSeed.filter((item) => item.status === 'ConcluÃ­do').length;
+  const concluidas = atendimentoSeed.filter((item) => item.status === 'Concluído').length;
 
   const openModal = () => {
     onOpenDetail?.({
       title: active.assunto,
-      subtitle: `${active.id} Â· ${active.cliente}`,
+      subtitle: `${active.id} · ${active.cliente}`,
       badge: active.status,
       badgeTone: active.prioridade,
       description: active.resumo,
       meta: [
         { label: 'Canal', value: active.canal },
         { label: 'Origem', value: active.origem },
-        { label: 'ResponsÃ¡vel', value: active.responsavel },
+        { label: 'Responsável', value: active.responsavel },
         { label: 'Fila', value: active.fila },
-        { label: 'SLA resoluÃ§Ã£o', value: active.slaResolucao }
+        { label: 'SLA resolução', value: active.slaResolucao }
       ],
-      actions: ['Responder', 'Gerar aÃ§Ã£o', 'Acionar agente']
+      actions: ['Responder', 'Gerar ação', 'Acionar agente']
     });
   };
 
@@ -295,11 +295,11 @@ export function CentralAtendimento({ onOpenDetail }: PageProps) {
 
       <CollapsibleKpiSection>
         <div className="kpi-grid five service-kpis">
-          <KpiCard label="Conversas abertas" value={abertas} tone="green" tooltip="Atendimentos ainda nÃ£o concluÃ­dos ou cancelados." />
+          <KpiCard label="Conversas abertas" value={abertas} tone="green" tooltip="Atendimentos ainda não concluídos ou cancelados." />
           <KpiCard label="Novos atendimentos" value={novas} tone="blue" tooltip="Demandas recebidas recentemente e ainda sem tratamento." />
           <KpiCard label="Aguardando resposta" value={aguardando} tone="orange" tooltip="Atendimentos que dependem de retorno da equipe ou do solicitante." />
-          <KpiCard label="Em andamento" value={andamento} tone="cyan" tooltip="Atendimentos que jÃ¡ estÃ£o sendo tratados." />
-          <KpiCard label="ConcluÃ­das hoje" value={concluidas} tone="green" tooltip="Atendimentos finalizados no dia." />
+          <KpiCard label="Em andamento" value={andamento} tone="cyan" tooltip="Atendimentos que já estão sendo tratados." />
+          <KpiCard label="Concluídas hoje" value={concluidas} tone="green" tooltip="Atendimentos finalizados no dia." />
         </div>
       </CollapsibleKpiSection>
 
@@ -316,7 +316,7 @@ export function CentralAtendimento({ onOpenDetail }: PageProps) {
             <button className={inboxStatus === 'Novo' ? 'active' : ''} onClick={() => setInboxStatus('Novo')}>Novos</button>
             <button className={inboxStatus === 'Em andamento' ? 'active' : ''} onClick={() => setInboxStatus('Em andamento')}>Em andamento</button>
           </div>
-          <p className="service-operational-note">ConcluÃ­dos e cancelados ficam para relatÃ³rios e consultas.</p>
+          <p className="service-operational-note">Concluídos e cancelados ficam para relatórios e consultas.</p>
           <div className="service-list">
             {filtered.map((item) => {
               const ItemIcon = origemIcon[item.canal];
@@ -325,7 +325,7 @@ export function CentralAtendimento({ onOpenDetail }: PageProps) {
                   <span className="channel-avatar"><ItemIcon size={17} /></span>
                   <span className="service-list-main">
                     <strong>{item.origem}</strong>
-                    <em>{item.canal} Â· {item.cliente}</em>
+                    <em>{item.canal} · {item.cliente}</em>
                     <small>{item.resumo}</small>
                   </span>
                   <span className="service-list-side">
@@ -343,7 +343,7 @@ export function CentralAtendimento({ onOpenDetail }: PageProps) {
             <div>
               <span className="ticket-code">{active.id}</span>
               <h2>{active.assunto}</h2>
-              <p><Icon size={15} /> {active.canal} Â· {active.origem} Â· {active.cliente}</p>
+              <p><Icon size={15} /> {active.canal} · {active.origem} · {active.cliente}</p>
             </div>
             <div className="service-ticket-actions">
               <Badge tone={active.prioridade.toLowerCase()}>Prioridade {active.prioridade}</Badge>
@@ -364,15 +364,15 @@ export function CentralAtendimento({ onOpenDetail }: PageProps) {
 
           <div className="service-composer">
             <div className="composer-tabs">
-              <button className="active">{active.canal === 'API' ? 'Registrar anÃ¡lise' : active.canal === 'E-mail' ? 'Responder e-mail' : active.canal === 'WhatsApp' ? 'Responder WhatsApp' : 'Responder'}</button>
-              <button>ObservaÃ§Ã£o interna</button>
+              <button className="active">{active.canal === 'API' ? 'Registrar análise' : active.canal === 'E-mail' ? 'Responder e-mail' : active.canal === 'WhatsApp' ? 'Responder WhatsApp' : 'Responder'}</button>
+              <button>Observação interna</button>
             </div>
             <div className="composer-box">
-              <textarea placeholder={active.canal === 'API' ? 'Registre a anÃ¡lise do evento automÃ¡tico...' : 'Escreva uma resposta ou orientaÃ§Ã£o...'} />
+              <textarea placeholder={active.canal === 'API' ? 'Registre a análise do evento automático...' : 'Escreva uma resposta ou orientação...'} />
               <div>
                 <button><Paperclip size={16} /> Anexar</button>
                 <button><Bot size={16} /> Acionar agente</button>
-                <button onClick={() => setIsActionModalOpen(true)}><PlusCircle size={16} /> Gerar aÃ§Ã£o</button>
+                <button onClick={() => setIsActionModalOpen(true)}><PlusCircle size={16} /> Gerar ação</button>
                 <button className="primary"><Send size={16} /> Enviar</button>
               </div>
             </div>
@@ -384,29 +384,29 @@ export function CentralAtendimento({ onOpenDetail }: PageProps) {
             <h3>Resumo</h3>
             <label>Status<select defaultValue={active.status}>{statusOptions.map((option) => <option key={option}>{option}</option>)}</select></label>
             <label>Prioridade do atendimento<select defaultValue={active.prioridade}>{prioridadeOptions.map((option) => <option key={option}>{option}</option>)}</select></label>
-            <label>ResponsÃ¡vel<select defaultValue={active.responsavel}>{responsaveis.map((option) => <option key={option}>{option}</option>)}</select></label>
-            <label>Fila<select defaultValue={active.fila}><option>{active.fila}</option><option>Atendimento NÃ­vel 1</option><option>Suporte Faturamento</option><option>IntegraÃ§Ãµes</option></select></label>
+            <label>Responsável<select defaultValue={active.responsavel}>{responsaveis.map((option) => <option key={option}>{option}</option>)}</select></label>
+            <label>Fila<select defaultValue={active.fila}><option>{active.fila}</option><option>Atendimento Nível 1</option><option>Suporte Faturamento</option><option>Integrações</option></select></label>
           </section>
 
           <section>
             <h3>SLA</h3>
             <div className="sla-row"><Clock3 size={16} /><span>Primeira resposta</span><strong>{active.slaResposta}</strong></div>
-            <div className="sla-row"><Clock3 size={16} /><span>ResoluÃ§Ã£o</span><strong>{active.slaResolucao}</strong></div>
+            <div className="sla-row"><Clock3 size={16} /><span>Resolução</span><strong>{active.slaResolucao}</strong></div>
           </section>
 
           <section>
             <h3>Origem da demanda</h3>
             {active.origemDados.slice(0, 6).map((item) => <div className="context-row" key={item.label}><span>{item.label}</span><strong>{item.value}</strong></div>)}
-            <div className="context-row"><span>AÃ§Ãµes vinculadas</span><strong>{active.vinculados}</strong></div>
+            <div className="context-row"><span>Ações vinculadas</span><strong>{active.vinculados}</strong></div>
           </section>
 
           <section>
-            <h3>AÃ§Ãµes rÃ¡pidas</h3>
+            <h3>Ações rápidas</h3>
             <div className="quick-actions">
-              <button><Send size={16} /> {active.canal === 'API' ? 'Registrar anÃ¡lise' : 'Responder'}</button>
-              <button onClick={() => setIsActionModalOpen(true)}><PlusCircle size={16} /> Gerar aÃ§Ã£o</button>
+              <button><Send size={16} /> {active.canal === 'API' ? 'Registrar análise' : 'Responder'}</button>
+              <button onClick={() => setIsActionModalOpen(true)}><PlusCircle size={16} /> Gerar ação</button>
               <button><Sparkles size={16} /> Acionar agente</button>
-              <button>Transferir responsÃ¡vel</button>
+              <button>Transferir responsável</button>
               <button className="danger">Concluir atendimento</button>
             </div>
           </section>
@@ -418,10 +418,10 @@ export function CentralAtendimento({ onOpenDetail }: PageProps) {
           <div className="action-modal" onClick={(event) => event.stopPropagation()}>
             <div className="action-modal-header">
               <div>
-                <h3>Gerar aÃ§Ã£o</h3>
-                <p>Crie uma aÃ§Ã£o vinculada a este atendimento sem sair da conversa.</p>
+                <h3>Gerar ação</h3>
+                <p>Crie uma ação vinculada a este atendimento sem sair da conversa.</p>
               </div>
-              <button className="row-icon-btn" onClick={() => setIsActionModalOpen(false)}>Ã—</button>
+              <button className="row-icon-btn" onClick={() => setIsActionModalOpen(false)}>×</button>
             </div>
 
             <div className="action-type-grid">
@@ -439,13 +439,13 @@ export function CentralAtendimento({ onOpenDetail }: PageProps) {
             </label>
 
             <div className="action-modal-row">
-              <label>ResponsÃ¡vel<select defaultValue={active.responsavel}>{responsaveis.map((option) => <option key={option}>{option}</option>)}</select></label>
+              <label>Responsável<select defaultValue={active.responsavel}>{responsaveis.map((option) => <option key={option}>{option}</option>)}</select></label>
               <label>Prioridade do atendimento<select defaultValue={active.prioridade}>{prioridadeOptions.map((option) => <option key={option}>{option}</option>)}</select></label>
             </div>
 
             <div className="action-modal-footer">
               <button onClick={() => setIsActionModalOpen(false)}>Cancelar</button>
-              <button className="primary" onClick={() => setIsActionModalOpen(false)}>Gerar aÃ§Ã£o vinculada</button>
+              <button className="primary" onClick={() => setIsActionModalOpen(false)}>Gerar ação vinculada</button>
             </div>
           </div>
         </div>

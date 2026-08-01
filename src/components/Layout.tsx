@@ -56,9 +56,9 @@ const navGroups: NavGroup[] = [
     icon: <BookOpen size={22} />,
     defaultPage: 'base',
     children: [
-      { key: 'base', label: 'Base', icon: <BookOpen size={18} /> },
+      { key: 'base', label: 'Base de Conhecimento', icon: <BookOpen size={18} /> },
       { key: 'cad-campos', label: 'Campos', icon: <SlidersHorizontal size={18} /> },
-      { key: 'cad-formularios', label: 'Formulários', icon: <LayoutTemplate size={18} /> },
+      { key: 'cad-formularios', label: 'Telas', icon: <LayoutTemplate size={18} /> },
       { key: 'cad-unidades', label: 'Unidades', icon: <Building2 size={18} /> },
       { key: 'cad-usuarios', label: 'Usuários', icon: <Users size={18} /> },
     ],
@@ -89,6 +89,7 @@ const navGroups: NavGroup[] = [
     children: [
       { key: 'param-admin', label: 'Administração', icon: <Cog size={18} /> },
       { key: 'param-agentes', label: 'Agentes', icon: <UserCog size={18} /> },
+      { key: 'param-canais', label: 'Canais', icon: <Workflow size={18} /> },
       { key: 'param-integracoes', label: 'Integrações', icon: <Plug size={18} /> },
       { key: 'param-preferencias', label: 'Preferências', icon: <SlidersHorizontal size={18} /> },
       { key: 'param-seguranca', label: 'Segurança', icon: <ShieldAlert size={18} /> },
@@ -125,6 +126,7 @@ export function Layout({ activePage, onNavigate, children, rightPanel }: { activ
     return { [activeGroup]: true };
   });
   const isResizing = useRef(false);
+  const sidebarHoverTimer = useRef<number | null>(null);
 
   const isSidebarExpanded = !isSidebarCollapsed || isSidebarHovered;
   const activeGroupKey = useMemo(() => getActiveGroupKey(activePage), [activePage]);
@@ -170,6 +172,10 @@ export function Layout({ activePage, onNavigate, children, rightPanel }: { activ
   const toggleSidebarPinned = () => {
     const next = !isSidebarCollapsed;
     setIsSidebarCollapsed(next);
+    if (sidebarHoverTimer.current) {
+      window.clearTimeout(sidebarHoverTimer.current);
+      sidebarHoverTimer.current = null;
+    }
     setIsSidebarHovered(false);
     window.localStorage.setItem('radar-sus-sidebar-collapsed', String(next));
   };
@@ -179,9 +185,17 @@ export function Layout({ activePage, onNavigate, children, rightPanel }: { activ
       <aside
         className="sidebar"
         onMouseEnter={() => {
-          if (isSidebarCollapsed) setIsSidebarHovered(true);
+          if (!isSidebarCollapsed) return;
+          if (sidebarHoverTimer.current) window.clearTimeout(sidebarHoverTimer.current);
+          sidebarHoverTimer.current = window.setTimeout(() => {
+            setIsSidebarHovered(true);
+          }, 2000);
         }}
         onMouseLeave={() => {
+          if (sidebarHoverTimer.current) {
+            window.clearTimeout(sidebarHoverTimer.current);
+            sidebarHoverTimer.current = null;
+          }
           if (isSidebarCollapsed) setIsSidebarHovered(false);
         }}
       >
@@ -300,3 +314,5 @@ export function Layout({ activePage, onNavigate, children, rightPanel }: { activ
     </div>
   );
 }
+
+

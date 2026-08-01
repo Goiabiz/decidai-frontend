@@ -1,4 +1,4 @@
-﻿import type { PanelDetail } from '../components/RightPanel';
+import type { PanelDetail } from '../components/RightPanel';
 import { persistAuditLog, persistOperationalHistory, persistOperationalPatch, persistRoadmapItem } from './operationalSupabase';
 
 export type OperationalPatch = {
@@ -99,7 +99,7 @@ export const addHistory = (title: string, action: string, description: string) =
     usuarioNome: USER,
     modulo: 'Workspace',
     operacao: 'susi_action',
-    origem: 'histÃ³rico operacional local',
+    origem: 'histórico operacional local',
     registroId: history[0].id,
     dadosDepois: history[0],
     observacao: `${action}: ${description}`
@@ -130,7 +130,7 @@ export const updateOperationalPatch = (detail: PanelDetail, patch: Partial<Opera
     usuarioNome: USER,
     modulo: 'Workspace',
     operacao: 'update',
-    origem: 'ediÃ§Ã£o inline',
+    origem: 'edição inline',
     registroId: title,
     dadosAntes: previous,
     dadosDepois: patches[title]
@@ -141,7 +141,7 @@ export const updateOperationalPatch = (detail: PanelDetail, patch: Partial<Opera
     .map(([key, value]) => `${key}: ${value}`)
     .join(', ');
 
-  addHistory(title, 'AtualizaÃ§Ã£o inline', changed || 'Item atualizado na Ã¡rea de trabalho.');
+  addHistory(title, 'Atualização inline', changed || 'Item atualizado na área de trabalho.');
 };
 
 export const discardItem = (detail: PanelDetail) => {
@@ -150,8 +150,8 @@ export const discardItem = (detail: PanelDetail) => {
 };
 
 export const markReview = (detail: PanelDetail) => {
-  updateOperationalPatch(detail, { status: 'Aguardando revisÃ£o do PO', revisao: true });
-  addHistory(detail.title, 'RevisÃ£o solicitada', 'O item foi marcado para revisÃ£o do PO.');
+  updateOperationalPatch(detail, { status: 'Aguardando revisão do PO', revisao: true });
+  addHistory(detail.title, 'Revisão solicitada', 'O item foi marcado para revisão do PO.');
 };
 
 export const createRoadmapItem = (detail: PanelDetail) => {
@@ -159,15 +159,15 @@ export const createRoadmapItem = (detail: PanelDetail) => {
   const existing = roadmap.find((item) => item.origem === detail.title);
 
   if (existing) {
-    addHistory(detail.title, 'Roadmap jÃ¡ existente', 'JÃ¡ existe um item de roadmap gerado a partir deste registro.');
+    addHistory(detail.title, 'Roadmap já existente', 'Já existe um item de roadmap gerado a partir deste registro.');
     return existing;
   }
 
   const item: GeneratedRoadmapItem = {
     id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
     origem: detail.title,
-    resumo: `DecisÃ£o â€” ${detail.title}`,
-    criticidade: detail.badge || 'MÃ©dia',
+    resumo: `Decisão — ${detail.title}`,
+    criticidade: detail.badge || 'Média',
     responsavel: USER,
     prazo: new Date().toLocaleDateString('pt-BR'),
     status: 'Pendente',

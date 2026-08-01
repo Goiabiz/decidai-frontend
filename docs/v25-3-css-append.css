@@ -1,0 +1,302 @@
+/* v25.3 - Builder estilo Jira dinamico */
+
+.jira-like-builder.screen-builder-modal {
+  width: min(1760px, calc(100vw - 24px));
+  height: min(950px, calc(100vh - 24px));
+}
+
+.jira-builder-content {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 360px;
+  overflow: hidden;
+  background: #f6f8fb;
+}
+
+.jira-builder-canvas {
+  min-width: 0;
+  overflow: auto;
+  padding: 18px;
+  display: grid;
+  gap: 14px;
+  align-content: start;
+}
+
+.jira-field-sidebar {
+  overflow: auto;
+  border-left: 1px solid var(--slate-200);
+  background: #fff;
+  padding: 18px;
+  display: grid;
+  align-content: start;
+  gap: 16px;
+}
+
+.builder-config-strip {
+  display: grid;
+  grid-template-columns: minmax(240px, 1.2fr) 220px 250px 150px;
+  gap: 12px;
+  border: 1px solid var(--slate-200);
+  background: #fff;
+  border-radius: 18px;
+  padding: 14px;
+}
+
+.builder-config-strip label {
+  display: grid;
+  gap: 6px;
+  color: var(--slate-700);
+  font-weight: 850;
+  font-size: 12px;
+}
+
+.builder-config-strip input,
+.builder-config-strip select {
+  height: 40px;
+  border: 1px solid var(--slate-200);
+  border-radius: 11px;
+  padding: 0 11px;
+  font-weight: 800;
+  color: var(--slate-700);
+  background: #fff;
+}
+
+.builder-toolbar.compact { margin: 0; }
+.jira-tabs { padding: 7px; }
+.jira-tabs button { min-width: 120px; }
+.jira-tabs input { width: 110px; }
+.tab-settings-bar.compact { padding: 10px 12px; }
+
+.jira-mini-screen {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 310px;
+  gap: 16px;
+}
+
+.jira-mini-screen.preview { margin-top: 16px; }
+
+.jira-mini-main,
+.jira-mini-context {
+  border: 2px dashed rgba(0, 120, 77, .18);
+  border-radius: 20px;
+  background: #fff;
+  padding: 16px;
+  min-height: 410px;
+}
+
+.jira-mini-context {
+  border-style: solid;
+  background: #fbfcff;
+  min-height: 300px;
+}
+
+.jira-mini-context > strong {
+  display: block;
+  color: var(--slate-950);
+  margin-bottom: 12px;
+}
+
+.mini-screen-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--green-700);
+  font-weight: 950;
+  margin-bottom: 14px;
+}
+
+.mini-field-grid { display: grid; gap: 14px; }
+.jira-mini-main.columns-1 .mini-field-grid { grid-template-columns: 1fr; }
+.jira-mini-main.columns-2 .mini-field-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.jira-mini-main.columns-3 .mini-field-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+
+.mini-field-card {
+  min-width: 0;
+  border: 1px solid var(--slate-200);
+  border-radius: 16px;
+  background: #fbfcff;
+  padding: 12px;
+  display: grid;
+  gap: 9px;
+  transition: box-shadow .15s ease, border-color .15s ease, transform .15s ease;
+}
+
+.mini-field-card:hover {
+  border-color: rgba(0, 120, 77, .28);
+  box-shadow: 0 12px 25px rgba(22,32,66,.08);
+}
+
+.mini-field-card.expanded {
+  grid-column: 1 / -1;
+  background: #fff;
+  border-color: rgba(0, 120, 77, .38);
+}
+
+.mini-field-card.span-full { grid-column: 1 / -1; }
+.mini-field-card.span-half,
+.mini-field-card.span-third { grid-column: span 1; }
+
+.mini-field-top {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr) 30px;
+  gap: 7px;
+  align-items: center;
+}
+
+.mini-field-top strong {
+  color: var(--slate-950);
+  font-weight: 950;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mini-field-top button {
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--slate-200);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--slate-700);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+
+.inline-field-config {
+  border-top: 1px solid var(--slate-200);
+  padding-top: 10px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.inline-field-config label {
+  display: grid;
+  gap: 6px;
+  color: var(--slate-600);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.inline-field-config label:has(input[type="checkbox"]) {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.inline-field-config select,
+.inline-field-config input:not([type="checkbox"]) {
+  height: 38px;
+  border: 1px solid var(--slate-200);
+  border-radius: 10px;
+  padding: 0 10px;
+  background: #fff;
+  color: var(--slate-700);
+  font-weight: 800;
+}
+
+.mini-context-field {
+  min-height: 42px;
+  border: 1px solid var(--slate-200);
+  border-radius: 12px;
+  background: #fff;
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  grid-template-areas:
+    "icon name"
+    "icon type";
+  align-items: center;
+  gap: 2px 8px;
+  padding: 7px 9px;
+  margin-bottom: 8px;
+}
+
+.mini-context-field svg { grid-area: icon; }
+.mini-context-field span {
+  grid-area: name;
+  color: var(--slate-950);
+  font-weight: 900;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mini-context-field small {
+  grid-area: type;
+  color: var(--slate-500);
+  font-weight: 800;
+}
+
+.field-sidebar-section h3 { margin: 0 0 12px; color: var(--slate-950); }
+.field-sidebar-help { margin: 8px 0 12px; color: var(--slate-500); font-weight: 700; font-size: 13px; }
+
+.jira-field-list {
+  max-height: 560px;
+  overflow: auto;
+  display: grid;
+  gap: 8px;
+}
+
+.jira-field-list button {
+  min-height: 52px;
+  border: 1px solid var(--slate-200);
+  border-radius: 13px;
+  background: #fbfcff;
+  color: var(--slate-700);
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr) auto;
+  grid-template-areas:
+    "icon name type"
+    "icon origin origin";
+  align-items: center;
+  gap: 4px 8px;
+  padding: 8px 10px;
+  cursor: grab;
+  font-weight: 850;
+  text-align: left;
+}
+
+.jira-field-list button:hover { background: #eefaf5; color: var(--green-700); border-color: rgba(0, 120, 77, .22); }
+.jira-field-list button svg { grid-area: icon; }
+.jira-field-list button span { grid-area: name; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.jira-field-list button strong { grid-area: type; font-size: 11px; color: var(--slate-500); }
+.jira-field-list button em { grid-area: origin; font-style: normal; font-size: 11px; font-weight: 850; }
+.jira-field-list button em.origin-system { color: var(--green-700); }
+.jira-field-list button em.origin-custom { color: var(--blue-700); }
+
+.trash-drop-zone {
+  min-height: 92px;
+  border: 2px dashed rgba(239, 68, 68, .28);
+  border-radius: 18px;
+  background: #fff7f7;
+  color: #b91c1c;
+  display: grid;
+  place-items: center;
+  text-align: center;
+  padding: 14px;
+}
+.trash-drop-zone strong,
+.trash-drop-zone span { display: block; }
+.trash-drop-zone span { color: #ef4444; font-size: 12px; font-weight: 800; }
+
+.drop-empty {
+  grid-column: 1 / -1;
+  border: 1px dashed var(--slate-300);
+  border-radius: 16px;
+  min-height: 160px;
+  display: grid;
+  place-items: center;
+  color: var(--slate-500);
+  font-weight: 800;
+}
+
+.cascade-preview-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+
+@media (max-width: 1280px) {
+  .jira-builder-content,
+  .jira-mini-screen,
+  .builder-config-strip { grid-template-columns: 1fr; }
+  .jira-field-sidebar { border-left: 0; border-top: 1px solid var(--slate-200); max-height: 420px; }
+  .inline-field-config { grid-template-columns: 1fr; }
+}

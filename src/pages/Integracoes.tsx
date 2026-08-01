@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Cable, RefreshCw } from 'lucide-react';
 import { DataSourceNotice } from '../components/DataSourceNotice';
 import { IntegrationProviderCard } from '../components/integrations/IntegrationProviderCard';
@@ -48,7 +48,7 @@ export function Integracoes() {
     } catch (error) {
       setLoadState({
         loading: false,
-        error: error instanceof Error ? error.message : 'Erro ao carregar integraÃ§Ãµes.',
+        error: error instanceof Error ? error.message : 'Erro ao carregar integrações.',
       });
     }
   }
@@ -78,14 +78,14 @@ export function Integracoes() {
   function showPreparedAction(title: string, provider: IntegrationProvider) {
     setActionState({
       title,
-      message: `${title} para ${provider.name} jÃ¡ estÃ¡ prevista, mas depende do endpoint backend/OAuth. Esta tela estÃ¡ pronta para consumir esse fluxo quando ativarmos o provider.`,
+      message: `${title} para ${provider.name} já está prevista, mas depende do endpoint backend/OAuth. Esta tela está pronta para consumir esse fluxo quando ativarmos o provider.`,
     });
   }
 
   return (
     <div className="integrations-page">
       <PageHeader
-        title="IntegraÃ§Ãµes"
+        title="Integrações"
         action={
           <button
             className="secondary-button"
@@ -108,10 +108,10 @@ export function Integracoes() {
       />
 
       <section className="kpi-grid four">
-        <KpiCard label="DisponÃ­veis" value={stats.available} tooltip="Provedores jÃ¡ liberados para conexÃ£o." tone="green" />
-        <KpiCard label="Conectadas" value={stats.connected} tooltip="ConexÃµes ativas e autorizadas." tone="blue" />
-        <KpiCard label="Planejadas" value={stats.planned} tooltip="IntegraÃ§Ãµes cadastradas no roadmap." tone="purple" />
-        <KpiCard label="Com atenÃ§Ã£o" value={stats.errors} tooltip="ConexÃµes com erro, token expirado ou falta de permissÃ£o." tone="orange" />
+        <KpiCard label="Disponíveis" value={stats.available} tooltip="Provedores já liberados para conexão." tone="green" />
+        <KpiCard label="Conectadas" value={stats.connected} tooltip="Conexões ativas e autorizadas." tone="blue" />
+        <KpiCard label="Planejadas" value={stats.planned} tooltip="Integrações cadastradas no roadmap." tone="purple" />
+        <KpiCard label="Com atenção" value={stats.errors} tooltip="Conexões com erro, token expirado ou falta de permissão." tone="orange" />
       </section>
 
       {actionState && (
@@ -127,7 +127,7 @@ export function Integracoes() {
       <section className="integration-section">
         <div className="section-title-row">
           <div>
-            <h2>ConexÃµes do cliente</h2>
+            <h2>Conexões do cliente</h2>
             <p>Conecte contas autorizadas para o agente consultar documentos, tarefas, canais e bases externas.</p>
           </div>
           <span className="records-count">{providers.length} provedores</span>
@@ -144,7 +144,7 @@ export function Integracoes() {
                 provider={{ ...provider, status: status === 'planejada' ? 'planejado' : provider.status }}
                 connection={connection}
                 onConnect={(selected) => showPreparedAction('Conectar conta', selected)}
-                onTest={(selected) => showPreparedAction('Testar conexÃ£o', selected)}
+                onTest={(selected) => showPreparedAction('Testar conexão', selected)}
                 onResources={(selected) => showPreparedAction('Selecionar recursos', selected)}
                 onLogs={(selected) => showPreparedAction('Ver logs', selected)}
               />
@@ -155,7 +155,7 @@ export function Integracoes() {
         {!loadState.loading && providers.length === 0 && (
           <div className="empty-state">
             <Cable size={22} />
-            Nenhum provedor de integraÃ§Ã£o foi encontrado.
+            Nenhum provedor de integração foi encontrado.
           </div>
         )}
       </section>
