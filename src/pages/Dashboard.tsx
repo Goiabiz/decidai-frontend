@@ -1,4 +1,4 @@
-import { AlertTriangle, ClipboardList, FileText } from 'lucide-react';
+import { AlertTriangle, ClipboardList, FileText, Globe2, ListChecks } from 'lucide-react';
 import { PageHeader } from '../components/PageHeader';
 import { KpiCard } from '../components/KpiCard';
 import { Badge } from '../components/Badge';
@@ -87,31 +87,36 @@ export function Dashboard({ onOpenDetail }: PageProps) {
       label: 'Conhecimentos ativos',
       value: metricValue(['document', 'conhecimento'], documentosData.data.length || 9),
       tone: 'green',
-      title: 'Conhecimentos disponíveis para consulta, análise, alertas, orientações e tarefas.'
+      title: 'Conhecimentos disponíveis para consulta, análise, alertas, orientações e tarefas.',
+      icon: <FileText size={20} />
     },
     {
       label: 'Alertas',
       value: alertasData.data.length || metricValue(['alerta'], 4),
       tone: 'red',
-      title: 'Sinais gerados a partir de fontes, regras, mudanças ou monitoramentos que exigem atenção.'
+      title: 'Sinais gerados a partir de fontes, regras, mudanças ou monitoramentos que exigem atenção.',
+      icon: <AlertTriangle size={20} />
     },
     {
       label: 'Ações pendentes',
       value: metricValue(['ação', 'ações', 'acao', 'acoes'], 1),
       tone: 'orange',
-      title: 'Ações aguardando análise, decisão, validação ou encaminhamento.'
+      title: 'Ações aguardando análise, decisão, validação ou encaminhamento.',
+      icon: <ClipboardList size={20} />
     },
     {
       label: 'Novas tarefas',
       value: tarefasRecentes.length,
       tone: 'blue',
-      title: 'Tarefas criadas recentemente a partir de alertas, análises, orientações ou decisões.'
+      title: 'Tarefas criadas recentemente a partir de alertas, análises, orientações ou decisões.',
+      icon: <ListChecks size={20} />
     },
     {
       label: 'Fontes monitoradas',
       value: new Set(documentosData.data.map((item) => item.fonte)).size || 4,
       tone: 'cyan',
-      title: 'Fontes cadastradas para acompanhamento, captura ou consulta de conhecimento.'
+      title: 'Fontes cadastradas para acompanhamento, captura ou consulta de conhecimento.',
+      icon: <Globe2 size={20} />
     }
   ];
 
@@ -182,6 +187,7 @@ export function Dashboard({ onOpenDetail }: PageProps) {
             value={card.value}
             tone={card.tone}
             tooltip={card.title}
+            icon={card.icon}
           />
         ))}
       </div>

@@ -63,5 +63,4 @@ export function applyWorkspacePreferences(preferences: WorkspacePreferences) {
   document.documentElement.style.setProperty('--dashboard-accent', preferences.dashboardColor);
 
   document.documentElement.dataset.density = preferences.density;
-  document.documentElement.dataset.theme = preferences.theme;
 }

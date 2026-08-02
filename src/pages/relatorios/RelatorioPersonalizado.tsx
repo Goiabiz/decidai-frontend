@@ -1,23 +1,7 @@
-import { Download, FileSpreadsheet, Filter, LayoutList, Plus, Search } from 'lucide-react';
-import { PageHeader } from '../../components/PageHeader';
-
-const availableFields = ['ID', 'Título', 'Status', 'Prioridade', 'Responsável', 'Canal', 'Agente', 'Data de criação', 'Data de conclusão', 'Custo estimado', 'Origem', 'Cliente'];
-
-export function RelatorioPersonalizado() {
-  return (
-    <>
-      <PageHeader title="Relatório Personalizado" action={<button className="primary-small"><Plus size={16} /> Novo modelo</button>} />
-      <section className="card custom-report-card">
-        <div className="section-title-row"><div><h3>Montar relatório personalizado</h3><p className="section-description">Escolha origem, campos, filtros e agrupamentos. Exportações padrão em XLS e PDF paisagem.</p></div></div>
-        <div className="report-builder-grid">
-          <section><h4><LayoutList size={18} /> Origem</h4><select><option>Atendimentos</option><option>Alertas</option><option>Conhecimentos</option><option>Tarefas</option><option>Integrações</option><option>Auditoria</option></select></section>
-          <section><h4><FileSpreadsheet size={18} /> Campos</h4><div className="report-field-list">{availableFields.map((field) => <label key={field}><input type="checkbox" defaultChecked={['ID', 'Título', 'Status', 'Responsável'].includes(field)} /> {field}</label>)}</div></section>
-          <section><h4><Filter size={18} /> Filtros</h4><div className="smart-search"><Search size={16} /><input placeholder="Adicionar filtro..." /></div><button className="secondary-btn">Adicionar filtro</button></section>
-          <section><h4><Download size={18} /> Exportação</h4><div className="export-actions"><button><FileSpreadsheet size={16} /> Exportar XLS</button><button><Download size={16} /> Exportar PDF paisagem</button></div></section>
-        </div>
-      </section>
-    </>
-  );
-}
-
+import { useMemo, useState } from 'react';
+import { Search } from 'lucide-react';
+import { ExportAction } from '../../components/ExportAction';
+export type RelatorioPersonalizadoProps={onSelectDetail?: (detail:any)=>void; onOpenDetail?: (detail:any)=>void};
+const allFields=['Agente','Canal','Cliente','Conclusão','Data','Demanda','Fila','Integração','Origem','Prioridade','Responsável','SLA','Status','Tarefa vinculada','Tempo de resposta','Usuário'].sort((a,b)=>a.localeCompare(b,'pt-BR'));
+export function RelatorioPersonalizado(_props:RelatorioPersonalizadoProps){const [q,setQ]=useState('');const fields=useMemo(()=>allFields.filter(f=>f.toLowerCase().includes(q.toLowerCase())).slice(0,10),[q]);return <div className="v3464-page"><div className="v3464-page-head"><h1>Relatório personalizado</h1><ExportAction/></div><section className="v3464-card"><h2>Montar consulta</h2><p>Escolha campos e filtros em linhas expansíveis. A busca atualiza conforme digitação e exibe até 10 campos por vez.</p><details><summary><strong>Campos do relatório</strong></summary><div className="v3464-search"><Search size={18}/><input value={q} onChange={e=>setQ(e.target.value)} placeholder="Buscar campo..."/></div><div className="v3464-field-list">{fields.map(f=><label className="v3464-field-row" key={f}><input type="checkbox"/> {f}</label>)}</div></details><details><summary><strong>Filtros avançados</strong></summary><div className="v3464-modal-grid v3464-modal-form"><label>Campo<select>{allFields.map(f=><option key={f}>{f}</option>)}</select></label><label>Operador<select><option>É</option><option>Não é</option><option>Contém</option><option>Não contém</option><option>Está vazio</option><option>Não está vazio</option></select></label></div></details></section></div>}
 export default RelatorioPersonalizado;

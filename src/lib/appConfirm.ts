@@ -46,13 +46,13 @@ function injectStyles() {
     .app-confirm-dialog {
       width: min(540px, calc(100vw - 40px));
       border-radius: 22px;
-      background: #fff;
-      border: 1px solid rgba(15, 23, 42, .12);
+      background: var(--surface, #fff);
+      border: 1px solid var(--slate-200, rgba(15, 23, 42, .12));
       box-shadow: 0 28px 90px rgba(15, 23, 42, .28);
       padding: 22px;
       display: grid;
       gap: 16px;
-      color: #071638;
+      color: var(--slate-950, #071638);
       font-family: inherit;
     }
 
@@ -60,12 +60,12 @@ function injectStyles() {
       margin: 0;
       font-size: 20px;
       font-weight: 950;
-      color: #071638;
+      color: var(--slate-950, #071638);
     }
 
     .app-confirm-dialog p {
       margin: 0;
-      color: #334155;
+      color: var(--slate-700, #334155);
       font-weight: 760;
       line-height: 1.5;
     }
@@ -81,11 +81,11 @@ function injectStyles() {
       min-height: 42px;
       border-radius: 14px;
       padding: 0 18px;
-      border: 1px solid #dbe3ef;
+      border: 1px solid var(--slate-200, #dbe3ef);
       font-weight: 950;
       cursor: pointer;
-      background: #fff;
-      color: #071638;
+      background: var(--surface, #fff);
+      color: var(--slate-950, #071638);
       font-family: inherit;
     }
 

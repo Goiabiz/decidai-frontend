@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Ban,
   Briefcase,
@@ -6,7 +6,9 @@ import {
   Camera,
   CheckCircle2,
   ChevronDown,
+  Copy,
   Download,
+  Edit3,
   Home,
   Info,
   KeyRound,
@@ -16,6 +18,7 @@ import {
   Search,
   ShieldCheck,
   Smartphone,
+  Trash2,
   Upload,
   User,
   UserCog,
@@ -25,6 +28,7 @@ import {
 import { Badge } from '../../components/Badge';
 import { PageHeader } from '../../components/PageHeader';
 import { normalizeFilterText } from '../../components/SmartFilters';
+import { showAppToast } from '../../lib/appToast';
 import type { PageProps } from '../../App';
 import type { PanelDetail } from '../../components/RightPanel';
 
@@ -319,6 +323,15 @@ export function Usuarios({ onSelectDetail, onOpenDetail }: PageProps) {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [form, setForm] = useState<UserFormState>(emptyForm);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const [editingUserId, setEditingUserId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!openMenuId) return;
+    const closeMenu = () => setOpenMenuId(null);
+    window.addEventListener('mousedown', closeMenu);
+    return () => window.removeEventListener('mousedown', closeMenu);
+  }, [openMenuId]);
 
   const filteredUsuarios = useMemo(() => {
     const query = normalizeFilterText(search);
@@ -378,6 +391,7 @@ export function Usuarios({ onSelectDetail, onOpenDetail }: PageProps) {
 
   const updateStatus = (id: string, nextStatus: UserStatus) => {
     setUsuarios((current) => current.map((usuario) => usuario.id === id ? { ...usuario, status: nextStatus } : usuario));
+    setSelectedUser((current) => current?.id === id ? { ...current, status: nextStatus } : current);
   };
 
   const validateForm = () => {
@@ -397,9 +411,71 @@ export function Usuarios({ onSelectDetail, onOpenDetail }: PageProps) {
     return Object.keys(nextErrors).length === 0;
   };
 
+  const openEditModal = (usuario: UserRecord) => {
+    setEditingUserId(usuario.id);
+    setForm({
+      foto: usuario.foto || '',
+      nome: usuario.nome,
+      cpf: usuario.cpf,
+      email: usuario.email,
+      genero: usuario.genero === 'Não informado' ? '' : usuario.genero,
+      nascimento: usuario.nascimento,
+      endereco: usuario.endereco,
+      perfil: usuario.perfil,
+      status: usuario.status,
+      unidade: usuario.unidade,
+      cargo: usuario.cargo === '-' ? '' : usuario.cargo,
+      phones: [{ id: 'phone-1', tipo: 'Celular', pais: '+55', numero: usuario.telefone.replace(/^\D*\+55\s*/, '') }],
+      mfa: usuario.mfa,
+      acessoAgente: usuario.acessoAgente,
+    });
+    setIsFormOpen(true);
+  };
+
+  const duplicateUser = (usuario: UserRecord) => {
+    const nextUser: UserRecord = { ...usuario, id: `USR-${String(usuarios.length + 1).padStart(4, '0')}`, nome: `${usuario.nome} (cópia)`, ultimoLogin: '-' };
+    setUsuarios((current) => [nextUser, ...current]);
+    setSelectedUser(nextUser);
+    showAppToast('Usuário duplicado.', 'success');
+  };
+
+  const deleteUser = (usuario: UserRecord) => {
+    setUsuarios((current) => current.filter((item) => item.id !== usuario.id));
+    setSelectedUser((current) => current?.id === usuario.id ? null : current);
+    showAppToast('Usuário excluído.', 'success');
+  };
+
   const handleSaveUser = () => {
     if (!validateForm()) return;
     const mainPhone = form.phones[0];
+
+    if (editingUserId) {
+      const nextUser: UserRecord = {
+        id: editingUserId,
+        nome: form.nome || form.email,
+        cpf: form.cpf || '-',
+        email: form.email,
+        telefone: `${countryPhoneLabel(mainPhone.pais)} ${mainPhone.numero}`,
+        perfil: form.perfil,
+        status: form.status,
+        unidade: form.unidade,
+        cargo: form.cargo || '-',
+        genero: form.genero || 'Não informado',
+        nascimento: form.nascimento,
+        endereco: form.endereco,
+        ultimoLogin: usuarios.find((item) => item.id === editingUserId)?.ultimoLogin || '-',
+        mfa: form.mfa,
+        acessoAgente: form.acessoAgente,
+        foto: form.foto,
+      };
+
+      setUsuarios((current) => current.map((item) => item.id === editingUserId ? nextUser : item));
+      setSelectedUser(nextUser);
+      setForm(emptyForm);
+      setEditingUserId(null);
+      setIsFormOpen(false);
+      return;
+    }
 
     const nextUser: UserRecord = {
       id: `USR-${String(usuarios.length + 1).padStart(4, '0')}`,
@@ -434,7 +510,7 @@ export function Usuarios({ onSelectDetail, onOpenDetail }: PageProps) {
           <div className="header-actions">
             <button className="secondary-btn"><Upload size={16} /> Importar</button>
             <button className="secondary-btn"><Download size={16} /> Exportar</button>
-            <button className="primary-small" onClick={() => setIsFormOpen(true)}><Plus size={16} /> Novo usuário</button>
+            <button className="primary-small" onClick={() => { setEditingUserId(null); setForm(emptyForm); setIsFormOpen(true); }}><Plus size={16} /> Novo usuário</button>
           </div>
         )}
       />
@@ -484,12 +560,21 @@ export function Usuarios({ onSelectDetail, onOpenDetail }: PageProps) {
                       <td>{usuario.ultimoLogin}</td>
                       <td>
                         <div className="row-action-group" onClick={(event) => event.stopPropagation()}>
-                          <button title="Enviar/Reenviar convite"><Mail size={16} /></button>
+                          <button title="Enviar/Reenviar convite" onClick={() => showAppToast(`Convite reenviado para ${usuario.email}.`, 'success')}><Mail size={16} /></button>
                           <button title="Gerenciar acesso" onClick={() => onOpenDetail?.(detail)}><KeyRound size={16} /></button>
                           {usuario.status === 'Bloqueado'
                             ? <button title="Ativar" onClick={() => updateStatus(usuario.id, 'Ativo')}><CheckCircle2 size={16} /></button>
                             : <button title="Bloquear" onClick={() => updateStatus(usuario.id, 'Bloqueado')}><Ban size={16} /></button>}
-                          <button title="Mais ações"><MoreHorizontal size={16} /></button>
+                          <div className="row-menu-wrap">
+                            <button title="Mais ações" onClick={() => setOpenMenuId(openMenuId === usuario.id ? null : usuario.id)}><MoreHorizontal size={16} /></button>
+                            {openMenuId === usuario.id && (
+                              <div className="row-more-menu" onClick={(event) => event.stopPropagation()}>
+                                <button onClick={() => { openEditModal(usuario); setOpenMenuId(null); }}><Edit3 size={15} /> Editar usuário</button>
+                                <button onClick={() => { duplicateUser(usuario); setOpenMenuId(null); }}><Copy size={15} /> Duplicar usuário</button>
+                                <button className="danger" onClick={() => { deleteUser(usuario); setOpenMenuId(null); }}><Trash2 size={15} /> Excluir usuário</button>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </td>
                     </tr>
@@ -529,10 +614,12 @@ export function Usuarios({ onSelectDetail, onOpenDetail }: PageProps) {
                 </div>
 
                 <div className="panel-actions user-actions">
-                  <button className="primary">Editar usuário</button>
-                  <button>Gerenciar permissões</button>
-                  <button>Enviar/Reenviar convite</button>
-                  <button className="danger">Bloquear acesso</button>
+                  <button className="primary" onClick={() => openEditModal(selectedUser)}>Editar usuário</button>
+                  <button onClick={() => onOpenDetail?.(buildDetail(selectedUser))}>Gerenciar permissões</button>
+                  <button onClick={() => showAppToast(`Convite reenviado para ${selectedUser.email}.`, 'success')}>Enviar/Reenviar convite</button>
+                  {selectedUser.status === 'Bloqueado'
+                    ? <button onClick={() => updateStatus(selectedUser.id, 'Ativo')}>Reativar acesso</button>
+                    : <button className="danger" onClick={() => updateStatus(selectedUser.id, 'Bloqueado')}>Bloquear acesso</button>}
                 </div>
               </>
             ) : <p className="empty-note">Selecione um usuário para visualizar os detalhes.</p>}
@@ -544,8 +631,8 @@ export function Usuarios({ onSelectDetail, onOpenDetail }: PageProps) {
         <div className="modal-backdrop user-modal-backdrop">
           <div className="user-form-modal user-form-modal-v213">
             <div className="user-modal-header">
-              <strong>Novo usuário</strong>
-              <button className="icon-btn" onClick={() => setIsFormOpen(false)}><X size={18} /></button>
+              <strong>{editingUserId ? 'Editar usuário' : 'Novo usuário'}</strong>
+              <button className="icon-btn" onClick={() => { setIsFormOpen(false); setEditingUserId(null); }}><X size={18} /></button>
             </div>
 
             <div className="user-modal-content">
@@ -674,8 +761,8 @@ export function Usuarios({ onSelectDetail, onOpenDetail }: PageProps) {
             </div>
 
             <div className="user-modal-footer">
-              <button onClick={() => setIsFormOpen(false)}>Cancelar</button>
-              <button className="primary" onClick={handleSaveUser}>Salvar usuário</button>
+              <button onClick={() => { setIsFormOpen(false); setEditingUserId(null); }}>Cancelar</button>
+              <button className="primary" onClick={handleSaveUser}>{editingUserId ? 'Salvar alterações' : 'Salvar usuário'}</button>
             </div>
           </div>
         </div>

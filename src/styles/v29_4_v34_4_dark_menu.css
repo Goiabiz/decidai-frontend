@@ -1,0 +1,159 @@
+/* v29.4-v34.4 - ajustes dark mode, menu e integrações */
+
+:root[data-theme="dark"],
+html[data-theme="dark"],
+body[data-theme="dark"] {
+  color-scheme: dark;
+}
+
+[data-theme="dark"] body,
+[data-theme="dark"] .app-main,
+[data-theme="dark"] .main-content,
+[data-theme="dark"] .page-content,
+[data-theme="dark"] .content-area {
+  background: #0b1120 !important;
+  color: #e5edf8 !important;
+}
+
+[data-theme="dark"] .topbar,
+[data-theme="dark"] .app-header,
+[data-theme="dark"] .main-header {
+  background: #0f172a !important;
+  border-color: #243044 !important;
+  color: #e5edf8 !important;
+}
+
+[data-theme="dark"] .card,
+[data-theme="dark"] .plugin-search-card,
+[data-theme="dark"] .preferences-list-card,
+[data-theme="dark"] .audit-clean-card,
+[data-theme="dark"] .fields-api-card,
+[data-theme="dark"] .alerts-clean-card {
+  background: #111827 !important;
+  border: 1px solid #2f3c52 !important;
+  box-shadow: 0 18px 48px rgba(0, 0, 0, .22) !important;
+  color: #e5edf8 !important;
+}
+
+[data-theme="dark"] h1,
+[data-theme="dark"] h2,
+[data-theme="dark"] h3,
+[data-theme="dark"] h4,
+[data-theme="dark"] strong,
+[data-theme="dark"] label,
+[data-theme="dark"] th,
+[data-theme="dark"] .page-title,
+[data-theme="dark"] .section-title-row,
+[data-theme="dark"] .plugin-section-header,
+[data-theme="dark"] .plugin-section-header strong,
+[data-theme="dark"] .plugin-card-body strong,
+[data-theme="dark"] .preference-row strong {
+  color: #f8fafc !important;
+}
+
+[data-theme="dark"] p,
+[data-theme="dark"] small,
+[data-theme="dark"] td,
+[data-theme="dark"] .section-description,
+[data-theme="dark"] .small-muted,
+[data-theme="dark"] .table-subtitle,
+[data-theme="dark"] .plugin-card-body p,
+[data-theme="dark"] .preference-row small {
+  color: #aebbd0 !important;
+}
+
+[data-theme="dark"] .preference-row,
+[data-theme="dark"] .cadastro-form-section,
+[data-theme="dark"] .plugin-card,
+[data-theme="dark"] .marketplace-provider-row,
+[data-theme="dark"] .admin-clean-list button,
+[data-theme="dark"] .report-field-list label {
+  background: #0f172a !important;
+  border: 1px solid #334155 !important;
+  color: #e5edf8 !important;
+  box-shadow: none !important;
+}
+
+[data-theme="dark"] input,
+[data-theme="dark"] select,
+[data-theme="dark"] textarea,
+[data-theme="dark"] .smart-search,
+[data-theme="dark"] .inline-file-input {
+  background: #0b1120 !important;
+  border: 1px solid #40516d !important;
+  color: #f8fafc !important;
+  box-shadow: none !important;
+}
+
+[data-theme="dark"] input::placeholder,
+[data-theme="dark"] textarea::placeholder {
+  color: #93a4bb !important;
+  opacity: 1 !important;
+}
+
+[data-theme="dark"] select option {
+  background: #0b1120 !important;
+  color: #f8fafc !important;
+}
+
+[data-theme="dark"] .plugin-logo {
+  background: #0b1120 !important;
+  border-color: #334155 !important;
+}
+
+[data-theme="dark"] .plugin-card-action,
+[data-theme="dark"] .icon-only-light,
+[data-theme="dark"] .secondary-btn,
+[data-theme="dark"] .provider-row-actions button {
+  background: #0b1120 !important;
+  border: 1px solid #40516d !important;
+  color: #e5edf8 !important;
+}
+
+[data-theme="dark"] .primary-small,
+[data-theme="dark"] button.primary,
+[data-theme="dark"] .primary {
+  background: #047857 !important;
+  color: #ffffff !important;
+  border-color: #047857 !important;
+}
+
+[data-theme="dark"] .badge,
+[data-theme="dark"] [class*="badge"] {
+  border-color: rgba(255, 255, 255, .12) !important;
+}
+
+[data-theme="dark"] .simple-table-wrap th,
+[data-theme="dark"] .simple-table-wrap td {
+  border-bottom-color: #2f3c52 !important;
+}
+
+[data-theme="dark"] .modal-backdrop {
+  background: rgba(2, 6, 23, .74) !important;
+}
+
+[data-theme="dark"] .cadastro-modal,
+[data-theme="dark"] .agent-modal {
+  background: #111827 !important;
+  color: #e5edf8 !important;
+}
+
+/* Menu: mantém alinhamento, mas oculta seta de itens sem submenu quando marcados pelo script */
+.sidebar-no-expand .sidebar-caret,
+.sidebar-no-expand .nav-caret,
+.sidebar-no-expand .menu-caret,
+.sidebar-no-expand [data-menu-caret],
+.sidebar-no-expand .chevron,
+.sidebar-no-expand svg[data-lucide="chevron-down"],
+.sidebar-no-expand svg[data-lucide="chevron-right"] {
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+/* fallback visual para o menu quando o texto quebra em linha */
+.sidebar-item-label,
+.nav-item-label,
+.menu-label {
+  word-break: normal;
+  overflow-wrap: normal;
+}

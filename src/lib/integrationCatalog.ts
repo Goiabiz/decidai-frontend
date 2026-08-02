@@ -1,156 +1,213 @@
-export type IntegrationStatus = 'Conectado' | 'Disponível' | 'Bloqueado pelo plano' | 'Planejado' | 'Erro';
+export type IntegrationStatus =
+  | 'Pronto para conectar'
+  | 'Em desenvolvimento'
+  | 'Planejado'
+  | 'Bloqueado pelo plano'
+  | 'Conectado';
+
 export type IntegrationCategoryCode =
+  | 'productivity'
   | 'communication'
   | 'social'
-  | 'knowledge'
-  | 'atlassian-dev'
-  | 'work-management'
-  | 'crm-marketing'
-  | 'erp-commerce-finance'
-  | 'support-service-desk'
-  | 'custom-api'
-  | 'ai-voice';
+  | 'development_product'
+  | 'project_work'
+  | 'crm_marketing'
+  | 'erp_operations'
+  | 'finance_payments'
+  | 'support_service'
+  | 'data_analytics'
+  | 'education_knowledge'
+  | 'security'
+  | 'custom_api';
 
-export type IntegrationItem = {
+export type IntegrationProvider = {
   code: string;
   name: string;
   category: IntegrationCategoryCode;
   description: string;
-  plan: 'Básico' | 'Student' | 'Pro' | 'Enterprise';
   status: IntegrationStatus;
-  logo: string;
-  use: 'Comunicação' | 'Rede social' | 'Conhecimento' | 'Desenvolvimento' | 'Gestão' | 'Comercial' | 'Operação' | 'Suporte' | 'API' | 'IA';
-  canFeedKnowledge?: boolean;
-  canCreateEvents?: boolean;
-  canBeChannelProvider?: boolean;
+  minimumPlan: 'Básico' | 'Student' | 'Pro' | 'Enterprise';
+  connectorLevel: 'Catálogo' | 'Conector preparado' | 'API guiada';
+  logoDomain?: string;
 };
 
-export const integrationCategories: Array<{ code: IntegrationCategoryCode; label: string; description: string }> = [
-  { code: 'communication', label: 'Comunicação e mensageria', description: 'Conexões técnicas para mensagens, atendimento e notificações.' },
-  { code: 'social', label: 'Redes sociais', description: 'Redes sociais e comunidades digitais.' },
-  { code: 'knowledge', label: 'Documentos, arquivos e conhecimento', description: 'Fontes documentais e informacionais para base e agente.' },
-  { code: 'atlassian-dev', label: 'Atlassian, desenvolvimento e produto', description: 'Backlog, código, documentação técnica e versionamento.' },
-  { code: 'work-management', label: 'Gestão de projetos e trabalho', description: 'Ferramentas de tarefas, quadros, times e operações.' },
-  { code: 'crm-marketing', label: 'CRM, comercial e marketing', description: 'Leads, oportunidades, campanhas, relacionamento e vendas.' },
-  { code: 'erp-commerce-finance', label: 'ERP, estoque, produtos e financeiro', description: 'Produtos, pedidos, estoque, faturamento e pagamentos.' },
-  { code: 'support-service-desk', label: 'Suporte e service desk', description: 'Tickets, suporte estruturado e centrais de atendimento.' },
-  { code: 'custom-api', label: 'APIs e conectores customizados', description: 'Conexões guiadas com APIs, webhooks, bancos e arquivos recorrentes.' },
-  { code: 'ai-voice', label: 'Inteligência artificial e voz', description: 'Modelos, transcrição, voz, OCR e vetores.' },
+export const integrationCategories: Array<{
+  code: IntegrationCategoryCode;
+  name: string;
+  description: string;
+  defaultOpen?: boolean;
+}> = [
+  { code: 'productivity', name: 'Produtividade e Arquivos', description: 'Documentos, arquivos, planilhas, páginas e fontes de conhecimento.', defaultOpen: true },
+  { code: 'communication', name: 'Comunicação', description: 'Mensageria, e-mail, comunidades e comunicação corporativa.', defaultOpen: true },
+  { code: 'social', name: 'Redes Sociais', description: 'Monitoramento, relacionamento e atendimento em redes sociais.' },
+  { code: 'development_product', name: 'Desenvolvimento e Produto', description: 'Código, deploy, prototipação, APIs, banco e documentação técnica.' },
+  { code: 'project_work', name: 'Gestão de Projetos e Trabalho', description: 'Backlog, tarefas, projetos, documentação de time, boards e service management.', defaultOpen: true },
+  { code: 'crm_marketing', name: 'CRM, Comercial e Marketing', description: 'Leads, oportunidades, campanhas, relacionamento e funil comercial.' },
+  { code: 'erp_operations', name: 'ERP, Estoque e Operação Comercial', description: 'Produtos, pedidos, estoque, notas, lojas e operação comercial.' },
+  { code: 'finance_payments', name: 'Financeiro e Pagamentos', description: 'Pagamentos, cobrança, assinatura, mercado financeiro e dados financeiros.' },
+  { code: 'support_service', name: 'Suporte e Atendimento', description: 'Tickets, central de ajuda, suporte estruturado e atendimento ao cliente.' },
+  { code: 'data_analytics', name: 'Dados e Analytics', description: 'Dados, eventos, métricas, BI, análise de produto e indicadores.' },
+  { code: 'education_knowledge', name: 'Pesquisa, Educação e Conhecimento', description: 'Pesquisa, fontes científicas, bases públicas, feeds, páginas e conhecimento.' },
+  { code: 'security', name: 'Segurança', description: 'Verificação, auditoria, segurança, privacidade e confiança.' },
+  { code: 'custom_api', name: 'APIs e Conectores Customizados', description: 'API REST, GraphQL, webhooks, bancos e arquivos recorrentes guiados pelo agente.', defaultOpen: true },
 ];
 
-export const integrationCatalog: IntegrationItem[] = [
-  { code: 'whatsapp_business', name: 'WhatsApp Business', category: 'communication', description: 'Integração de comunicação para canais de atendimento via WhatsApp.', plan: 'Student', status: 'Disponível', logo: 'WA', use: 'Comunicação', canBeChannelProvider: true },
-  { code: 'email', name: 'E-mail', category: 'communication', description: 'Caixas, threads e mensagens para atendimento e registro.', plan: 'Student', status: 'Disponível', logo: '@', use: 'Comunicação', canBeChannelProvider: true, canFeedKnowledge: true },
-  { code: 'sms', name: 'SMS', category: 'communication', description: 'Mensagens curtas para confirmação, aviso e comunicação transacional.', plan: 'Student', status: 'Planejado', logo: 'SMS', use: 'Comunicação', canBeChannelProvider: true },
-  { code: 'telegram', name: 'Telegram', category: 'communication', description: 'Mensageria instantânea para atendimento e comunidades.', plan: 'Pro', status: 'Disponível', logo: 'TG', use: 'Comunicação', canBeChannelProvider: true },
-  { code: 'teams', name: 'Microsoft Teams', category: 'communication', description: 'Mensagens corporativas, times e canais internos.', plan: 'Pro', status: 'Disponível', logo: 'MS', use: 'Comunicação', canBeChannelProvider: true, canFeedKnowledge: true },
-  { code: 'discord', name: 'Discord', category: 'communication', description: 'Comunidades, canais técnicos e operação de times.', plan: 'Pro', status: 'Disponível', logo: 'DC', use: 'Comunicação', canBeChannelProvider: true, canFeedKnowledge: true },
-  { code: 'voice_phone', name: 'Telefone / Voz', category: 'communication', description: 'Voz, transcrição e atendimento telefônico em fase futura.', plan: 'Enterprise', status: 'Planejado', logo: 'VOZ', use: 'Comunicação', canBeChannelProvider: true },
+export const integrationProviders: IntegrationProvider[] = [
+  // Produtividade e arquivos
+  { code: 'google_drive', name: 'Google Drive', category: 'productivity', description: 'Drive, Docs, Sheets e Slides para documentos e conhecimento.', status: 'Pronto para conectar', minimumPlan: 'Student', connectorLevel: 'Conector preparado', logoDomain: 'drive.google.com' },
+  { code: 'google_docs', name: 'Google Docs', category: 'productivity', description: 'Documentos para conhecimento, análise e referência.', status: 'Pronto para conectar', minimumPlan: 'Student', connectorLevel: 'Conector preparado', logoDomain: 'docs.google.com' },
+  { code: 'google_sheets', name: 'Google Sheets', category: 'productivity', description: 'Planilhas e dados tabulares para consulta e relatórios.', status: 'Pronto para conectar', minimumPlan: 'Student', connectorLevel: 'Conector preparado', logoDomain: 'sheets.google.com' },
+  { code: 'google_slides', name: 'Google Slides', category: 'productivity', description: 'Apresentações e materiais de apoio.', status: 'Pronto para conectar', minimumPlan: 'Student', connectorLevel: 'Conector preparado', logoDomain: 'slides.google.com' },
+  { code: 'onedrive', name: 'Microsoft OneDrive', category: 'productivity', description: 'Arquivos e documentos em nuvem Microsoft.', status: 'Pronto para conectar', minimumPlan: 'Student', connectorLevel: 'Conector preparado', logoDomain: 'onedrive.live.com' },
+  { code: 'sharepoint', name: 'SharePoint', category: 'productivity', description: 'Portais, documentos e arquivos corporativos.', status: 'Pronto para conectar', minimumPlan: 'Pro', connectorLevel: 'Conector preparado', logoDomain: 'sharepoint.com' },
+  { code: 'dropbox', name: 'Dropbox', category: 'productivity', description: 'Arquivos compartilhados em nuvem.', status: 'Pronto para conectar', minimumPlan: 'Pro', connectorLevel: 'Conector preparado', logoDomain: 'dropbox.com' },
+  { code: 'box', name: 'Box', category: 'productivity', description: 'Gestão corporativa de arquivos.', status: 'Planejado', minimumPlan: 'Pro', connectorLevel: 'Catálogo', logoDomain: 'box.com' },
+  { code: 'notion', name: 'Notion', category: 'productivity', description: 'Páginas, bases e documentação estruturada.', status: 'Pronto para conectar', minimumPlan: 'Pro', connectorLevel: 'Conector preparado', logoDomain: 'notion.so' },
 
-  { code: 'instagram', name: 'Instagram', category: 'social', description: 'Interações sociais, comentários e mensagens conforme APIs disponíveis.', plan: 'Pro', status: 'Planejado', logo: 'IG', use: 'Rede social', canBeChannelProvider: true },
-  { code: 'facebook_messenger', name: 'Facebook Messenger', category: 'social', description: 'Mensageria social vinculada ao ecossistema Meta.', plan: 'Pro', status: 'Planejado', logo: 'FB', use: 'Rede social', canBeChannelProvider: true },
-  { code: 'facebook_pages', name: 'Facebook Pages', category: 'social', description: 'Páginas, publicações e interações públicas autorizadas.', plan: 'Pro', status: 'Planejado', logo: 'FP', use: 'Rede social', canFeedKnowledge: true },
-  { code: 'x_twitter', name: 'X / Twitter', category: 'social', description: 'Monitoramento e interação em publicações autorizadas.', plan: 'Pro', status: 'Planejado', logo: 'X', use: 'Rede social', canFeedKnowledge: true },
-  { code: 'threads', name: 'Threads', category: 'social', description: 'Rede social de conversas públicas do ecossistema Meta.', plan: 'Pro', status: 'Planejado', logo: 'TH', use: 'Rede social', canFeedKnowledge: true },
-  { code: 'linkedin', name: 'LinkedIn', category: 'social', description: 'Conteúdos e interações profissionais.', plan: 'Pro', status: 'Planejado', logo: 'IN', use: 'Rede social', canFeedKnowledge: true },
-  { code: 'youtube', name: 'YouTube', category: 'social', description: 'Canais, vídeos, comentários e conteúdo de conhecimento.', plan: 'Pro', status: 'Planejado', logo: 'YT', use: 'Rede social', canFeedKnowledge: true },
-  { code: 'tiktok', name: 'TikTok', category: 'social', description: 'Conteúdos e interações sociais quando autorizadas.', plan: 'Pro', status: 'Planejado', logo: 'TK', use: 'Rede social' },
+  // Comunicação
+  { code: 'gmail', name: 'Gmail', category: 'communication', description: 'Leitura, triagem e respostas por e-mail.', status: 'Pronto para conectar', minimumPlan: 'Student', connectorLevel: 'Conector preparado', logoDomain: 'gmail.com' },
+  { code: 'outlook_email', name: 'Outlook Email', category: 'communication', description: 'Caixas de entrada Outlook e rascunhos de resposta.', status: 'Pronto para conectar', minimumPlan: 'Student', connectorLevel: 'Conector preparado', logoDomain: 'outlook.live.com' },
+  { code: 'whatsapp_business', name: 'WhatsApp Business', category: 'communication', description: 'Mensageria para atendimento, confirmação e notificações.', status: 'Em desenvolvimento', minimumPlan: 'Student', connectorLevel: 'Conector preparado', logoDomain: 'whatsapp.com' },
+  { code: 'blip', name: 'Blip', category: 'communication', description: 'Plataforma de atendimento conversacional, bots e canais digitais.', status: 'Em desenvolvimento', minimumPlan: 'Pro', connectorLevel: 'Conector preparado', logoDomain: 'blip.ai' },
+  { code: 'zenvia', name: 'Zenvia', category: 'communication', description: 'Mensageria, WhatsApp, SMS e atendimento conversacional.', status: 'Em desenvolvimento', minimumPlan: 'Pro', connectorLevel: 'Conector preparado', logoDomain: 'zenvia.com' },
+  { code: 'twilio', name: 'Twilio', category: 'communication', description: 'APIs de comunicação para mensagens, SMS, WhatsApp e notificações.', status: 'Em desenvolvimento', minimumPlan: 'Pro', connectorLevel: 'Conector preparado', logoDomain: 'twilio.com' },
+  { code: 'sms', name: 'SMS', category: 'communication', description: 'Mensagens curtas para alertas e confirmações.', status: 'Planejado', minimumPlan: 'Student', connectorLevel: 'Catálogo' },
+  { code: 'slack', name: 'Slack', category: 'communication', description: 'Canais, mensagens e colaboração interna.', status: 'Pronto para conectar', minimumPlan: 'Pro', connectorLevel: 'Conector preparado', logoDomain: 'slack.com' },
+  { code: 'teams', name: 'Microsoft Teams', category: 'communication', description: 'Times, conversas e reuniões Microsoft.', status: 'Pronto para conectar', minimumPlan: 'Pro', connectorLevel: 'Conector preparado', logoDomain: 'teams.microsoft.com' },
+  { code: 'zoom', name: 'Zoom', category: 'communication', description: 'Reuniões, insights e acompanhamento.', status: 'Planejado', minimumPlan: 'Pro', connectorLevel: 'Catálogo', logoDomain: 'zoom.us' },
+  { code: 'telegram', name: 'Telegram', category: 'communication', description: 'Mensageria instantânea e comunidades.', status: 'Planejado', minimumPlan: 'Pro', connectorLevel: 'Catálogo', logoDomain: 'telegram.org' },
+  { code: 'discord', name: 'Discord', category: 'communication', description: 'Comunidades, suporte técnico e times internos.', status: 'Pronto para conectar', minimumPlan: 'Pro', connectorLevel: 'Conector preparado', logoDomain: 'discord.com' },
 
-  { code: 'google_drive', name: 'Google Drive', category: 'knowledge', description: 'Pastas e arquivos para base de conhecimento.', plan: 'Student', status: 'Disponível', logo: 'GD', use: 'Conhecimento', canFeedKnowledge: true },
-  { code: 'google_docs', name: 'Google Docs', category: 'knowledge', description: 'Documentos colaborativos conectados à base.', plan: 'Student', status: 'Disponível', logo: 'DOC', use: 'Conhecimento', canFeedKnowledge: true },
-  { code: 'google_sheets', name: 'Google Sheets', category: 'knowledge', description: 'Planilhas e bases tabulares.', plan: 'Student', status: 'Disponível', logo: 'SHT', use: 'Conhecimento', canFeedKnowledge: true, canCreateEvents: true },
-  { code: 'google_slides', name: 'Google Slides', category: 'knowledge', description: 'Apresentações e materiais institucionais.', plan: 'Student', status: 'Planejado', logo: 'SLD', use: 'Conhecimento', canFeedKnowledge: true },
-  { code: 'onedrive', name: 'Microsoft OneDrive', category: 'knowledge', description: 'Arquivos e documentos do Microsoft 365.', plan: 'Pro', status: 'Disponível', logo: 'OD', use: 'Conhecimento', canFeedKnowledge: true },
-  { code: 'sharepoint', name: 'SharePoint', category: 'knowledge', description: 'Sites, bibliotecas e documentos corporativos.', plan: 'Pro', status: 'Disponível', logo: 'SP', use: 'Conhecimento', canFeedKnowledge: true },
-  { code: 'dropbox', name: 'Dropbox', category: 'knowledge', description: 'Arquivos e pastas compartilhadas.', plan: 'Pro', status: 'Planejado', logo: 'DB', use: 'Conhecimento', canFeedKnowledge: true },
-  { code: 'box', name: 'Box', category: 'knowledge', description: 'Arquivos corporativos e repositórios documentais.', plan: 'Pro', status: 'Planejado', logo: 'BOX', use: 'Conhecimento', canFeedKnowledge: true },
-  { code: 'notion', name: 'Notion', category: 'knowledge', description: 'Páginas, bases e documentação de trabalho.', plan: 'Pro', status: 'Disponível', logo: 'NO', use: 'Conhecimento', canFeedKnowledge: true },
-  { code: 'web_pages', name: 'Sites / páginas web', category: 'knowledge', description: 'Páginas públicas ou autorizadas para conhecimento regulatório e institucional.', plan: 'Student', status: 'Disponível', logo: 'WWW', use: 'Conhecimento', canFeedKnowledge: true },
-  { code: 'rss_feeds', name: 'RSS / Feeds', category: 'knowledge', description: 'Feeds de notícias, publicações e atualizações.', plan: 'Pro', status: 'Planejado', logo: 'RSS', use: 'Conhecimento', canFeedKnowledge: true },
-  { code: 'manual_upload', name: 'Upload manual de documentos', category: 'knowledge', description: 'Carga manual de PDFs, imagens, planilhas e arquivos.', plan: 'Básico', status: 'Disponível', logo: 'UP', use: 'Conhecimento', canFeedKnowledge: true },
+  // Redes sociais
+  { code: 'instagram', name: 'Instagram', category: 'social', description: 'Monitoramento e atendimento em Instagram.', status: 'Em desenvolvimento', minimumPlan: 'Pro', connectorLevel: 'Conector preparado', logoDomain: 'instagram.com' },
+  { code: 'facebook_pages', name: 'Facebook Pages', category: 'social', description: 'Páginas, publicações, comentários e relacionamento.', status: 'Em desenvolvimento', minimumPlan: 'Pro', connectorLevel: 'Conector preparado', logoDomain: 'facebook.com' },
+  { code: 'facebook_messenger', name: 'Facebook Messenger', category: 'social', description: 'Mensagens e atendimento via Facebook.', status: 'Em desenvolvimento', minimumPlan: 'Pro', connectorLevel: 'Conector preparado', logoDomain: 'messenger.com' },
+  { code: 'x_twitter', name: 'X / Twitter', category: 'social', description: 'Monitoramento de menções, posts e assuntos.', status: 'Planejado', minimumPlan: 'Pro', connectorLevel: 'Catálogo', logoDomain: 'x.com' },
+  { code: 'threads', name: 'Threads', category: 'social', description: 'Rede textual para relacionamento e monitoramento.', status: 'Planejado', minimumPlan: 'Pro', connectorLevel: 'Catálogo', logoDomain: 'threads.net' },
+  { code: 'linkedin', name: 'LinkedIn', category: 'social', description: 'Relacionamento profissional, publicações e leads.', status: 'Planejado', minimumPlan: 'Pro', connectorLevel: 'Catálogo', logoDomain: 'linkedin.com' },
+  { code: 'youtube', name: 'YouTube', category: 'social', description: 'Comentários, canais e conteúdo em vídeo.', status: 'Planejado', minimumPlan: 'Pro', connectorLevel: 'Catálogo', logoDomain: 'youtube.com' },
+  { code: 'tiktok', name: 'TikTok', category: 'social', description: 'Conteúdo social em vídeo e monitoramento.', status: 'Planejado', minimumPlan: 'Pro', connectorLevel: 'Catálogo', logoDomain: 'tiktok.com' },
 
-  { code: 'jira', name: 'Jira', category: 'atlassian-dev', description: 'Issues, projetos, backlog e tarefas.', plan: 'Pro', status: 'Disponível', logo: 'JR', use: 'Desenvolvimento', canCreateEvents: true, canFeedKnowledge: true },
-  { code: 'jira_service_management', name: 'Jira Service Management', category: 'atlassian-dev', description: 'Portal, filas, tickets e service desk Atlassian.', plan: 'Pro', status: 'Disponível', logo: 'JSM', use: 'Suporte', canCreateEvents: true, canBeChannelProvider: true },
-  { code: 'confluence', name: 'Confluence', category: 'atlassian-dev', description: 'Espaços e páginas de documentação.', plan: 'Pro', status: 'Disponível', logo: 'CF', use: 'Conhecimento', canFeedKnowledge: true },
-  { code: 'trello', name: 'Trello', category: 'atlassian-dev', description: 'Quadros, listas e cartões.', plan: 'Student', status: 'Disponível', logo: 'TR', use: 'Gestão', canCreateEvents: true },
-  { code: 'bitbucket', name: 'Bitbucket', category: 'atlassian-dev', description: 'Repositórios e versionamento Atlassian.', plan: 'Pro', status: 'Planejado', logo: 'BB', use: 'Desenvolvimento', canFeedKnowledge: true },
-  { code: 'github', name: 'GitHub', category: 'atlassian-dev', description: 'Repositórios, issues e pull requests.', plan: 'Pro', status: 'Disponível', logo: 'GH', use: 'Desenvolvimento', canCreateEvents: true, canFeedKnowledge: true },
-  { code: 'gitlab', name: 'GitLab', category: 'atlassian-dev', description: 'Repositórios, issues, merge requests e pipelines.', plan: 'Pro', status: 'Planejado', logo: 'GL', use: 'Desenvolvimento', canCreateEvents: true },
-  { code: 'azure_devops', name: 'Azure DevOps', category: 'atlassian-dev', description: 'Boards, repositórios, pipelines e artefatos.', plan: 'Pro', status: 'Planejado', logo: 'AZ', use: 'Desenvolvimento', canCreateEvents: true },
+  // Desenvolvimento e Produto
+  { code: 'github', name: 'GitHub', category: 'development_product', description: 'PRs, issues, CI e fluxos de publicação.', status: 'Pronto para conectar', minimumPlan: 'Pro', connectorLevel: 'Conector preparado', logoDomain: 'github.com' },
+  { code: 'gitlab', name: 'GitLab', category: 'development_product', description: 'Repositórios, issues e pipelines.', status: 'Pronto para conectar', minimumPlan: 'Pro', connectorLevel: 'Conector preparado', logoDomain: 'gitlab.com' },
+  { code: 'bitbucket', name: 'Bitbucket', category: 'development_product', description: 'Repositórios e versionamento.', status: 'Planejado', minimumPlan: 'Pro', connectorLevel: 'Catálogo', logoDomain: 'bitbucket.org' },
+  { code: 'azure_devops', name: 'Azure DevOps', category: 'development_product', description: 'Boards, repositórios, pipelines e artefatos.', status: 'Pronto para conectar', minimumPlan: 'Pro', connectorLevel: 'Conector preparado', logoDomain: 'dev.azure.com' },
+  { code: 'supabase', name: 'Supabase', category: 'development_product', description: 'Banco, autenticação, storage e APIs.', status: 'Pronto para conectar', minimumPlan: 'Pro', connectorLevel: 'Conector preparado', logoDomain: 'supabase.com' },
+  { code: 'vercel', name: 'Vercel', category: 'development_product', description: 'Deploy de apps web e agentes.', status: 'Pronto para conectar', minimumPlan: 'Pro', connectorLevel: 'Conector preparado', logoDomain: 'vercel.com' },
+  { code: 'replit', name: 'Replit', category: 'development_product', description: 'Ambiente para protótipos e apps.', status: 'Planejado', minimumPlan: 'Pro', connectorLevel: 'Catálogo', logoDomain: 'replit.com' },
+  { code: 'lovable', name: 'Lovable', category: 'development_product', description: 'Construção de apps e sites.', status: 'Planejado', minimumPlan: 'Pro', connectorLevel: 'Catálogo', logoDomain: 'lovable.dev' },
+  { code: 'figma', name: 'Figma', category: 'development_product', description: 'Design, prototipação e fluxos design-to-code.', status: 'Planejado', minimumPlan: 'Pro', connectorLevel: 'Catálogo', logoDomain: 'figma.com' },
+  { code: 'postman', name: 'Postman', category: 'development_product', description: 'APIs, collections, environments e testes.', status: 'Planejado', minimumPlan: 'Pro', connectorLevel: 'Catálogo', logoDomain: 'postman.com' },
+  { code: 'swagger_openapi', name: 'Swagger / OpenAPI', category: 'development_product', description: 'Documentação e contratos de APIs.', status: 'Planejado', minimumPlan: 'Pro', connectorLevel: 'Catálogo', logoDomain: 'swagger.io' },
 
-  { code: 'monday', name: 'monday.com', category: 'work-management', description: 'Quadros, automações e gestão operacional.', plan: 'Pro', status: 'Disponível', logo: 'MO', use: 'Gestão', canCreateEvents: true },
-  { code: 'asana', name: 'Asana', category: 'work-management', description: 'Projetos, tarefas e equipes.', plan: 'Pro', status: 'Planejado', logo: 'AS', use: 'Gestão', canCreateEvents: true },
-  { code: 'clickup', name: 'ClickUp', category: 'work-management', description: 'Tarefas, documentos e gestão de trabalho.', plan: 'Pro', status: 'Planejado', logo: 'CU', use: 'Gestão', canCreateEvents: true },
-  { code: 'linear', name: 'Linear', category: 'work-management', description: 'Issues e roadmap de produto.', plan: 'Pro', status: 'Planejado', logo: 'LN', use: 'Gestão', canCreateEvents: true },
-  { code: 'notion_projects', name: 'Notion Projects', category: 'work-management', description: 'Projetos e bases de trabalho no Notion.', plan: 'Pro', status: 'Planejado', logo: 'NP', use: 'Gestão', canCreateEvents: true },
-  { code: 'wrike', name: 'Wrike', category: 'work-management', description: 'Gestão de projetos e colaboração.', plan: 'Pro', status: 'Planejado', logo: 'WR', use: 'Gestão', canCreateEvents: true },
-  { code: 'smartsheet', name: 'Smartsheet', category: 'work-management', description: 'Planilhas operacionais e automação de trabalho.', plan: 'Pro', status: 'Planejado', logo: 'SS', use: 'Gestão', canCreateEvents: true },
-  { code: 'basecamp', name: 'Basecamp', category: 'work-management', description: 'Projetos, equipes e colaboração.', plan: 'Pro', status: 'Planejado', logo: 'BC', use: 'Gestão', canCreateEvents: true },
+  // Gestão de Projetos e Trabalho
+  { code: 'jira', name: 'Jira', category: 'project_work', description: 'Issues, backlog, tarefas e roadmap.', status: 'Pronto para conectar', minimumPlan: 'Pro', connectorLevel: 'Conector preparado', logoDomain: 'atlassian.com' },
+  { code: 'jira_service_management', name: 'Jira Service Management', category: 'project_work', description: 'Atendimentos, service desk, SLAs e tickets.', status: 'Pronto para conectar', minimumPlan: 'Pro', connectorLevel: 'Conector preparado', logoDomain: 'atlassian.com' },
+  { code: 'confluence', name: 'Confluence', category: 'project_work', description: 'Documentação de projeto, atas, decisões e requisitos.', status: 'Pronto para conectar', minimumPlan: 'Pro', connectorLevel: 'Conector preparado', logoDomain: 'atlassian.com' },
+  { code: 'trello', name: 'Trello', category: 'project_work', description: 'Quadros, listas e cartões de trabalho.', status: 'Pronto para conectar', minimumPlan: 'Student', connectorLevel: 'Conector preparado', logoDomain: 'trello.com' },
+  { code: 'monday', name: 'monday.com', category: 'project_work', description: 'Gestão de projetos, operações e times.', status: 'Pronto para conectar', minimumPlan: 'Pro', connectorLevel: 'Conector preparado', logoDomain: 'monday.com' },
+  { code: 'asana', name: 'Asana', category: 'project_work', description: 'Projetos, tarefas e fluxos de trabalho.', status: 'Pronto para conectar', minimumPlan: 'Pro', connectorLevel: 'Conector preparado', logoDomain: 'asana.com' },
+  { code: 'clickup', name: 'ClickUp', category: 'project_work', description: 'Tarefas, documentos, metas e automações.', status: 'Pronto para conectar', minimumPlan: 'Pro', connectorLevel: 'Conector preparado', logoDomain: 'clickup.com' },
+  { code: 'linear', name: 'Linear', category: 'project_work', description: 'Issues, times e desenvolvimento de produto.', status: 'Pronto para conectar', minimumPlan: 'Pro', connectorLevel: 'Conector preparado', logoDomain: 'linear.app' },
+  { code: 'wrike', name: 'Wrike', category: 'project_work', description: 'Gestão de trabalho corporativo.', status: 'Planejado', minimumPlan: 'Pro', connectorLevel: 'Catálogo', logoDomain: 'wrike.com' },
+  { code: 'smartsheet', name: 'Smartsheet', category: 'project_work', description: 'Planilhas operacionais, projetos e processos.', status: 'Planejado', minimumPlan: 'Pro', connectorLevel: 'Catálogo', logoDomain: 'smartsheet.com' },
+  { code: 'basecamp', name: 'Basecamp', category: 'project_work', description: 'Projetos, colaboração e tarefas.', status: 'Planejado', minimumPlan: 'Pro', connectorLevel: 'Catálogo', logoDomain: 'basecamp.com' },
 
-  { code: 'salesforce', name: 'Salesforce', category: 'crm-marketing', description: 'CRM, contas, oportunidades e pipeline.', plan: 'Pro', status: 'Disponível', logo: 'SF', use: 'Comercial', canCreateEvents: true },
-  { code: 'hubspot', name: 'HubSpot', category: 'crm-marketing', description: 'CRM, marketing, vendas e atendimento.', plan: 'Pro', status: 'Disponível', logo: 'HS', use: 'Comercial', canCreateEvents: true },
-  { code: 'pipedrive', name: 'Pipedrive', category: 'crm-marketing', description: 'Funil comercial e atividades de venda.', plan: 'Pro', status: 'Planejado', logo: 'PD', use: 'Comercial', canCreateEvents: true },
-  { code: 'rd_station', name: 'RD Station', category: 'crm-marketing', description: 'Marketing, leads e automação comercial.', plan: 'Pro', status: 'Planejado', logo: 'RD', use: 'Comercial', canCreateEvents: true },
-  { code: 'zoho_crm', name: 'Zoho CRM', category: 'crm-marketing', description: 'CRM, vendas e relacionamento.', plan: 'Pro', status: 'Planejado', logo: 'ZO', use: 'Comercial', canCreateEvents: true },
-  { code: 'agendor', name: 'Agendor', category: 'crm-marketing', description: 'CRM brasileiro para vendas e relacionamento.', plan: 'Pro', status: 'Planejado', logo: 'AG', use: 'Comercial', canCreateEvents: true },
-  { code: 'piperun', name: 'PipeRun', category: 'crm-marketing', description: 'CRM e automação comercial.', plan: 'Pro', status: 'Planejado', logo: 'PR', use: 'Comercial', canCreateEvents: true },
-  { code: 'kommo', name: 'Kommo', category: 'crm-marketing', description: 'CRM conversacional e automação de vendas.', plan: 'Pro', status: 'Planejado', logo: 'KO', use: 'Comercial', canCreateEvents: true },
-  { code: 'activecampaign', name: 'ActiveCampaign', category: 'crm-marketing', description: 'Marketing, automação e CRM.', plan: 'Pro', status: 'Planejado', logo: 'AC', use: 'Comercial', canCreateEvents: true },
-  { code: 'mailchimp', name: 'Mailchimp', category: 'crm-marketing', description: 'E-mail marketing, públicos e campanhas.', plan: 'Pro', status: 'Planejado', logo: 'MC', use: 'Comercial', canCreateEvents: true },
+  // CRM
+  { code: 'salesforce', name: 'Salesforce', category: 'crm_marketing', description: 'CRM corporativo, leads, contas e oportunidades.', status: 'Pronto para conectar', minimumPlan: 'Pro', connectorLevel: 'Conector preparado', logoDomain: 'salesforce.com' },
+  { code: 'hubspot', name: 'HubSpot', category: 'crm_marketing', description: 'CRM, marketing, vendas e automação.', status: 'Pronto para conectar', minimumPlan: 'Pro', connectorLevel: 'Conector preparado', logoDomain: 'hubspot.com' },
+  { code: 'pipedrive', name: 'Pipedrive', category: 'crm_marketing', description: 'Funil de vendas, leads e oportunidades.', status: 'Planejado', minimumPlan: 'Pro', connectorLevel: 'Catálogo', logoDomain: 'pipedrive.com' },
+  { code: 'rd_station', name: 'RD Station', category: 'crm_marketing', description: 'Marketing, automação e leads.', status: 'Planejado', minimumPlan: 'Pro', connectorLevel: 'Catálogo', logoDomain: 'rdstation.com' },
+  { code: 'zoho_crm', name: 'Zoho CRM', category: 'crm_marketing', description: 'CRM, automações e relacionamento comercial.', status: 'Planejado', minimumPlan: 'Pro', connectorLevel: 'Catálogo', logoDomain: 'zoho.com' },
+  { code: 'agendor', name: 'Agendor', category: 'crm_marketing', description: 'CRM brasileiro para vendas e follow-up.', status: 'Planejado', minimumPlan: 'Pro', connectorLevel: 'Catálogo', logoDomain: 'agendor.com.br' },
+  { code: 'piperun', name: 'PipeRun', category: 'crm_marketing', description: 'CRM de vendas, funil e automações.', status: 'Planejado', minimumPlan: 'Pro', connectorLevel: 'Catálogo', logoDomain: 'crmpiperun.com' },
+  { code: 'kommo', name: 'Kommo', category: 'crm_marketing', description: 'CRM conversacional e mensageria comercial.', status: 'Planejado', minimumPlan: 'Pro', connectorLevel: 'Catálogo', logoDomain: 'kommo.com' },
+  { code: 'activecampaign', name: 'ActiveCampaign', category: 'crm_marketing', description: 'Marketing, automação e relacionamento.', status: 'Planejado', minimumPlan: 'Pro', connectorLevel: 'Catálogo', logoDomain: 'activecampaign.com' },
+  { code: 'mailchimp', name: 'Mailchimp', category: 'crm_marketing', description: 'Campanhas, listas, e-mail marketing e automação.', status: 'Planejado', minimumPlan: 'Pro', connectorLevel: 'Catálogo', logoDomain: 'mailchimp.com' },
+  { code: 'clay', name: 'Clay', category: 'crm_marketing', description: 'GTM data and functions.', status: 'Planejado', minimumPlan: 'Pro', connectorLevel: 'Catálogo', logoDomain: 'clay.com' },
 
-  { code: 'bling', name: 'Bling', category: 'erp-commerce-finance', description: 'Produtos, pedidos, estoque, notas e operação comercial.', plan: 'Pro', status: 'Disponível', logo: 'BL', use: 'Operação', canCreateEvents: true },
-  { code: 'tiny_erp', name: 'Tiny ERP', category: 'erp-commerce-finance', description: 'ERP, pedidos, produtos, estoque e e-commerce.', plan: 'Pro', status: 'Planejado', logo: 'TY', use: 'Operação', canCreateEvents: true },
-  { code: 'omie', name: 'Omie', category: 'erp-commerce-finance', description: 'ERP, financeiro, vendas e serviços.', plan: 'Pro', status: 'Planejado', logo: 'OM', use: 'Operação', canCreateEvents: true },
-  { code: 'conta_azul', name: 'Conta Azul', category: 'erp-commerce-finance', description: 'Gestão financeira e operacional.', plan: 'Pro', status: 'Planejado', logo: 'CA', use: 'Operação', canCreateEvents: true },
-  { code: 'nuvemshop', name: 'Nuvemshop', category: 'erp-commerce-finance', description: 'Loja virtual, pedidos e produtos.', plan: 'Pro', status: 'Planejado', logo: 'NS', use: 'Operação', canCreateEvents: true },
-  { code: 'shopify', name: 'Shopify', category: 'erp-commerce-finance', description: 'E-commerce, produtos, pedidos e clientes.', plan: 'Pro', status: 'Planejado', logo: 'SH', use: 'Operação', canCreateEvents: true },
-  { code: 'woocommerce', name: 'WooCommerce', category: 'erp-commerce-finance', description: 'E-commerce WordPress, pedidos e produtos.', plan: 'Pro', status: 'Planejado', logo: 'WC', use: 'Operação', canCreateEvents: true },
-  { code: 'mercado_livre', name: 'Mercado Livre', category: 'erp-commerce-finance', description: 'Marketplace, anúncios, pedidos e mensagens.', plan: 'Pro', status: 'Planejado', logo: 'ML', use: 'Operação', canCreateEvents: true },
-  { code: 'magento', name: 'Magento', category: 'erp-commerce-finance', description: 'E-commerce, catálogo, pedidos e clientes.', plan: 'Enterprise', status: 'Planejado', logo: 'MG', use: 'Operação', canCreateEvents: true },
-  { code: 'stripe', name: 'Stripe', category: 'erp-commerce-finance', description: 'Pagamentos, assinaturas e cobranças.', plan: 'Pro', status: 'Planejado', logo: 'ST', use: 'Operação', canCreateEvents: true },
-  { code: 'paypal', name: 'PayPal', category: 'erp-commerce-finance', description: 'Pagamentos e cobranças.', plan: 'Pro', status: 'Planejado', logo: 'PP', use: 'Operação', canCreateEvents: true },
-  { code: 'mercado_pago', name: 'Mercado Pago', category: 'erp-commerce-finance', description: 'Pagamentos e cobranças.', plan: 'Pro', status: 'Planejado', logo: 'MP', use: 'Operação', canCreateEvents: true },
-  { code: 'asaas', name: 'Asaas', category: 'erp-commerce-finance', description: 'Cobranças, pagamentos e financeiro.', plan: 'Pro', status: 'Planejado', logo: 'AA', use: 'Operação', canCreateEvents: true },
-  { code: 'iugu', name: 'Iugu', category: 'erp-commerce-finance', description: 'Pagamentos, assinaturas e automação financeira.', plan: 'Pro', status: 'Planejado', logo: 'IU', use: 'Operação', canCreateEvents: true },
+  // ERP
+  { code: 'bling', name: 'Bling', category: 'erp_operations', description: 'Produtos, pedidos, estoque e notas.', status: 'Em desenvolvimento', minimumPlan: 'Pro', connectorLevel: 'Conector preparado', logoDomain: 'bling.com.br' },
+  { code: 'tiny_erp', name: 'Tiny ERP', category: 'erp_operations', description: 'ERP, produtos, pedidos e estoque.', status: 'Planejado', minimumPlan: 'Pro', connectorLevel: 'Catálogo', logoDomain: 'tiny.com.br' },
+  { code: 'omie', name: 'Omie', category: 'erp_operations', description: 'ERP, financeiro, vendas e notas fiscais.', status: 'Planejado', minimumPlan: 'Pro', connectorLevel: 'Catálogo', logoDomain: 'omie.com.br' },
+  { code: 'conta_azul', name: 'Conta Azul', category: 'erp_operations', description: 'Gestão empresarial e operação financeira.', status: 'Planejado', minimumPlan: 'Pro', connectorLevel: 'Catálogo', logoDomain: 'contaazul.com' },
+  { code: 'nuvemshop', name: 'Nuvemshop', category: 'erp_operations', description: 'Loja virtual, pedidos, clientes e produtos.', status: 'Planejado', minimumPlan: 'Pro', connectorLevel: 'Catálogo', logoDomain: 'nuvemshop.com.br' },
+  { code: 'shopify', name: 'Shopify', category: 'erp_operations', description: 'E-commerce, pedidos, produtos e clientes.', status: 'Planejado', minimumPlan: 'Pro', connectorLevel: 'Catálogo', logoDomain: 'shopify.com' },
+  { code: 'woocommerce', name: 'WooCommerce', category: 'erp_operations', description: 'Loja virtual WordPress, pedidos e produtos.', status: 'Planejado', minimumPlan: 'Pro', connectorLevel: 'Catálogo', logoDomain: 'woocommerce.com' },
+  { code: 'mercado_livre', name: 'Mercado Livre', category: 'erp_operations', description: 'Marketplace, produtos, pedidos e atendimento.', status: 'Planejado', minimumPlan: 'Pro', connectorLevel: 'Catálogo', logoDomain: 'mercadolivre.com.br' },
+  { code: 'magento', name: 'Magento', category: 'erp_operations', description: 'E-commerce corporativo e catálogo de produtos.', status: 'Planejado', minimumPlan: 'Enterprise', connectorLevel: 'Catálogo', logoDomain: 'magento.com' },
 
-  { code: 'zendesk', name: 'Zendesk', category: 'support-service-desk', description: 'Tickets, central de ajuda e suporte.', plan: 'Pro', status: 'Disponível', logo: 'ZD', use: 'Suporte', canCreateEvents: true, canFeedKnowledge: true },
-  { code: 'freshdesk', name: 'Freshdesk', category: 'support-service-desk', description: 'Tickets, suporte e base de conhecimento.', plan: 'Pro', status: 'Planejado', logo: 'FD', use: 'Suporte', canCreateEvents: true, canFeedKnowledge: true },
-  { code: 'movidesk', name: 'Movidesk', category: 'support-service-desk', description: 'Tickets, SLA e suporte brasileiro.', plan: 'Pro', status: 'Planejado', logo: 'MV', use: 'Suporte', canCreateEvents: true },
-  { code: 'intercom', name: 'Intercom', category: 'support-service-desk', description: 'Chat, atendimento, automações e base.', plan: 'Pro', status: 'Planejado', logo: 'IC', use: 'Suporte', canCreateEvents: true },
-  { code: 'help_scout', name: 'Help Scout', category: 'support-service-desk', description: 'Caixas, tickets e suporte.', plan: 'Pro', status: 'Planejado', logo: 'HS', use: 'Suporte', canCreateEvents: true },
-  { code: 'servicenow', name: 'ServiceNow', category: 'support-service-desk', description: 'Service management corporativo.', plan: 'Enterprise', status: 'Planejado', logo: 'SN', use: 'Suporte', canCreateEvents: true },
+  // Financeiro
+  { code: 'stripe', name: 'Stripe', category: 'finance_payments', description: 'Pagamentos, assinaturas e cobrança.', status: 'Pronto para conectar', minimumPlan: 'Pro', connectorLevel: 'Conector preparado', logoDomain: 'stripe.com' },
+  { code: 'paypal', name: 'PayPal', category: 'finance_payments', description: 'Pagamentos e transações online.', status: 'Planejado', minimumPlan: 'Pro', connectorLevel: 'Catálogo', logoDomain: 'paypal.com' },
+  { code: 'mercado_pago', name: 'Mercado Pago', category: 'finance_payments', description: 'Pagamentos, cobranças e transações.', status: 'Planejado', minimumPlan: 'Pro', connectorLevel: 'Catálogo', logoDomain: 'mercadopago.com.br' },
+  { code: 'asaas', name: 'Asaas', category: 'finance_payments', description: 'Cobrança, boleto, pix, cartão e assinaturas.', status: 'Planejado', minimumPlan: 'Pro', connectorLevel: 'Catálogo', logoDomain: 'asaas.com' },
+  { code: 'iugu', name: 'Iugu', category: 'finance_payments', description: 'Pagamentos, assinatura e automação financeira.', status: 'Planejado', minimumPlan: 'Pro', connectorLevel: 'Catálogo', logoDomain: 'iugu.com' },
+  { code: 'binance', name: 'Binance', category: 'finance_payments', description: 'Dados de mercado cripto e operações autorizadas.', status: 'Planejado', minimumPlan: 'Enterprise', connectorLevel: 'Catálogo', logoDomain: 'binance.com' },
+  { code: 'alpaca', name: 'Alpaca', category: 'finance_payments', description: 'Dados de mercado: ações e cripto.', status: 'Planejado', minimumPlan: 'Enterprise', connectorLevel: 'Catálogo', logoDomain: 'alpaca.markets' },
+  { code: 'open_finance', name: 'Open Finance / Bancos', category: 'finance_payments', description: 'Conexões financeiras autorizadas e dados bancários.', status: 'Planejado', minimumPlan: 'Enterprise', connectorLevel: 'Catálogo' },
 
-  { code: 'custom_rest_api', name: 'API REST personalizada', category: 'custom-api', description: 'Conector guiado para APIs REST específicas do cliente.', plan: 'Pro', status: 'Disponível', logo: 'API', use: 'API', canCreateEvents: true, canFeedKnowledge: true },
-  { code: 'custom_graphql_api', name: 'API GraphQL personalizada', category: 'custom-api', description: 'Conector guiado para APIs GraphQL específicas do cliente.', plan: 'Pro', status: 'Planejado', logo: 'GQL', use: 'API', canCreateEvents: true },
-  { code: 'incoming_webhook', name: 'Webhook de entrada', category: 'custom-api', description: 'Recebe eventos externos para gerar atendimento, alerta ou tarefa.', plan: 'Pro', status: 'Disponível', logo: 'IN', use: 'API', canCreateEvents: true },
-  { code: 'outgoing_webhook', name: 'Webhook de saída', category: 'custom-api', description: 'Envia eventos do produto para sistemas externos.', plan: 'Pro', status: 'Disponível', logo: 'OUT', use: 'API', canCreateEvents: true },
-  { code: 'postgresql', name: 'Banco PostgreSQL', category: 'custom-api', description: 'Consulta controlada em banco PostgreSQL autorizado.', plan: 'Enterprise', status: 'Planejado', logo: 'PG', use: 'API', canCreateEvents: true },
-  { code: 'mysql', name: 'Banco MySQL', category: 'custom-api', description: 'Consulta controlada em banco MySQL autorizado.', plan: 'Enterprise', status: 'Planejado', logo: 'MY', use: 'API', canCreateEvents: true },
-  { code: 'sqlserver', name: 'Banco SQL Server', category: 'custom-api', description: 'Consulta controlada em banco SQL Server autorizado.', plan: 'Enterprise', status: 'Planejado', logo: 'SQL', use: 'API', canCreateEvents: true },
-  { code: 'recurring_csv', name: 'Arquivo CSV recorrente', category: 'custom-api', description: 'Carga recorrente de arquivo CSV para dicionário de dados.', plan: 'Pro', status: 'Planejado', logo: 'CSV', use: 'API', canCreateEvents: true },
-  { code: 'recurring_json', name: 'Arquivo JSON recorrente', category: 'custom-api', description: 'Carga recorrente de JSON para eventos, campos e telas.', plan: 'Pro', status: 'Planejado', logo: 'JSN', use: 'API', canCreateEvents: true },
+  // Suporte
+  { code: 'zendesk', name: 'Zendesk', category: 'support_service', description: 'Tickets, central de ajuda e suporte ao cliente.', status: 'Pronto para conectar', minimumPlan: 'Pro', connectorLevel: 'Conector preparado', logoDomain: 'zendesk.com' },
+  { code: 'freshdesk', name: 'Freshdesk', category: 'support_service', description: 'Central de suporte, tickets e automações.', status: 'Planejado', minimumPlan: 'Pro', connectorLevel: 'Catálogo', logoDomain: 'freshdesk.com' },
+  { code: 'movidesk', name: 'Movidesk', category: 'support_service', description: 'Help desk brasileiro, tickets e atendimento.', status: 'Planejado', minimumPlan: 'Pro', connectorLevel: 'Catálogo', logoDomain: 'movidesk.com' },
+  { code: 'intercom', name: 'Intercom', category: 'support_service', description: 'Conversas, contatos e tickets.', status: 'Pronto para conectar', minimumPlan: 'Pro', connectorLevel: 'Conector preparado', logoDomain: 'intercom.com' },
+  { code: 'help_scout', name: 'Help Scout', category: 'support_service', description: 'Caixa compartilhada, base e atendimento.', status: 'Planejado', minimumPlan: 'Pro', connectorLevel: 'Catálogo', logoDomain: 'helpscout.com' },
+  { code: 'servicenow', name: 'ServiceNow', category: 'support_service', description: 'Service management corporativo.', status: 'Planejado', minimumPlan: 'Enterprise', connectorLevel: 'Catálogo', logoDomain: 'servicenow.com' },
 
-  { code: 'openai', name: 'OpenAI', category: 'ai-voice', description: 'Modelos de IA, geração, análise e embeddings.', plan: 'Pro', status: 'Disponível', logo: 'AI', use: 'IA' },
-  { code: 'azure_openai', name: 'Azure OpenAI', category: 'ai-voice', description: 'Modelos de IA em ambiente Microsoft/Azure.', plan: 'Enterprise', status: 'Planejado', logo: 'AZ', use: 'IA' },
-  { code: 'gemini', name: 'Google Gemini', category: 'ai-voice', description: 'Modelos de IA do Google.', plan: 'Pro', status: 'Planejado', logo: 'GE', use: 'IA' },
-  { code: 'anthropic', name: 'Anthropic', category: 'ai-voice', description: 'Modelos de IA alternativos.', plan: 'Pro', status: 'Planejado', logo: 'AN', use: 'IA' },
-  { code: 'mistral', name: 'Mistral', category: 'ai-voice', description: 'Modelos abertos/comerciais de IA.', plan: 'Pro', status: 'Planejado', logo: 'MI', use: 'IA' },
-  { code: 'elevenlabs', name: 'ElevenLabs', category: 'ai-voice', description: 'Voz sintética e áudio.', plan: 'Enterprise', status: 'Planejado', logo: 'EL', use: 'IA' },
-  { code: 'transcription', name: 'Transcrição de áudio', category: 'ai-voice', description: 'Transcrição de áudios para atendimento, conhecimento e auditoria.', plan: 'Pro', status: 'Planejado', logo: 'TR', use: 'IA' },
-  { code: 'ocr', name: 'OCR', category: 'ai-voice', description: 'Extração de texto em imagens e documentos digitalizados.', plan: 'Pro', status: 'Planejado', logo: 'OCR', use: 'IA', canFeedKnowledge: true },
-  { code: 'vector_database', name: 'Vector Database', category: 'ai-voice', description: 'Armazenamento vetorial para busca semântica e RAG.', plan: 'Enterprise', status: 'Planejado', logo: 'VDB', use: 'IA', canFeedKnowledge: true },
+  // Dados
+  { code: 'data_analytics', name: 'Data Analytics', category: 'data_analytics', description: 'Perguntas de produto e negócio com dados.', status: 'Planejado', minimumPlan: 'Pro', connectorLevel: 'Catálogo' },
+  { code: 'bigquery', name: 'BigQuery', category: 'data_analytics', description: 'Consultas e recursos BigQuery.', status: 'Planejado', minimumPlan: 'Enterprise', connectorLevel: 'Catálogo', logoDomain: 'cloud.google.com' },
+  { code: 'posthog', name: 'PostHog', category: 'data_analytics', description: 'Análise de produto e eventos.', status: 'Planejado', minimumPlan: 'Pro', connectorLevel: 'Catálogo', logoDomain: 'posthog.com' },
+  { code: 'mixpanel', name: 'Mixpanel', category: 'data_analytics', description: 'Eventos, funis e análise de produto.', status: 'Planejado', minimumPlan: 'Pro', connectorLevel: 'Catálogo', logoDomain: 'mixpanel.com' },
+  { code: 'amplitude', name: 'Amplitude', category: 'data_analytics', description: 'Product intelligence.', status: 'Planejado', minimumPlan: 'Pro', connectorLevel: 'Catálogo', logoDomain: 'amplitude.com' },
+  { code: 'power_bi', name: 'Power BI', category: 'data_analytics', description: 'Dashboards, datasets e business intelligence.', status: 'Planejado', minimumPlan: 'Pro', connectorLevel: 'Catálogo', logoDomain: 'powerbi.microsoft.com' },
+  { code: 'looker_studio', name: 'Looker Studio', category: 'data_analytics', description: 'Relatórios e visualização de dados.', status: 'Planejado', minimumPlan: 'Pro', connectorLevel: 'Catálogo', logoDomain: 'lookerstudio.google.com' },
+  { code: 'metabase', name: 'Metabase', category: 'data_analytics', description: 'BI, consultas e painéis internos.', status: 'Planejado', minimumPlan: 'Pro', connectorLevel: 'Catálogo', logoDomain: 'metabase.com' },
+
+  // Conhecimento
+  { code: 'consensus', name: 'Consensus', category: 'education_knowledge', description: 'Pesquisa científica e respostas baseadas em estudos.', status: 'Planejado', minimumPlan: 'Pro', connectorLevel: 'Catálogo', logoDomain: 'consensus.app' },
+  { code: 'scite', name: 'Scite', category: 'education_knowledge', description: 'Respostas fundamentadas em ciência.', status: 'Planejado', minimumPlan: 'Pro', connectorLevel: 'Catálogo', logoDomain: 'scite.ai' },
+  { code: 'scispace', name: 'SciSpace', category: 'education_knowledge', description: 'Ciência, pesquisa e leitura de papers.', status: 'Planejado', minimumPlan: 'Pro', connectorLevel: 'Catálogo', logoDomain: 'typeset.io' },
+  { code: 'sider_scholar', name: 'Sider Scholar', category: 'education_knowledge', description: 'Busca acadêmica, papers e referências.', status: 'Planejado', minimumPlan: 'Pro', connectorLevel: 'Catálogo', logoDomain: 'sider.ai' },
+  { code: 'wolfram', name: 'Wolfram', category: 'education_knowledge', description: 'Computação e conhecimento estruturado.', status: 'Planejado', minimumPlan: 'Pro', connectorLevel: 'Catálogo', logoDomain: 'wolframalpha.com' },
+  { code: 'midpage_legal', name: 'Midpage Legal Research', category: 'education_knowledge', description: 'Pesquisa jurídica e referências legais.', status: 'Planejado', minimumPlan: 'Enterprise', connectorLevel: 'Catálogo', logoDomain: 'midpage.ai' },
+  { code: 'web_pages', name: 'Sites / Páginas web', category: 'education_knowledge', description: 'Fontes públicas, páginas oficiais e conteúdo informacional.', status: 'Pronto para conectar', minimumPlan: 'Student', connectorLevel: 'Conector preparado' },
+  { code: 'rss_feeds', name: 'RSS / Feeds', category: 'education_knowledge', description: 'Feeds e publicações recorrentes.', status: 'Pronto para conectar', minimumPlan: 'Pro', connectorLevel: 'Conector preparado' },
+  { code: 'manual_upload', name: 'Upload manual de documentos', category: 'education_knowledge', description: 'Arquivos enviados manualmente pelo usuário.', status: 'Pronto para conectar', minimumPlan: 'Básico', connectorLevel: 'Conector preparado' },
+
+  // Segurança
+  { code: 'vanta', name: 'Vanta', category: 'security', description: 'Trust, segurança e conformidade.', status: 'Planejado', minimumPlan: 'Enterprise', connectorLevel: 'Catálogo', logoDomain: 'vanta.com' },
+  { code: 'malwarebytes', name: 'Malwarebytes', category: 'security', description: 'Verificação de links, domínios e telefones.', status: 'Planejado', minimumPlan: 'Pro', connectorLevel: 'Catálogo', logoDomain: 'malwarebytes.com' },
+  { code: 'bitdefender', name: 'Bitdefender', category: 'security', description: 'Checagem de URLs e segurança.', status: 'Planejado', minimumPlan: 'Pro', connectorLevel: 'Catálogo', logoDomain: 'bitdefender.com' },
+  { code: 'solvery', name: 'Solvery', category: 'security', description: 'Auditoria de permissões e segurança documental.', status: 'Planejado', minimumPlan: 'Pro', connectorLevel: 'Catálogo' },
+  { code: 'purevpn', name: 'PureVPN Privacy Assistant', category: 'security', description: 'Privacidade e navegação segura.', status: 'Planejado', minimumPlan: 'Pro', connectorLevel: 'Catálogo', logoDomain: 'purevpn.com' },
+
+  // API customizada
+  { code: 'custom_rest_api', name: 'API REST personalizada', category: 'custom_api', description: 'Conector guiado por agente para APIs REST autorizadas.', status: 'Pronto para conectar', minimumPlan: 'Pro', connectorLevel: 'API guiada' },
+  { code: 'custom_graphql_api', name: 'API GraphQL personalizada', category: 'custom_api', description: 'Conector guiado por agente para APIs GraphQL.', status: 'Pronto para conectar', minimumPlan: 'Pro', connectorLevel: 'API guiada' },
+  { code: 'incoming_webhook', name: 'Webhook de entrada', category: 'custom_api', description: 'Recebe eventos externos para atendimento, alerta, tarefa ou conhecimento.', status: 'Pronto para conectar', minimumPlan: 'Pro', connectorLevel: 'API guiada' },
+  { code: 'outgoing_webhook', name: 'Webhook de saída', category: 'custom_api', description: 'Envia eventos do produto para sistemas externos.', status: 'Pronto para conectar', minimumPlan: 'Pro', connectorLevel: 'API guiada' },
+  { code: 'postgres_connection', name: 'Banco PostgreSQL', category: 'custom_api', description: 'Conexão controlada com banco PostgreSQL autorizado.', status: 'Planejado', minimumPlan: 'Enterprise', connectorLevel: 'API guiada' },
+  { code: 'mysql_connection', name: 'Banco MySQL', category: 'custom_api', description: 'Conexão controlada com banco MySQL autorizado.', status: 'Planejado', minimumPlan: 'Enterprise', connectorLevel: 'API guiada' },
+  { code: 'sqlserver_connection', name: 'Banco SQL Server', category: 'custom_api', description: 'Conexão controlada com SQL Server autorizado.', status: 'Planejado', minimumPlan: 'Enterprise', connectorLevel: 'API guiada' },
+  { code: 'csv_recurring', name: 'Arquivo CSV recorrente', category: 'custom_api', description: 'Carga recorrente por arquivo CSV estruturado.', status: 'Pronto para conectar', minimumPlan: 'Student', connectorLevel: 'API guiada' },
+  { code: 'json_recurring', name: 'Arquivo JSON recorrente', category: 'custom_api', description: 'Carga recorrente por arquivo JSON estruturado.', status: 'Pronto para conectar', minimumPlan: 'Student', connectorLevel: 'API guiada' },
 ];
 
 export const nativePlatformServices = [
   'Correios / CEP',
-  'Maps / geolocalização / rotas',
+  'Maps / Geolocalização',
+  'Voz, transcrição e OCR',
+  'Busca vetorial',
 ];
 
-export const excludedDefaultConnectors = [
+export const outOfStandardConnectorScope = [
   'e-SUS APS',
+  'SISAB',
   'RNDS',
   'CADSUS',
-  'SISAB',
   'BNAFAR',
   'CNES',
   'SIGTAP',

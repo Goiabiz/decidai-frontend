@@ -1,0 +1,3 @@
+import { CreditCard, PackagePlus, UserCog, Wallet } from 'lucide-react';
+export function MinhaConta(){return <div className="v3464-page"><div className="v3464-page-head"><h1>Minha conta</h1></div><section className="v3464-card"><h2>Conta e plano</h2><p>Gerencie plano, usuários adicionais, agentes adicionais e pacotes de consumo contratados.</p><div className="v3464-plugin-grid">{[[CreditCard,'Plano atual','Alterar plano'],[Wallet,'Tokens adicionais','Contratar pacote'],[UserCog,'Usuários','Aumentar limite'],[PackagePlus,'Agentes','Contratar agente adicional']].map(([I,t,s]:any)=><button className="v3464-plugin" key={t}><I size={26}/><span><strong>{t}</strong><small>{s}</small></span></button>)}</div></section></div>}
+export default MinhaConta;

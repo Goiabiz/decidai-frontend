@@ -1,42 +1,82 @@
-import { CalendarDays, Filter, ListChecks, Search, ShieldCheck, UserRound } from 'lucide-react';
+import { Bot, CalendarDays, Download, Filter, KeyRound, Search, ShieldCheck, UserRound } from 'lucide-react';
+import { useMemo, useState } from 'react';
 import { PageHeader } from '../../components/PageHeader';
 import { Badge } from '../../components/Badge';
+import { normalizeFilterText } from '../../components/SmartFilters';
 
 const logs = [
-  { id: 'AUD-001', data: 'Hoje 10:42', usuario: 'Moises Mattos', modulo: 'Integrações', acao: 'Teste de conexão', agente: 'SUSi', criticidade: 'Baixa' },
-  { id: 'AUD-002', data: 'Hoje 09:10', usuario: 'Sistema', modulo: 'Agentes', acao: 'Execução simulada', agente: 'Biel', criticidade: 'Média' },
-  { id: 'AUD-003', data: 'Ontem 18:05', usuario: 'Administrador', modulo: 'Campos', acao: 'Exclusão confirmada', agente: '-', criticidade: 'Alta' },
+  { id: 'AUD-001', data: '2026-08-01 20:42', usuario: 'Moises Mattos', modulo: 'Integrações', acao: 'Conector API criado', tipo: 'API', criticidade: 'Média' },
+  { id: 'AUD-002', data: '2026-08-01 20:30', usuario: 'SUSi', modulo: 'Agentes', acao: 'Sugestão de fluxo gerada', tipo: 'Agente', criticidade: 'Baixa' },
+  { id: 'AUD-003', data: '2026-08-01 19:58', usuario: 'Bruno Oliveira', modulo: 'Campos', acao: 'Campo externo vinculado', tipo: 'Dados', criticidade: 'Alta' },
 ];
 
-function tone(criticidade: string) {
-  if (criticidade === 'Alta') return 'orange';
-  if (criticidade === 'Média') return 'blue';
-  return 'green';
-}
-
 export function SegurancaAuditoria() {
+  const [query, setQuery] = useState('');
+  const [type, setType] = useState('');
+
+  const filtered = useMemo(() => {
+    const normalized = normalizeFilterText(query);
+    return logs.filter((item) => {
+      const text = normalizeFilterText(Object.values(item).join(' '));
+      return (!normalized || text.includes(normalized)) && (!type || item.tipo === type);
+    });
+  }, [query, type]);
+
   return (
     <>
-      <PageHeader title="Auditoria" />
+      <PageHeader
+        title="Auditoria"
+        action={<button className="secondary-btn"><Download size={16} /> Exportar</button>}
+      />
 
-      <section className="card audit-list-card">
+      <section className="card audit-clean-card">
         <div className="section-title-row">
           <div>
-            <h3>Consulta de auditoria</h3>
-            <p className="section-description">Pesquise ações de usuários, agentes, integrações, exportações e operações sensíveis.</p>
+            <h3>Consulta de logs</h3>
+            <p className="section-description">Pesquise acessos, ações sensíveis, exportações, integrações e execuções do agente.</p>
           </div>
+          <Badge tone="blue">{filtered.length} registros</Badge>
         </div>
 
-        <div className="audit-filter-row">
-          <div className="smart-search"><Search size={18} /><input placeholder="Buscar usuário, módulo, ação ou agente..." /></div>
-          <select><option>Todos os módulos</option><option>Agentes</option><option>Integrações</option><option>Campos</option></select>
-          <select><option>Período</option><option>Hoje</option><option>7 dias</option><option>30 dias</option></select>
+        <div className="audit-filter-grid">
+          <div className="smart-search">
+            <Search size={18} />
+            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar por usuário, módulo, ação, agente ou período..." />
+          </div>
+          <select value={type} onChange={(event) => setType(event.target.value)}>
+            <option value="">Todos os tipos</option>
+            <option>API</option>
+            <option>Agente</option>
+            <option>Dados</option>
+          </select>
+          <button><CalendarDays size={16} /> Período</button>
+          <button><Filter size={16} /> Filtros</button>
         </div>
 
-        <div className="cadastro-table-wrap full">
+        <div className="simple-table-wrap">
           <table>
-            <thead><tr><th>Registro</th><th>Data</th><th>Usuário</th><th>Módulo</th><th>Ação</th><th>Agente</th><th>Criticidade</th></tr></thead>
-            <tbody>{logs.map((log) => <tr key={log.id}><td><strong>{log.id}</strong></td><td>{log.data}</td><td><UserRound size={14} /> {log.usuario}</td><td>{log.modulo}</td><td>{log.acao}</td><td>{log.agente}</td><td><Badge tone={tone(log.criticidade)}>{log.criticidade}</Badge></td></tr>)}</tbody>
+            <thead>
+              <tr>
+                <th>Data</th>
+                <th>Usuário/Agente</th>
+                <th>Módulo</th>
+                <th>Ação</th>
+                <th>Tipo</th>
+                <th>Criticidade</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((item) => (
+                <tr key={item.id}>
+                  <td>{item.data}</td>
+                  <td>{item.usuario}</td>
+                  <td>{item.modulo}</td>
+                  <td>{item.acao}</td>
+                  <td>{item.tipo}</td>
+                  <td><Badge tone={item.criticidade === 'Alta' ? 'orange' : 'blue'}>{item.criticidade}</Badge></td>
+                </tr>
+              ))}
+            </tbody>
           </table>
         </div>
       </section>

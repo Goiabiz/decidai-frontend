@@ -1,0 +1,6 @@
+import { Archive, CheckCircle2, Clock, ListChecks } from 'lucide-react';
+import { ExportAction } from '../../components/ExportAction';
+import { KpiCard } from '../../components/KpiCard';
+export type StandardReportPageProps={title:string; description?:string; onSelectDetail?: (detail:any)=>void; onOpenDetail?: (detail:any)=>void};
+export function StandardReportPage({title,description}:StandardReportPageProps){return <div className="v3464-page"><div className="v3464-page-head"><h1>{title}</h1><ExportAction/></div><div className="kpi-grid"><KpiCard label="Total" value={0} tone="blue" icon={<ListChecks size={20}/>}/><KpiCard label="Ativos" value={0} tone="green" icon={<CheckCircle2 size={20}/>}/><KpiCard label="Pendentes" value={0} tone="orange" icon={<Clock size={20}/>}/><KpiCard label="Arquivados" value={0} tone="purple" icon={<Archive size={20}/>}/></div><section className="v3464-card"><h2>{title}</h2><p>{description || 'Consulta consolidada com filtros, totais e exportação.'}</p><div className="v3464-search"><input placeholder="Buscar na consulta..."/></div><table className="v3464-table"><thead><tr><th>Data</th><th>Origem</th><th>Status</th><th>Responsável</th></tr></thead><tbody><tr><td colSpan={4}>Nenhum registro encontrado.</td></tr></tbody></table></section></div>}
+export default StandardReportPage;

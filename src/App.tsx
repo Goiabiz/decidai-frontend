@@ -5,7 +5,7 @@ import { DetailModal } from './components/DetailModal';
 import { AppConfirmModal } from './components/AppConfirmModal';
 import { Dashboard } from './pages/Dashboard';
 import { Alertas } from './pages/Alertas';
-import { AnaliseAcoes } from './pages/AnaliseAcoes';
+import AnaliseAcoes from './pages/AnaliseAcoes';
 import { BaseConhecimento } from './pages/BaseConhecimento';
 import { CentralAtendimento } from './pages/CentralAtendimento';
 import { Configuracoes } from './pages/Configuracoes';
@@ -113,11 +113,11 @@ export function App() {
     'cad-campos': <CamposContexto />,
     'cad-formularios': <FormulariosTelas />,
     base: <BaseConhecimento onSelectDetail={handleSelectDetail} onOpenDetail={setExpandedDetail} />,
-    atendimento: <CentralAtendimento onOpenDetail={setExpandedDetail} />,
-    alertas: <Alertas onSelectDetail={handleSelectDetail} onOpenDetail={setExpandedDetail} />,
+    atendimento: <CentralAtendimento />,
+    alertas: <Alertas />,
     'atendimento-servicos': <ServicosFilas />,
-    analise: <AnaliseAcoes onSelectDetail={handleSelectDetail} onOpenDetail={setExpandedDetail} />,
-    'param-admin': <Configuracoes onSelectDetail={handleSelectDetail} onOpenDetail={setExpandedDetail} />,
+    analise: <AnaliseAcoes />,
+    'param-admin': <Configuracoes />,
     'param-integracoes': <Integracoes />,
     'param-agentes': <Agentes />,
     'param-canais': <Canais />,

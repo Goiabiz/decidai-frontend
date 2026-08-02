@@ -209,6 +209,7 @@ export function UnidadesCentrosCusto() {
   const [selectedUnit, setSelectedUnit] = useState<Unit | null>(mockUnits[0]);
   const [form, setForm] = useState<Unit>(emptyUnit);
   const [isFormOpen, setIsFormOpen] = useState(false);
+  const [editingUnitId, setEditingUnitId] = useState<string | null>(null);
   const [isMapOpen, setIsMapOpen] = useState(false);
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [isExportOpen, setIsExportOpen] = useState(false);
@@ -263,6 +264,18 @@ export function UnidadesCentrosCusto() {
     setErrors((current) => ({ ...current, cep: '' }));
   };
 
+  const openCreateModal = () => {
+    setEditingUnitId(null);
+    setForm(emptyUnit);
+    setIsFormOpen(true);
+  };
+
+  const openEditModal = (unit: Unit) => {
+    setEditingUnitId(unit.id);
+    setForm(unit);
+    setIsFormOpen(true);
+  };
+
   const saveUnit = () => {
     const nextErrors: Record<string, string> = {};
     if (!form.nome.trim()) nextErrors.nome = 'Nome da unidade é obrigatório.';
@@ -271,10 +284,20 @@ export function UnidadesCentrosCusto() {
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length) return;
 
-    const nextUnit = { ...form, id: `UND-${String(units.length + 1).padStart(4, '0')}`, setores: form.setores.filter((sector) => sector.nome.trim()) };
-    setUnits((current) => [nextUnit, ...current]);
-    setSelectedUnit(nextUnit);
+    const sectors = form.setores.filter((sector) => sector.nome.trim());
+
+    if (editingUnitId) {
+      const nextUnit = { ...form, id: editingUnitId, setores: sectors };
+      setUnits((current) => current.map((unit) => unit.id === editingUnitId ? nextUnit : unit));
+      setSelectedUnit(nextUnit);
+    } else {
+      const nextUnit = { ...form, id: `UND-${String(units.length + 1).padStart(4, '0')}`, setores: sectors };
+      setUnits((current) => [nextUnit, ...current]);
+      setSelectedUnit(nextUnit);
+    }
+
     setForm(emptyUnit);
+    setEditingUnitId(null);
     setIsFormOpen(false);
   };
 
@@ -286,7 +309,7 @@ export function UnidadesCentrosCusto() {
           <div className="header-actions">
             <button className="secondary-btn" onClick={() => setIsImportOpen(true)}><Upload size={16} /> Importar</button>
             <button className="secondary-btn" onClick={() => setIsExportOpen(true)}><Download size={16} /> Exportar</button>
-            <button className="primary-small" onClick={() => setIsFormOpen(true)}><Plus size={16} /> Nova unidade</button>
+            <button className="primary-small" onClick={openCreateModal}><Plus size={16} /> Nova unidade</button>
           </div>
         )}
       />
@@ -316,7 +339,7 @@ export function UnidadesCentrosCusto() {
                     <td>
                       <div className="row-action-group" onClick={(event) => event.stopPropagation()}>
                         <button title="Visualizar mapa" onClick={() => { setSelectedUnit(unit); setIsMapOpen(true); }}><Map size={16} /></button>
-                        <button title="Editar unidade"><Edit3 size={16} /></button>
+                        <button title="Editar unidade" onClick={() => openEditModal(unit)}><Edit3 size={16} /></button>
                       </div>
                     </td>
                   </tr>
@@ -344,7 +367,7 @@ export function UnidadesCentrosCusto() {
                   <MapPreview unit={selectedUnit} compact />
                 </div>
 
-                <div className="panel-actions user-actions"><button className="primary">Editar unidade</button><button onClick={() => setIsMapOpen(true)}>Visualizar mapa</button></div>
+                <div className="panel-actions user-actions"><button className="primary" onClick={() => openEditModal(selectedUnit)}>Editar unidade</button><button onClick={() => setIsMapOpen(true)}>Visualizar mapa</button></div>
 
                 <div className="unit-sector-list">
                   <h4>Setores</h4>
@@ -359,7 +382,7 @@ export function UnidadesCentrosCusto() {
       {isFormOpen && (
         <div className="modal-backdrop unit-modal-backdrop">
           <div className="unit-form-modal">
-            <div className="unit-modal-header"><strong>Nova unidade</strong><button className="icon-btn" onClick={() => setIsFormOpen(false)}><X size={18} /></button></div>
+            <div className="unit-modal-header"><strong>{editingUnitId ? 'Editar unidade' : 'Nova unidade'}</strong><button className="icon-btn" onClick={() => { setIsFormOpen(false); setEditingUnitId(null); }}><X size={18} /></button></div>
 
             <div className="unit-modal-content">
               <section className="unit-form-section">
@@ -416,7 +439,7 @@ export function UnidadesCentrosCusto() {
               </section>
             </div>
 
-            <div className="unit-modal-footer"><button onClick={() => setIsFormOpen(false)}>Cancelar</button><button className="primary" onClick={saveUnit}>Salvar unidade</button></div>
+            <div className="unit-modal-footer"><button onClick={() => { setIsFormOpen(false); setEditingUnitId(null); }}>Cancelar</button><button className="primary" onClick={saveUnit}>{editingUnitId ? 'Salvar alterações' : 'Salvar unidade'}</button></div>
           </div>
         </div>
       )}

@@ -1,36 +1,164 @@
+import { BellPlus, MessageCircle, Plus, Search, Send, X } from 'lucide-react';
 import { useMemo, useState } from 'react';
-import { BellPlus, CheckCircle2, MessageSquareWarning, Plus, Search, Send, X } from 'lucide-react';
 import { PageHeader } from '../components/PageHeader';
 import { Badge } from '../components/Badge';
 import { normalizeFilterText } from '../components/SmartFilters';
 import { showAppToast } from '../lib/appToast';
-import type { PageProps } from '../App';
 
-type AlertStatus = 'Novo' | 'Em andamento' | 'Concluído';
-type AlertPriority = 'Baixa' | 'Média' | 'Alta' | 'Crítica';
-type AlertRecord = { id: string; descricao: string; prioridade: AlertPriority; status: AlertStatus; responsavel: string; canais: string[]; conhecimento: string; tarefas: number; emitidoEm: string; };
-const availableChannels = ['Atendimento via Widget', 'Atendimento via WhatsApp', 'Atendimento via E-mail', 'Monitoramento de comunidade'];
+type AlertRecord = {
+  id: string;
+  descricao: string;
+  status: 'Novo' | 'Em andamento' | 'Concluído';
+  prioridade: 'Baixa' | 'Média' | 'Alta' | 'Crítica';
+  responsavel: string;
+  canais: string[];
+  mensagem: string;
+  tarefas: number;
+};
+
 const initialAlerts: AlertRecord[] = [
-  { id: 'ALT-001', descricao: 'Atualização importante identificada em documento oficial.', prioridade: 'Alta', status: 'Novo', responsavel: 'Produto', canais: ['Atendimento via Widget'], conhecimento: 'CON-0001', tarefas: 1, emitidoEm: 'Hoje 10:12' },
-  { id: 'ALT-002', descricao: 'Mudança operacional exige orientação para equipe de atendimento.', prioridade: 'Média', status: 'Em andamento', responsavel: 'Suporte', canais: ['Atendimento via WhatsApp', 'Atendimento via E-mail'], conhecimento: 'CON-0002', tarefas: 2, emitidoEm: 'Ontem 16:20' },
+  { id: 'ALT-001', descricao: 'Acompanhar alteração operacional relevante', status: 'Em andamento', prioridade: 'Média', responsavel: 'Moises Mattos', canais: ['Widget', 'E-mail'], mensagem: 'Atenção para atualização operacional.', tarefas: 1 },
+  { id: 'ALT-002', descricao: 'Monitorar publicação externa cadastrada', status: 'Novo', prioridade: 'Alta', responsavel: 'Bruno Oliveira', canais: ['WhatsApp'], mensagem: 'Nova publicação precisa ser revisada.', tarefas: 2 },
 ];
-const emptyAlert: AlertRecord = { id: '', descricao: '', prioridade: 'Média', status: 'Novo', responsavel: '', canais: [], conhecimento: '', tarefas: 0, emitidoEm: 'Agora' };
-function tone(priority: AlertPriority) { if (priority === 'Crítica') return 'red'; if (priority === 'Alta') return 'orange'; if (priority === 'Média') return 'blue'; return 'green'; }
-function toggle(value: string, list: string[]) { return list.includes(value) ? list.filter((item) => item !== value) : [...list, value]; }
 
-export function Alertas({ onOpenDetail }: PageProps) {
-  const [alerts, setAlerts] = useState(initialAlerts);
-  const [query, setQuery] = useState('');
-  const [priority, setPriority] = useState('');
-  const [open, setOpen] = useState(false);
+const emptyAlert: AlertRecord = {
+  id: '',
+  descricao: '',
+  status: 'Novo',
+  prioridade: 'Média',
+  responsavel: '',
+  canais: [],
+  mensagem: '',
+  tarefas: 0,
+};
+
+const channelOptions = ['Widget', 'E-mail', 'WhatsApp', 'Telegram', 'Teams', 'Discord'];
+
+function toggleItem(value: string, list: string[]) {
+  return list.includes(value) ? list.filter((item) => item !== value) : [...list, value];
+}
+
+export function Alertas() {
+  const [items, setItems] = useState(initialAlerts);
   const [form, setForm] = useState(emptyAlert);
-  const filtered = useMemo(() => { const q = normalizeFilterText(query); return alerts.filter((item) => (!q || normalizeFilterText([item.descricao, item.prioridade, item.status, item.responsavel, item.canais.join(' ')].join(' ')).includes(q)) && (!priority || item.prioridade === priority)); }, [alerts, query, priority]);
-  const update = <K extends keyof AlertRecord>(key: K, value: AlertRecord[K]) => setForm((current) => ({ ...current, [key]: value }));
-  const save = () => { if (!form.descricao.trim()) { showAppToast('Informe a descrição do alerta.', 'warning'); return; } const next = { ...form, id: `ALT-${String(alerts.length + 1).padStart(3, '0')}` }; setAlerts((current) => [next, ...current]); setForm(emptyAlert); setOpen(false); showAppToast('Alerta cadastrado e pronto para disparo.', 'success'); };
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const [status, setStatus] = useState('');
 
-  return <><PageHeader title="Alertas" action={<button className="primary-small" onClick={() => setOpen(true)}><Plus size={16} /> Cadastrar alerta</button>} />
-  <section className="card alert-list-card"><div className="section-title-row"><div><h3>Alertas registrados</h3><p className="section-description">Crie alertas e defina os canais operacionais de disparo vinculados às integrações configuradas.</p></div><span className="small-muted">{filtered.length} alertas</span></div><div className="smart-filter-bar alert-filter-bar"><div className="smart-search"><Search size={18} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar alerta, canal, responsável ou status..." /></div><select value={priority} onChange={(event) => setPriority(event.target.value)}><option value="">Todas as prioridades</option><option>Baixa</option><option>Média</option><option>Alta</option><option>Crítica</option></select></div><div className="cadastro-table-wrap full"><table><thead><tr><th>Descrição do alerta</th><th>Status</th><th>Prioridade</th><th>Responsável</th><th>Canais de disparo</th><th>Tarefas</th><th>Ações</th></tr></thead><tbody>{filtered.map((alert) => <tr key={alert.id}><td><strong>{alert.descricao}</strong><div className="table-subtitle">{alert.id} • {alert.conhecimento || 'Sem conhecimento vinculado'}</div></td><td><Badge tone={alert.status === 'Concluído' ? 'green' : alert.status === 'Em andamento' ? 'blue' : 'orange'}>{alert.status}</Badge></td><td><Badge tone={tone(alert.prioridade)}>{alert.prioridade}</Badge></td><td>{alert.responsavel || '-'}</td><td><div className="chip-list compact">{alert.canais.map((canal) => <span key={canal}>{canal}</span>)}</div></td><td>{alert.tarefas}</td><td><div className="row-action-group"><button title="Disparar alerta" onClick={() => showAppToast('Disparo de alerta preparado para backend.', 'info')}><Send size={16} /></button><button title="Concluir" onClick={() => setAlerts((current) => current.map((item) => item.id === alert.id ? { ...item, status: 'Concluído' } : item))}><CheckCircle2 size={16} /></button><button title="Detalhes" onClick={() => onOpenDetail?.({ title: alert.descricao, subtitle: alert.id, badge: alert.prioridade, description: `Canais: ${alert.canais.join(', ')}` })}><MessageSquareWarning size={16} /></button></div></td></tr>)}</tbody></table></div></section>
-  {open && <div className="modal-backdrop cadastro-modal-backdrop"><div className="agent-modal"><div className="cadastro-modal-header"><strong>Cadastrar alerta</strong><button className="icon-btn" onClick={() => setOpen(false)}><X size={18} /></button></div><div className="cadastro-modal-content"><section className="cadastro-form-section"><h3>Dados do alerta</h3><div className="cadastro-form-grid"><label className="span-2"><span>Descrição *</span><input value={form.descricao} onChange={(event) => update('descricao', event.target.value)} /></label><label><span>Prioridade</span><select value={form.prioridade} onChange={(event) => update('prioridade', event.target.value as AlertPriority)}><option>Baixa</option><option>Média</option><option>Alta</option><option>Crítica</option></select></label><label><span>Responsável</span><input value={form.responsavel} onChange={(event) => update('responsavel', event.target.value)} /></label><label><span>Conhecimento vinculado</span><input value={form.conhecimento} onChange={(event) => update('conhecimento', event.target.value)} placeholder="CON-0001" /></label><label><span>Gerar tarefa?</span><select value={String(form.tarefas > 0)} onChange={(event) => update('tarefas', event.target.value === 'true' ? 1 : 0)}><option value="false">Não</option><option value="true">Sim</option></select></label></div></section><section className="cadastro-form-section"><h3>Canais de disparo</h3><div className="option-columns two">{availableChannels.map((channel) => <label key={channel}><input type="checkbox" checked={form.canais.includes(channel)} onChange={() => update('canais', toggle(channel, form.canais))} /> {channel}</label>)}</div></section></div><div className="cadastro-modal-footer"><button onClick={() => setOpen(false)}>Cancelar</button><button className="primary" onClick={save}>Salvar alerta</button></div></div></div>}</>;
+  const filtered = useMemo(() => {
+    const normalized = normalizeFilterText(query);
+    return items.filter((item) => {
+      const text = normalizeFilterText(Object.values(item).flat().join(' '));
+      return (!normalized || text.includes(normalized)) && (!status || item.status === status);
+    });
+  }, [items, query, status]);
+
+  const update = <K extends keyof AlertRecord>(key: K, value: AlertRecord[K]) => setForm((current) => ({ ...current, [key]: value }));
+
+  const save = () => {
+    if (!form.descricao.trim()) {
+      showAppToast('Informe a descrição do alerta.', 'warning');
+      return;
+    }
+
+    setItems((current) => [{ ...form, id: `ALT-${String(current.length + 1).padStart(3, '0')}` }, ...current]);
+    setOpen(false);
+    setForm(emptyAlert);
+    showAppToast('Alerta cadastrado.', 'success');
+  };
+
+  return (
+    <>
+      <PageHeader title="Alertas" action={<button className="primary-small" onClick={() => setOpen(true)}><BellPlus size={16} /> Cadastrar alerta</button>} />
+
+      <section className="card alerts-clean-card">
+        <div className="section-title-row">
+          <div>
+            <h3>Alertas registrados</h3>
+            <p className="section-description">Alertas podem ser disparados por canais configurados e vinculados a tarefas, conhecimentos e atendimentos.</p>
+          </div>
+          <span className="small-muted">{filtered.length} registros</span>
+        </div>
+
+        <div className="alert-filter-grid">
+          <div className="smart-search">
+            <Search size={18} />
+            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar alerta, canal, responsável ou mensagem..." />
+          </div>
+          <select value={status} onChange={(event) => setStatus(event.target.value)}>
+            <option value="">Todos os status</option>
+            <option>Novo</option>
+            <option>Em andamento</option>
+            <option>Concluído</option>
+          </select>
+        </div>
+
+        <div className="simple-table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Descrição do alerta</th>
+                <th>Status</th>
+                <th>Prioridade</th>
+                <th>Responsável</th>
+                <th>Canais de disparo</th>
+                <th>Tarefas</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((item) => (
+                <tr key={item.id}>
+                  <td><strong>{item.descricao}</strong><span className="table-subtitle">{item.id} • {item.mensagem}</span></td>
+                  <td><Badge tone="blue">{item.status}</Badge></td>
+                  <td><Badge tone={item.prioridade === 'Alta' || item.prioridade === 'Crítica' ? 'orange' : 'blue'}>{item.prioridade}</Badge></td>
+                  <td>{item.responsavel}</td>
+                  <td><div className="chip-list">{item.canais.map((canal) => <span key={canal}>{canal}</span>)}</div></td>
+                  <td>{item.tarefas}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      {open && (
+        <div className="modal-backdrop cadastro-modal-backdrop">
+          <div className="agent-modal">
+            <div className="cadastro-modal-header">
+              <strong>Cadastrar alerta</strong>
+              <button className="icon-btn" onClick={() => setOpen(false)}><X size={18} /></button>
+            </div>
+
+            <div className="cadastro-modal-content">
+              <section className="cadastro-form-section">
+                <h3>Dados do alerta</h3>
+                <div className="cadastro-form-grid">
+                  <label className="span-2"><span>Descrição *</span><input value={form.descricao} onChange={(event) => update('descricao', event.target.value)} placeholder="Descreva o alerta de forma objetiva." /></label>
+                  <label><span>Prioridade</span><select value={form.prioridade} onChange={(event) => update('prioridade', event.target.value as AlertRecord['prioridade'])}><option>Baixa</option><option>Média</option><option>Alta</option><option>Crítica</option></select></label>
+                  <label><span>Responsável</span><input value={form.responsavel} onChange={(event) => update('responsavel', event.target.value)} placeholder="Responsável pelo acompanhamento" /></label>
+                  <label className="span-2"><span>Mensagem</span><textarea value={form.mensagem} onChange={(event) => update('mensagem', event.target.value)} placeholder="Mensagem que será enviada pelos canais selecionados." /></label>
+                </div>
+              </section>
+
+              <section className="cadastro-form-section">
+                <h3>Canais de disparo</h3>
+                <div className="option-columns three">
+                  {channelOptions.map((canal) => (
+                    <label key={canal}><input type="checkbox" checked={form.canais.includes(canal)} onChange={() => update('canais', toggleItem(canal, form.canais))} /> {canal}</label>
+                  ))}
+                </div>
+              </section>
+            </div>
+
+            <div className="cadastro-modal-footer">
+              <button onClick={() => setOpen(false)}>Cancelar</button>
+              <button className="primary" onClick={save}><Send size={16} /> Salvar e preparar disparo</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
 }
 
 export default Alertas;
