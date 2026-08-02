@@ -1,165 +1,77 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Cable, RefreshCw } from 'lucide-react';
-import { DataSourceNotice } from '../components/DataSourceNotice';
-import { IntegrationProviderCard } from '../components/integrations/IntegrationProviderCard';
-import { KpiCard } from '../components/KpiCard';
+import { useMemo, useState } from 'react';
+import { Bot, CheckCircle2, DatabaseZap, FileText, Filter, Globe2, KeyRound, Logs, Plug, Search, Settings2, Sparkles, TestTube2, Workflow } from 'lucide-react';
 import { PageHeader } from '../components/PageHeader';
-import {
-  listIntegrationConnections,
-  listIntegrationProviders,
-  type IntegrationConnection,
-  type IntegrationProvider,
-} from '../services/integrationsApi';
+import { Badge } from '../components/Badge';
+import { integrationCatalog, integrationCategories, nativePlatformServices, excludedDefaultConnectors, type IntegrationCategoryCode, type IntegrationItem } from '../lib/integrationCatalog';
+import { showAppToast } from '../lib/appToast';
 
-type ActionState = {
-  title: string;
-  message: string;
-};
+function statusTone(status: IntegrationItem['status']) {
+  if (status === 'Conectado') return 'green';
+  if (status === 'Disponível') return 'blue';
+  if (status === 'Bloqueado pelo plano') return 'orange';
+  if (status === 'Erro') return 'red';
+  return 'gray';
+}
 
-type LoadState = {
-  loading: boolean;
-  error: string;
-};
-
-function providerStatus(provider: IntegrationProvider, connection?: IntegrationConnection) {
-  if (connection?.status === 'conectada') return 'conectada';
-  if (provider.status === 'ativo') return 'disponivel';
-  return 'planejada';
+function CategoryIcon({ code }: { code: IntegrationCategoryCode }) {
+  if (code === 'communication') return <Workflow size={18} />;
+  if (code === 'social') return <Globe2 size={18} />;
+  if (code === 'knowledge') return <FileText size={18} />;
+  if (code === 'custom-api') return <DatabaseZap size={18} />;
+  if (code === 'ai-voice') return <Bot size={18} />;
+  return <Plug size={18} />;
 }
 
 export function Integracoes() {
-  const [providers, setProviders] = useState<IntegrationProvider[]>([]);
-  const [connections, setConnections] = useState<IntegrationConnection[]>([]);
-  const [loadState, setLoadState] = useState<LoadState>({ loading: true, error: '' });
-  const [actionState, setActionState] = useState<ActionState | null>(null);
+  const [category, setCategory] = useState<IntegrationCategoryCode | 'all'>('communication');
+  const [search, setSearch] = useState('');
+  const [selected, setSelected] = useState<IntegrationItem | null>(integrationCatalog[0]);
 
-  async function loadIntegrations() {
-    setLoadState({ loading: true, error: '' });
-
-    try {
-      const [providerData, connectionData] = await Promise.all([
-        listIntegrationProviders(),
-        listIntegrationConnections(),
-      ]);
-
-      setProviders(providerData);
-      setConnections(connectionData);
-      setLoadState({ loading: false, error: '' });
-    } catch (error) {
-      setLoadState({
-        loading: false,
-        error: error instanceof Error ? error.message : 'Erro ao carregar integrações.',
-      });
-    }
-  }
-
-  useEffect(() => {
-    void loadIntegrations();
-  }, []);
-
-  const connectionByProvider = useMemo(() => {
-    return connections.reduce<Record<string, IntegrationConnection>>((acc, connection) => {
-      if (!acc[connection.provider_code]) {
-        acc[connection.provider_code] = connection;
-      }
-      return acc;
-    }, {});
-  }, [connections]);
-
-  const stats = useMemo(() => {
-    const connected = providers.filter((provider) => connectionByProvider[provider.code]?.status === 'conectada').length;
-    const available = providers.filter((provider) => provider.status === 'ativo').length;
-    const planned = providers.filter((provider) => provider.status === 'planejado').length;
-    const errors = connections.filter((connection) => ['erro_autenticacao', 'token_expirado', 'sem_permissao'].includes(connection.status)).length;
-
-    return { connected, available, planned, errors };
-  }, [providers, connections, connectionByProvider]);
-
-  function showPreparedAction(title: string, provider: IntegrationProvider) {
-    setActionState({
-      title,
-      message: `${title} para ${provider.name} já está prevista, mas depende do endpoint backend/OAuth. Esta tela está pronta para consumir esse fluxo quando ativarmos o provider.`,
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return integrationCatalog.filter((item) => {
+      const matchesCategory = category === 'all' || item.category === category;
+      const matchesSearch = !q || [item.name, item.description, item.use, item.plan].join(' ').toLowerCase().includes(q);
+      return matchesCategory && matchesSearch;
     });
-  }
+  }, [category, search]);
+
+  const selectedCategory = integrationCategories.find((item) => item.code === category);
 
   return (
-    <div className="integrations-page">
-      <PageHeader
-        title="Integrações"
-        action={
-          <button
-            className="secondary-button"
-            type="button"
-            onClick={() => {
-              void loadIntegrations();
-            }}
-          >
-            <RefreshCw size={16} />
-            Atualizar
-          </button>
-        }
-      />
+    <>
+      <PageHeader title="Integrações" />
 
-      <DataSourceNotice
-        source="supabase"
-        loading={loadState.loading}
-        error={loadState.error || undefined}
-        connectionState={loadState.loading ? 'connecting' : loadState.error ? 'error' : 'connected'}
-      />
+      <section className="integration-layout-v29">
+        <aside className="card integration-category-list">
+          <div className="section-title-row"><h3>Tipos de serviço</h3></div>
+          <button className={category === 'all' ? 'active' : ''} onClick={() => setCategory('all')}><Filter size={18} /><span>Todos</span></button>
+          {integrationCategories.map((item) => <button key={item.code} className={category === item.code ? 'active' : ''} onClick={() => setCategory(item.code)}><CategoryIcon code={item.code} /><span>{item.label}</span></button>)}
+        </aside>
 
-      <section className="kpi-grid four">
-        <KpiCard label="Disponíveis" value={stats.available} tooltip="Provedores já liberados para conexão." tone="green" />
-        <KpiCard label="Conectadas" value={stats.connected} tooltip="Conexões ativas e autorizadas." tone="blue" />
-        <KpiCard label="Planejadas" value={stats.planned} tooltip="Integrações cadastradas no roadmap." tone="purple" />
-        <KpiCard label="Com atenção" value={stats.errors} tooltip="Conexões com erro, token expirado ou falta de permissão." tone="orange" />
-      </section>
-
-      {actionState && (
-        <div className="integration-action-notice">
-          <strong>{actionState.title}</strong>
-          <p>{actionState.message}</p>
-          <button type="button" className="ghost-button" onClick={() => setActionState(null)}>
-            Fechar
-          </button>
-        </div>
-      )}
-
-      <section className="integration-section">
-        <div className="section-title-row">
-          <div>
-            <h2>Conexões do cliente</h2>
-            <p>Conecte contas autorizadas para o agente consultar documentos, tarefas, canais e bases externas.</p>
+        <section className="card integration-catalog-card">
+          <div className="section-title-row">
+            <div><h3>{selectedCategory?.label || 'Todas as integrações'}</h3><p className="section-description">{selectedCategory?.description || 'Catálogo completo de conectores externos.'}</p></div>
+            <span className="small-muted">{filtered.length} conectores</span>
           </div>
-          <span className="records-count">{providers.length} provedores</span>
-        </div>
 
-        <div className="integrations-grid">
-          {providers.map((provider) => {
-            const connection = connectionByProvider[provider.code];
-            const status = providerStatus(provider, connection);
+          <div className="smart-search"><Search size={18} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar integração, plataforma, uso ou plano..." /></div>
 
-            return (
-              <IntegrationProviderCard
-                key={provider.id}
-                provider={{ ...provider, status: status === 'planejada' ? 'planejado' : provider.status }}
-                connection={connection}
-                onConnect={(selected) => showPreparedAction('Conectar conta', selected)}
-                onTest={(selected) => showPreparedAction('Testar conexão', selected)}
-                onResources={(selected) => showPreparedAction('Selecionar recursos', selected)}
-                onLogs={(selected) => showPreparedAction('Ver logs', selected)}
-              />
-            );
-          })}
-        </div>
-
-        {!loadState.loading && providers.length === 0 && (
-          <div className="empty-state">
-            <Cable size={22} />
-            Nenhum provedor de integração foi encontrado.
+          <div className="integration-card-grid-v29">
+            {filtered.map((item) => <button key={item.code} className={selected?.code === item.code ? 'active' : ''} onClick={() => setSelected(item)}><span className={`brand-service-logo ${item.category}`}>{item.logo}</span><strong>{item.name}</strong><small>{item.description}</small><div><Badge tone={statusTone(item.status)}>{item.status}</Badge><em>{item.plan}</em></div></button>)}
           </div>
-        )}
+        </section>
+
+        <aside className="card integration-detail-v29">
+          {selected && <><div className="agent-detail-header"><span className={`brand-service-logo large ${selected.category}`}>{selected.logo}</span><div><h3>{selected.name}</h3><p>{selected.description}</p></div><Badge tone={statusTone(selected.status)}>{selected.status}</Badge></div>
+          <div className="agent-detail-actions"><button onClick={() => showAppToast(`Conexão de ${selected.name} preparada para backend/OAuth.`, 'info')}><Plug size={16} /> Conectar</button><button onClick={() => showAppToast('Teste de conexão será executado pelo backend.', 'info')}><TestTube2 size={16} /> Testar</button><button onClick={() => showAppToast('Seleção de recursos prevista para próxima etapa.', 'info')}><Settings2 size={16} /> Recursos</button><button onClick={() => showAppToast('Logs serão exibidos após conexão real.', 'info')}><Logs size={16} /> Logs</button></div>
+          <div className="agent-info-grid"><div><KeyRound size={18} /><strong>Plano mínimo</strong><span>{selected.plan}</span></div><div><Sparkles size={18} /><strong>Uso principal</strong><span>{selected.use}</span></div><div><CheckCircle2 size={18} /><strong>Base de conhecimento</strong><span>{selected.canFeedKnowledge ? 'Pode alimentar' : 'Não é fonte principal'}</span></div><div><Workflow size={18} /><strong>Canal operacional</strong><span>{selected.canBeChannelProvider ? 'Pode ser usado por canal' : 'Não é canal'}</span></div></div>
+          <div className="native-note"><strong>Serviços nativos da plataforma</strong><span>{nativePlatformServices.join(' • ')}</span><small>Não aparecem como conectores opcionais do cliente. São controlados pela intranet/plataforma.</small></div>
+          <div className="native-note muted"><strong>Fora dos conectores padrão</strong><span>{excludedDefaultConnectors.join(' • ')}</span><small>Podem ser conectados apenas via API personalizada, quando o cliente tiver API autorizada.</small></div></>}
+        </aside>
       </section>
-    </div>
+    </>
   );
 }
 
+export default Integracoes;

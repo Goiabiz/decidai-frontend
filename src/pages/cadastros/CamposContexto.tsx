@@ -15,8 +15,10 @@ import {
 import { Badge } from '../../components/Badge';
 import { PageHeader } from '../../components/PageHeader';
 import { normalizeFilterText } from '../../components/SmartFilters';
+import { showAppToast } from '../../lib/appToast';
 
 type FieldStatus = 'Ativo' | 'Inativo';
+type DataOrigin = 'Manual' | 'Sistema' | 'Calculado/Fórmula' | 'Integração/API';
 type FieldType =
   | 'Anexo'
   | 'Checkbox'
@@ -47,6 +49,15 @@ type FieldRecord = {
   obrigatorioPadrao: boolean;
   permiteBusca: boolean;
   permiteAgente: boolean;
+  origemDado: DataOrigin;
+  integracao: string;
+  endpoint: string;
+  campoExterno: string;
+  modoAtualizacao: string;
+  permiteCache: boolean;
+  dadoSensivel: boolean;
+  permiteAlerta: boolean;
+  permiteRelatorio: boolean;
   mascara: string;
   valorPadrao: string;
   formula: string;
@@ -55,6 +66,14 @@ type FieldRecord = {
   listaDependente: string;
   permiteMultiplosNiveis: boolean;
   telas: number;
+};
+
+type ConfirmAction = {
+  title: string;
+  description: string;
+  confirmLabel: string;
+  tone?: 'danger' | 'default';
+  onConfirm: () => void;
 };
 
 const fieldTypes: FieldType[] = [
@@ -90,6 +109,15 @@ const emptyField: FieldRecord = {
   obrigatorioPadrao: false,
   permiteBusca: true,
   permiteAgente: true,
+  origemDado: 'Manual',
+  integracao: '',
+  endpoint: '',
+  campoExterno: '',
+  modoAtualizacao: 'Sob demanda',
+  permiteCache: true,
+  dadoSensivel: false,
+  permiteAlerta: true,
+  permiteRelatorio: true,
   mascara: '',
   valorPadrao: '',
   formula: '',
@@ -110,6 +138,15 @@ const mockFields: FieldRecord[] = [
     obrigatorioPadrao: true,
     permiteBusca: true,
     permiteAgente: true,
+    origemDado: 'Manual',
+    integracao: '',
+    endpoint: '',
+    campoExterno: '',
+    modoAtualizacao: 'Sob demanda',
+    permiteCache: true,
+    dadoSensivel: false,
+    permiteAlerta: true,
+    permiteRelatorio: true,
     mascara: 'telefone internacional',
     valorPadrao: '',
     formula: '',
@@ -128,6 +165,15 @@ const mockFields: FieldRecord[] = [
     obrigatorioPadrao: false,
     permiteBusca: true,
     permiteAgente: true,
+    origemDado: 'Manual',
+    integracao: '',
+    endpoint: '',
+    campoExterno: '',
+    modoAtualizacao: 'Sob demanda',
+    permiteCache: true,
+    dadoSensivel: false,
+    permiteAlerta: true,
+    permiteRelatorio: true,
     mascara: '',
     valorPadrao: '',
     formula: '',
@@ -146,6 +192,15 @@ const mockFields: FieldRecord[] = [
     obrigatorioPadrao: false,
     permiteBusca: true,
     permiteAgente: true,
+    origemDado: 'Manual',
+    integracao: '',
+    endpoint: '',
+    campoExterno: '',
+    modoAtualizacao: 'Sob demanda',
+    permiteCache: true,
+    dadoSensivel: false,
+    permiteAlerta: true,
+    permiteRelatorio: true,
     mascara: '',
     valorPadrao: '',
     formula: '',
@@ -205,6 +260,8 @@ export function CamposContexto() {
   const [form, setForm] = useState<FieldRecord>(emptyField);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null);
 
   const filtered = useMemo(() => {
     const query = normalizeFilterText(search);
@@ -212,7 +269,7 @@ export function CamposContexto() {
     const statusFilter = normalizeFilterText(status);
 
     return fields.filter((field) => {
-      const text = normalizeFilterText([field.nome, field.tipo, field.status, field.descricao].join(' '));
+      const text = normalizeFilterText([field.nome, field.tipo, field.status, field.descricao, field.origemDado, field.integracao, field.endpoint, field.campoExterno].join(' '));
       return (!query || text.includes(query))
         && (!typeFilter || normalizeFilterText(field.tipo) === typeFilter)
         && (!statusFilter || normalizeFilterText(field.status) === statusFilter);
@@ -234,6 +291,39 @@ export function CamposContexto() {
   const addOption = () => setForm((current) => ({ ...current, opcoes: [...current.opcoes, ''] }));
   const removeOption = (index: number) => setForm((current) => ({ ...current, opcoes: current.opcoes.length === 1 ? current.opcoes : current.opcoes.filter((_, optionIndex) => optionIndex !== index) }));
 
+  const openNewField = () => {
+    setForm(emptyField);
+    setEditingId(null);
+    setErrors({});
+    setIsFormOpen(true);
+  };
+
+  const editField = (field: FieldRecord) => {
+    setForm({ ...field, opcoes: field.opcoes.length ? field.opcoes : [''] });
+    setEditingId(field.id);
+    setErrors({});
+    setIsFormOpen(true);
+  };
+
+  const duplicateField = (field: FieldRecord) => {
+    const copy: FieldRecord = {
+      ...field,
+      id: `CAM-${String(fields.length + 1).padStart(4, '0')}`,
+      nome: `${field.nome} (cópia)`,
+      telas: 0,
+    };
+
+    setFields((current) => [copy, ...current]);
+    showAppToast('Campo duplicado.', 'success');
+  };
+
+  const closeForm = () => {
+    setForm(emptyField);
+    setEditingId(null);
+    setErrors({});
+    setIsFormOpen(false);
+  };
+
   const saveField = () => {
     const nextErrors: Record<string, string> = {};
     if (!form.nome.trim()) nextErrors.nome = 'Nome do campo é obrigatório.';
@@ -242,32 +332,48 @@ export function CamposContexto() {
     if (needsOptions(form.tipo) && !form.opcoes.some((option) => option.trim())) nextErrors.opcoes = 'Informe ao menos uma opção.';
     if (form.tipo === 'Fórmula' && !form.formula.trim()) nextErrors.formula = 'Informe a fórmula do campo calculado.';
     if (form.tipo === 'Lista em cascata' && (!form.listaPrincipal.trim() || !form.listaDependente.trim())) nextErrors.cascata = 'Informe a lista principal e a lista dependente.';
+    if (form.origemDado === 'Integração/API' && (!form.integracao.trim() || !form.endpoint.trim() || !form.campoExterno.trim())) nextErrors.origemDado = 'Informe integração, endpoint e campo externo.';
 
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length) return;
 
-    const nextField: FieldRecord = {
+    const normalizedField: FieldRecord = {
       ...form,
-      id: `CAM-${String(fields.length + 1).padStart(4, '0')}`,
+      id: editingId || `CAM-${String(fields.length + 1).padStart(4, '0')}`,
       opcoes: needsOptions(form.tipo) ? form.opcoes.filter((option) => option.trim()) : [],
     };
 
-    setFields((current) => [nextField, ...current]);
-    setForm(emptyField);
-    setIsFormOpen(false);
+    if (editingId) {
+      setFields((current) => current.map((field) => field.id === editingId ? normalizedField : field));
+      showAppToast('Campo atualizado.', 'success');
+    } else {
+      setFields((current) => [normalizedField, ...current]);
+      showAppToast('Campo criado.', 'success');
+    }
+
+    closeForm();
   };
 
   const deleteField = (id: string) => {
     const item = fields.find((field) => field.id === id);
-    if (!window.confirm(`Excluir o campo "${item?.nome || id}"? Essa ação não deve ser usada se o campo já estiver vinculado a uma tela em produção.`)) return;
-    setFields((current) => current.filter((field) => field.id !== id));
+    setConfirmAction({
+      title: 'Excluir campo',
+      description: `Excluir o campo "${item?.nome || id}"? Essa ação não deve ser usada se o campo já estiver vinculado a uma tela em produção.`,
+      confirmLabel: 'Excluir campo',
+      tone: 'danger',
+      onConfirm: () => {
+        setFields((current) => current.filter((field) => field.id !== id));
+        setConfirmAction(null);
+        showAppToast('Campo excluído.', 'info');
+      },
+    });
   };
 
   return (
     <>
       <PageHeader
         title="Campos"
-        action={<button className="primary-small" onClick={() => setIsFormOpen(true)}><Plus size={16} /> Novo campo</button>}
+        action={<button className="primary-small" onClick={openNewField}><Plus size={16} /> Novo campo</button>}
       />
 
       <section className="card cadastro-functional-card no-side-detail">
@@ -298,6 +404,7 @@ export function CamposContexto() {
                 <th>Campo</th>
                 <th>Descrição</th>
                 <th>Tipo</th>
+                <th>Origem</th>
                 <th>Status</th>
                 <th>Uso</th>
                 <th>Agente</th>
@@ -311,14 +418,15 @@ export function CamposContexto() {
                   <td><strong>{field.nome}</strong><div className="table-subtitle">{field.id}</div></td>
                   <td className="description-cell">{field.descricao || '-'}</td>
                   <td><Badge tone="blue">{field.tipo}</Badge></td>
+                  <td><Badge tone={field.origemDado === 'Integração/API' ? 'orange' : 'blue'}>{field.origemDado}</Badge>{field.origemDado === 'Integração/API' && <div className="table-subtitle">{field.integracao} • {field.endpoint} • {field.campoExterno}</div>}</td>
                   <td><Badge tone={statusTone(field.status)}>{field.status}</Badge></td>
                   <td>{field.obrigatorioPadrao ? 'Obrigatório padrão' : 'Opcional padrão'}</td>
                   <td>{field.permiteAgente ? 'Permitido' : 'Não permitido'}</td>
                   <td>{field.telas}</td>
                   <td>
                     <div className="row-action-group">
-                      <button title="Editar campo"><Edit3 size={16} /></button>
-                      <button title="Duplicar campo"><Copy size={16} /></button>
+                      <button title="Editar campo" onClick={() => editField(field)}><Edit3 size={16} /></button>
+                      <button title="Duplicar campo" onClick={() => duplicateField(field)}><Copy size={16} /></button>
                       <button title="Excluir campo" onClick={() => deleteField(field.id)}><Trash2 size={16} /></button>
                     </div>
                   </td>
@@ -333,8 +441,8 @@ export function CamposContexto() {
         <div className="modal-backdrop cadastro-modal-backdrop">
           <div className="cadastro-form-modal">
             <div className="cadastro-modal-header">
-              <strong>Novo campo</strong>
-              <button className="icon-btn" onClick={() => setIsFormOpen(false)}><X size={18} /></button>
+              <strong>{editingId ? 'Editar campo' : 'Novo campo'}</strong>
+              <button className="icon-btn" onClick={closeForm}><X size={18} /></button>
             </div>
 
             <div className="cadastro-modal-content">
@@ -384,6 +492,34 @@ export function CamposContexto() {
                     <FieldLabel info="Valor sugerido automaticamente quando o campo aparecer em uma tela.">Valor padrão</FieldLabel>
                     <input value={form.valorPadrao} onChange={(event) => updateForm('valorPadrao', event.target.value)} placeholder="Valor padrão" />
                   </label>
+                </div>
+              </section>
+
+              <section className="cadastro-form-section">
+                <h3>Origem do dado</h3>
+                <div className="cadastro-form-grid">
+                  <label>
+                    <FieldLabel info="Define se o campo será preenchido manualmente, pelo sistema, por fórmula ou por integração/API.">Origem</FieldLabel>
+                    <select value={form.origemDado} onChange={(event) => updateForm('origemDado', event.target.value as DataOrigin)}>
+                      <option>Manual</option>
+                      <option>Sistema</option>
+                      <option>Calculado/Fórmula</option>
+                      <option>Integração/API</option>
+                    </select>
+                  </label>
+                  {form.origemDado === 'Integração/API' && (
+                    <>
+                      <label><FieldLabel info="Integração conectada ou API personalizada.">Integração</FieldLabel><input value={form.integracao} onChange={(event) => updateForm('integracao', event.target.value)} placeholder="Ex.: Bling, Salesforce, API personalizada" /></label>
+                      <label><FieldLabel info="Endpoint mapeado no dicionário de dados.">Endpoint</FieldLabel><input value={form.endpoint} onChange={(event) => updateForm('endpoint', event.target.value)} placeholder="Ex.: /produtos" /></label>
+                      <label><FieldLabel info="Campo retornado pelo endpoint da API.">Campo externo</FieldLabel><input value={form.campoExterno} onChange={(event) => updateForm('campoExterno', event.target.value)} placeholder="Ex.: data.items[].estoque_atual" /></label>
+                      <label><FieldLabel info="Forma como o campo será atualizado.">Atualização</FieldLabel><select value={form.modoAtualizacao} onChange={(event) => updateForm('modoAtualizacao', event.target.value)}><option>Sob demanda</option><option>Sincronizado</option><option>Manual</option><option>Tempo real</option></select></label>
+                      <label className="inline-check"><input type="checkbox" checked={form.permiteCache} onChange={(event) => updateForm('permiteCache', event.target.checked)} /> Permite cache</label>
+                      <label className="inline-check"><input type="checkbox" checked={form.dadoSensivel} onChange={(event) => updateForm('dadoSensivel', event.target.checked)} /> Dado sensível</label>
+                      <label className="inline-check"><input type="checkbox" checked={form.permiteAlerta} onChange={(event) => updateForm('permiteAlerta', event.target.checked)} /> Usar em alerta</label>
+                      <label className="inline-check"><input type="checkbox" checked={form.permiteRelatorio} onChange={(event) => updateForm('permiteRelatorio', event.target.checked)} /> Usar em relatório</label>
+                    </>
+                  )}
+                  {errors.origemDado && <small className="field-error span-2">{errors.origemDado}</small>}
                 </div>
               </section>
 
@@ -445,8 +581,24 @@ export function CamposContexto() {
             </div>
 
             <div className="cadastro-modal-footer">
-              <button onClick={() => setIsFormOpen(false)}>Cancelar</button>
-              <button className="primary" onClick={saveField}>Salvar campo</button>
+              <button onClick={closeForm}>Cancelar</button>
+              <button className="primary" onClick={saveField}>{editingId ? 'Salvar alterações' : 'Salvar campo'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {confirmAction && (
+        <div className="modal-backdrop cadastro-modal-backdrop">
+          <div className="system-confirm-modal">
+            <div className="system-confirm-header">
+              <strong>{confirmAction.title}</strong>
+              <button className="icon-btn" onClick={() => setConfirmAction(null)}><X size={18} /></button>
+            </div>
+            <p>{confirmAction.description}</p>
+            <div className="system-confirm-actions">
+              <button onClick={() => setConfirmAction(null)}>Cancelar</button>
+              <button className={confirmAction.tone === 'danger' ? 'danger' : 'primary'} onClick={confirmAction.onConfirm}>{confirmAction.confirmLabel}</button>
             </div>
           </div>
         </div>

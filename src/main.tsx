@@ -1,3 +1,4 @@
+import './lib/appConfirm';
 import './lib/sidebarHoverDelay';
 import './lib/appToast';
 import './lib/branding';

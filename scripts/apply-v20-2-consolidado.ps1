@@ -1,3 +1,9 @@
+
+function Read-Utf8 {
+  param([string]$Path)
+  # Le sempre como UTF-8 explicito (nunca cai no codepage ANSI do Windows).
+  return [System.IO.File]::ReadAllText((Resolve-Path $Path), (New-Object System.Text.UTF8Encoding($false)))
+}
 # Radar SUS Frontend - v20.2 consolidado
 # Inclui v20 submenus + v20.1 menu hover/fixacao.
 # Execute na raiz do radar-sus-frontend.
@@ -8,8 +14,8 @@ $cssPath = "src/styles/global.css"
 
 $cssV20 = "docs/v20-css-append.css"
 if ((Test-Path $cssPath) -and (Test-Path $cssV20)) {
-  $current = Get-Content $cssPath -Raw
-  $append = Get-Content $cssV20 -Raw
+  $current = Read-Utf8 $cssPath
+  $append = Read-Utf8 $cssV20
   if ($current -notmatch "v20 - Submenus e telas por funcionalidade") {
     Add-Content $cssPath "`r`n$append"
     Write-Host "OK CSS v20 adicionado ao global.css." -ForegroundColor Green
@@ -20,8 +26,8 @@ if ((Test-Path $cssPath) -and (Test-Path $cssV20)) {
 
 $cssV201 = "docs/v20-1-css-append.css"
 if ((Test-Path $cssPath) -and (Test-Path $cssV201)) {
-  $current = Get-Content $cssPath -Raw
-  $append = Get-Content $cssV201 -Raw
+  $current = Read-Utf8 $cssPath
+  $append = Read-Utf8 $cssV201
   if ($current -notmatch "v20.1 - Menu recolhivel com hover e fixacao") {
     Add-Content $cssPath "`r`n$append"
     Write-Host "OK CSS v20.1 adicionado ao global.css." -ForegroundColor Green

@@ -9,12 +9,18 @@ function Write-Utf8NoBom {
   [System.IO.File]::WriteAllText((Resolve-Path $Path), $Content, $encoding)
 }
 
+function Read-Utf8 {
+  param([string]$Path)
+  # Le sempre como UTF-8 explicito (nunca cai no codepage ANSI do Windows).
+  return [System.IO.File]::ReadAllText((Resolve-Path $Path), (New-Object System.Text.UTF8Encoding($false)))
+}
+
 $cssPath = "src/styles/global.css"
 $cssAppendPath = "docs/v25-7-css-append.css"
 
 if ((Test-Path $cssPath) -and (Test-Path $cssAppendPath)) {
-  $current = Get-Content $cssPath -Raw
-  $append = Get-Content $cssAppendPath -Raw
+  $current = Read-Utf8 $cssPath
+  $append = Read-Utf8 $cssAppendPath
 
   if ($current -notmatch "v25.7 - Base de Conhecimento simplificada") {
     Write-Utf8NoBom $cssPath "$current`r`n$append"
@@ -68,7 +74,7 @@ $replacementPairs = @(
 
 $sourceFiles = Get-ChildItem -Path "src" -Recurse -Include *.tsx,*.ts,*.css -ErrorAction SilentlyContinue
 foreach ($file in $sourceFiles) {
-  $content = Get-Content $file.FullName -Raw
+  $content = Read-Utf8 $file.FullName
   $original = $content
 
   foreach ($pair in $replacementPairs) {

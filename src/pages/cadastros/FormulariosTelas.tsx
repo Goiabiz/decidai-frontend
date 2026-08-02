@@ -16,6 +16,7 @@ import {
 import { Badge } from '../../components/Badge';
 import { PageHeader } from '../../components/PageHeader';
 import { normalizeFilterText } from '../../components/SmartFilters';
+import { confirmApp } from '../../lib/appConfirm';
 
 type ScreenStatus = 'Ativa' | 'Inativa' | 'Rascunho';
 type DisplayBehavior = 'Exibir ao abrir funcionalidade' | 'Exibir como atalho';
@@ -354,9 +355,17 @@ export function FormulariosTelas() {
     }));
   };
 
-  const removeField = (instanceId: string, confirm = true) => {
+  const removeField = async (instanceId: string, confirm = true) => {
     const item = form.campos.find((field) => field.instanceId === instanceId);
-    if (confirm && !window.confirm(`Remover o campo "${item?.campo || instanceId}" desta tela?`)) return;
+    if (confirm) {
+      const confirmed = await confirmApp({
+        title: 'Remover campo da tela',
+        description: `Remover o campo "${item?.campo || instanceId}" desta tela?`,
+        confirmLabel: 'Remover campo',
+        tone: 'danger',
+      });
+      if (!confirmed) return;
+    }
     setForm((current) => ({
       ...current,
       campos: current.campos.filter((field) => field.instanceId !== instanceId).map((field, index) => ({ ...field, ordem: index + 1 })),
@@ -422,9 +431,15 @@ export function FormulariosTelas() {
     setIsFormOpen(false);
   };
 
-  const deleteScreen = (id: string) => {
+  const deleteScreen = async (id: string) => {
     const item = screens.find((screen) => screen.id === id);
-    if (!window.confirm(`Excluir a tela "${item?.nome || id}"?`)) return;
+    const confirmed = await confirmApp({
+      title: 'Excluir tela',
+      description: `Excluir a tela "${item?.nome || id}"?`,
+      confirmLabel: 'Excluir tela',
+      tone: 'danger',
+    });
+    if (!confirmed) return;
     setScreens((current) => current.filter((screen) => screen.id !== id));
   };
 

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Layout } from './components/Layout';
 import { RightPanel, type PanelDetail } from './components/RightPanel';
 import { DetailModal } from './components/DetailModal';
+import { AppConfirmModal } from './components/AppConfirmModal';
 import { Dashboard } from './pages/Dashboard';
 import { Alertas } from './pages/Alertas';
 import { AnaliseAcoes } from './pages/AnaliseAcoes';
@@ -20,6 +21,7 @@ import { RelatorioAlertas } from './pages/relatorios/RelatorioAlertas';
 import { RelatorioConhecimentos } from './pages/relatorios/RelatorioConhecimentos';
 import { RelatorioIntegracoes } from './pages/relatorios/RelatorioIntegracoes';
 import { RelatorioTarefas } from './pages/relatorios/RelatorioTarefas';
+import { RelatorioPersonalizado } from './pages/relatorios/RelatorioPersonalizado';
 import { SegurancaAuditoria } from './pages/parametrizacao/SegurancaAuditoria';
 import { ServicosFilas } from './pages/central-atendimento/ServicosFilas';
 import { UnidadesCentrosCusto } from './pages/cadastros/UnidadesCentrosCusto';
@@ -43,6 +45,7 @@ export type PageKey =
   | 'param-canais'
   | 'param-preferencias'
   | 'param-seguranca'
+  | 'rel-personalizado'
   | 'rel-conhecimentos'
   | 'rel-atendimentos'
   | 'rel-alertas'
@@ -67,6 +70,7 @@ const rightPanelByPage: Record<PageKey, React.ComponentProps<typeof RightPanel>[
   'param-canais': 'config',
   'param-preferencias': 'config',
   'param-seguranca': 'config',
+  'rel-personalizado': 'config',
   'rel-conhecimentos': 'documento',
   'rel-atendimentos': 'atendimento',
   'rel-alertas': 'alerta',
@@ -104,26 +108,22 @@ export function App() {
 
   const pages: Record<PageKey, React.ReactNode> = {
     dashboard: <Dashboard onOpenDetail={setExpandedDetail} />,
-
     'cad-usuarios': <Usuarios />,
     'cad-unidades': <UnidadesCentrosCusto />,
     'cad-campos': <CamposContexto />,
     'cad-formularios': <FormulariosTelas />,
     base: <BaseConhecimento onSelectDetail={handleSelectDetail} onOpenDetail={setExpandedDetail} />,
-
     atendimento: <CentralAtendimento onOpenDetail={setExpandedDetail} />,
     alertas: <Alertas onSelectDetail={handleSelectDetail} onOpenDetail={setExpandedDetail} />,
     'atendimento-servicos': <ServicosFilas />,
-
     analise: <AnaliseAcoes onSelectDetail={handleSelectDetail} onOpenDetail={setExpandedDetail} />,
-
     'param-admin': <Configuracoes onSelectDetail={handleSelectDetail} onOpenDetail={setExpandedDetail} />,
     'param-integracoes': <Integracoes />,
     'param-agentes': <Agentes />,
     'param-canais': <Canais />,
     'param-preferencias': <Preferencias />,
     'param-seguranca': <SegurancaAuditoria />,
-
+    'rel-personalizado': <RelatorioPersonalizado />,
     'rel-conhecimentos': <RelatorioConhecimentos />,
     'rel-atendimentos': <RelatorioAtendimentos />,
     'rel-alertas': <RelatorioAlertas />,
@@ -140,9 +140,7 @@ export function App() {
     >
       {pages[activePage]}
       <DetailModal detail={expandedDetail} onClose={() => setExpandedDetail(null)} />
+      <AppConfirmModal />
     </Layout>
   );
 }
-
-
-

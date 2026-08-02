@@ -1,4 +1,4 @@
-const MOJIBAKE_PATTERN = /Ã.|Â.|â[€\u0080-\u00BF]?|\uFFFD/;
+const MOJIBAKE_PATTERN = /Ãƒ.|Ã‚.|Ã¢[â‚¬\u0080-\u00BF]?|\uFFFD/;
 
 export function fixMojibake(value: string): string {
   if (!value || !MOJIBAKE_PATTERN.test(value)) return value;

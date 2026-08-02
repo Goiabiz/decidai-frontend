@@ -1,3 +1,9 @@
+
+function Read-Utf8 {
+  param([string]$Path)
+  # Le sempre como UTF-8 explicito (nunca cai no codepage ANSI do Windows).
+  return [System.IO.File]::ReadAllText((Resolve-Path $Path), (New-Object System.Text.UTF8Encoding($false)))
+}
 # Radar SUS Frontend - Build fix v1.3
 # Execute na raiz do radar-sus-frontend.
 
@@ -6,7 +12,7 @@ Write-Host "Aplicando build fix v1.3..." -ForegroundColor Cyan
 # 1) Remove prop inexistente description do DataSourceNotice na tela de Integrações.
 $integracoesPath = "src/pages/Integracoes.tsx"
 if (Test-Path $integracoesPath) {
-  $content = Get-Content $integracoesPath -Raw
+  $content = Read-Utf8 $integracoesPath
   $content = $content -replace "\r?\n\s*description=""Provedores e conexões autorizadas por cliente/usuário\.""", ""
   Set-Content $integracoesPath $content -Encoding UTF8
   Write-Host "OK Integracoes: removida prop description do DataSourceNotice." -ForegroundColor Green
@@ -15,7 +21,7 @@ if (Test-Path $integracoesPath) {
 # 2) Corrige fallback antigo de atendimentos que ainda usava ultima em vez de ultimaInteracao/ticket.
 $radarApiPath = "src/services/radarApi.ts"
 if (Test-Path $radarApiPath) {
-  $content = Get-Content $radarApiPath -Raw
+  $content = Read-Utf8 $radarApiPath
 
   # Substituições mais amplas, cobrindo aspas simples e duplas.
   $content = $content -replace "ultima:\s*'([^']*)'", "ultimaInteracao: '`$1', ticket: '-'"
@@ -32,7 +38,7 @@ if (Test-Path $radarApiPath) {
 # 3) Ajusta CentralAtendimento para não travar por inferência antiga no fetchAtendimentos.
 $centralPath = "src/pages/CentralAtendimento.tsx"
 if (Test-Path $centralPath) {
-  $content = Get-Content $centralPath -Raw
+  $content = Read-Utf8 $centralPath
   $content = $content -replace "useAsyncData\(fetchAtendimentos, mockAtendimentos\)", "useAsyncData(fetchAtendimentos as any, mockAtendimentos as any)"
   Set-Content $centralPath $content -Encoding UTF8
   Write-Host "OK CentralAtendimento: fetchAtendimentos com cast seguro para POC." -ForegroundColor Green

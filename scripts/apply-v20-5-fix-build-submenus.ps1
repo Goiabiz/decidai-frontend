@@ -1,3 +1,9 @@
+
+function Read-Utf8 {
+  param([string]$Path)
+  # Le sempre como UTF-8 explicito (nunca cai no codepage ANSI do Windows).
+  return [System.IO.File]::ReadAllText((Resolve-Path $Path), (New-Object System.Text.UTF8Encoding($false)))
+}
 # Radar SUS Frontend - v20.5 fix build submenus
 # Execute na raiz do radar-sus-frontend.
 
@@ -5,7 +11,7 @@ Write-Host "Aplicando v20.5 - correção de build dos submenus..." -ForegroundCo
 
 $appPath = "src/App.tsx"
 if (Test-Path $appPath) {
-  $content = Get-Content $appPath -Raw
+  $content = Read-Utf8 $appPath
 
   # Remove props de páginas placeholder que ainda não usam painel/detail.
   $content = $content -replace "<Usuarios onSelectDetail=\{handleSelectDetail\} onOpenDetail=\{setExpandedDetail\} />", "<Usuarios />"
@@ -28,7 +34,7 @@ if (Test-Path $appPath) {
 
 $workspaceModalPath = "src/components/WorkspaceCustomizeModal.tsx"
 if (Test-Path $workspaceModalPath) {
-  $content = Get-Content $workspaceModalPath -Raw
+  $content = Read-Utf8 $workspaceModalPath
 
   # A modal de customização ainda usava PageKey antigo. Como agora temos submenus,
   # ela deve aceitar mapa parcial para não exigir configuração de cada subtela.

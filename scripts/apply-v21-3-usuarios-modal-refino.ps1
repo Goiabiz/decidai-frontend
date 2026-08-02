@@ -1,3 +1,9 @@
+
+function Read-Utf8 {
+  param([string]$Path)
+  # Le sempre como UTF-8 explicito (nunca cai no codepage ANSI do Windows).
+  return [System.IO.File]::ReadAllText((Resolve-Path $Path), (New-Object System.Text.UTF8Encoding($false)))
+}
 # Radar SUS Frontend - v21.3 Usuarios modal refinada
 # Execute na raiz do radar-sus-frontend.
 
@@ -7,8 +13,8 @@ $cssPath = "src/styles/global.css"
 $cssAppendPath = "docs/v21-3-usuarios-css-append.css"
 
 if ((Test-Path $cssPath) -and (Test-Path $cssAppendPath)) {
-  $current = Get-Content $cssPath -Raw
-  $append = Get-Content $cssAppendPath -Raw
+  $current = Read-Utf8 $cssPath
+  $append = Read-Utf8 $cssAppendPath
 
   if ($current -notmatch "v21.3 - Usuarios modal refinada") {
     Add-Content $cssPath "`r`n$append"

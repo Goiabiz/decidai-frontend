@@ -1,200 +1,36 @@
 import { useMemo, useState } from 'react';
-import { BellPlus, ExternalLink, Maximize2, Pencil } from 'lucide-react';
+import { BellPlus, CheckCircle2, MessageSquareWarning, Plus, Search, Send, X } from 'lucide-react';
 import { PageHeader } from '../components/PageHeader';
-import { KpiCard } from '../components/KpiCard';
-import { CollapsibleKpiSection } from '../components/CollapsibleKpiSection';
 import { Badge } from '../components/Badge';
-import { DataSourceNotice } from '../components/DataSourceNotice';
-import { AlertActionsMenu } from '../components/AlertActionsMenu';
-import { SmartFilters, normalizeFilterText } from '../components/SmartFilters';
-import { alertas as mockAlertas } from '../data/mock';
-import { useAsyncData } from '../hooks/useAsyncData';
-import { fetchAlertas } from '../services/radarApi';
+import { normalizeFilterText } from '../components/SmartFilters';
+import { showAppToast } from '../lib/appToast';
 import type { PageProps } from '../App';
 
-const statusOptions = ['Novo', 'Em andamento', 'Concluído'];
-const prioridades = ['Baixa', 'Média', 'Alta', 'Crítico'];
-const responsaveis = ['Moises Mattos', 'Bruno Oliveira', 'Mariana Lima', 'Juliana Costa'];
-const canais = ['Usuários do sistema', 'E-mail', 'WhatsApp', 'Equipe', 'Clientes'];
-const isClosed = (status: string) => status.toLowerCase().includes('concl') || status.toLowerCase().includes('cancel') || status.toLowerCase().includes('exclu');
-const isCritical = (criticidade: string) => criticidade.toLowerCase().includes('crít') || criticidade.toLowerCase().includes('crit');
-const normalizeStatus = (status: string) => {
-  const s = status.toLowerCase();
-  if (s.includes('concl')) return 'Concluído';
-  if (s.includes('novo')) return 'Novo';
-  return 'Em andamento';
-};
+type AlertStatus = 'Novo' | 'Em andamento' | 'Concluído';
+type AlertPriority = 'Baixa' | 'Média' | 'Alta' | 'Crítica';
+type AlertRecord = { id: string; descricao: string; prioridade: AlertPriority; status: AlertStatus; responsavel: string; canais: string[]; conhecimento: string; tarefas: number; emitidoEm: string; };
+const availableChannels = ['Atendimento via Widget', 'Atendimento via WhatsApp', 'Atendimento via E-mail', 'Monitoramento de comunidade'];
+const initialAlerts: AlertRecord[] = [
+  { id: 'ALT-001', descricao: 'Atualização importante identificada em documento oficial.', prioridade: 'Alta', status: 'Novo', responsavel: 'Produto', canais: ['Atendimento via Widget'], conhecimento: 'CON-0001', tarefas: 1, emitidoEm: 'Hoje 10:12' },
+  { id: 'ALT-002', descricao: 'Mudança operacional exige orientação para equipe de atendimento.', prioridade: 'Média', status: 'Em andamento', responsavel: 'Suporte', canais: ['Atendimento via WhatsApp', 'Atendimento via E-mail'], conhecimento: 'CON-0002', tarefas: 2, emitidoEm: 'Ontem 16:20' },
+];
+const emptyAlert: AlertRecord = { id: '', descricao: '', prioridade: 'Média', status: 'Novo', responsavel: '', canais: [], conhecimento: '', tarefas: 0, emitidoEm: 'Agora' };
+function tone(priority: AlertPriority) { if (priority === 'Crítica') return 'red'; if (priority === 'Alta') return 'orange'; if (priority === 'Média') return 'blue'; return 'green'; }
+function toggle(value: string, list: string[]) { return list.includes(value) ? list.filter((item) => item !== value) : [...list, value]; }
 
-export function Alertas({ onSelectDetail, onOpenDetail }: PageProps) {
-  const [search, setSearch] = useState('');
-  const [status, setStatus] = useState('');
-  const [prioridade, setPrioridade] = useState('');
-  const [canal, setCanal] = useState('');
-  const [openMenu, setOpenMenu] = useState<string | null>(null);
-  const { data, source, loading, error, connectionState } = useAsyncData(fetchAlertas, mockAlertas);
+export function Alertas({ onOpenDetail }: PageProps) {
+  const [alerts, setAlerts] = useState(initialAlerts);
+  const [query, setQuery] = useState('');
+  const [priority, setPriority] = useState('');
+  const [open, setOpen] = useState(false);
+  const [form, setForm] = useState(emptyAlert);
+  const filtered = useMemo(() => { const q = normalizeFilterText(query); return alerts.filter((item) => (!q || normalizeFilterText([item.descricao, item.prioridade, item.status, item.responsavel, item.canais.join(' ')].join(' ')).includes(q)) && (!priority || item.prioridade === priority)); }, [alerts, query, priority]);
+  const update = <K extends keyof AlertRecord>(key: K, value: AlertRecord[K]) => setForm((current) => ({ ...current, [key]: value }));
+  const save = () => { if (!form.descricao.trim()) { showAppToast('Informe a descrição do alerta.', 'warning'); return; } const next = { ...form, id: `ALT-${String(alerts.length + 1).padStart(3, '0')}` }; setAlerts((current) => [next, ...current]); setForm(emptyAlert); setOpen(false); showAppToast('Alerta cadastrado e pronto para disparo.', 'success'); };
 
-  const alertas = useMemo(() => data.map((item, index) => ({
-    ...item,
-    status: normalizeStatus(item.status),
-    emitidoEm: item.data,
-    responsavel: responsaveis[index % responsaveis.length],
-    canal: canais[index % canais.length],
-    comunicados: index === 0 ? 12 : index === 1 ? 8 : index === 2 ? 4 : 2,
-    tarefas: index === 0 ? 1 : index === 1 ? 2 : 0,
-    contexto: [item.modulo, item.funcionalidade].filter(Boolean).join(' / ') || 'Contexto não informado'
-  })), [data]);
-
-  const filtered = alertas.filter((item) => {
-    const text = normalizeFilterText([item.titulo, item.status, item.criticidade, item.responsavel, item.canal, item.contexto].join(' '));
-    return (!search || text.includes(normalizeFilterText(search))) &&
-      (!status || item.status === status) &&
-      (!prioridade || item.criticidade === prioridade) &&
-      (!canal || item.canal === canal);
-  });
-
-  const ativos = filtered.filter((item) => !isClosed(item.status)).length;
-  const criticosAbertos = filtered.filter((item) => isCritical(item.criticidade) && !isClosed(item.status)).length;
-  const emAndamento = filtered.filter((item) => item.status === 'Em andamento').length;
-  const comunicados = filtered.reduce((acc, item) => acc + item.comunicados, 0);
-  const tarefasGeradas = filtered.reduce((acc, item) => acc + item.tarefas, 0);
-
-  const openDetail = (a: (typeof alertas)[number]) => {
-    onSelectDetail?.({
-      title: a.titulo,
-      subtitle: `Alerta emitido em ${a.emitidoEm}`,
-      badge: a.criticidade,
-      badgeTone: a.criticidade,
-      description: 'Alerta monitorado para comunicação, tratamento e geração de ações posteriores.',
-      meta: [
-        { label: 'Status', value: a.status },
-        { label: 'Prioridade', value: a.criticidade },
-        { label: 'Responsável', value: a.responsavel },
-        { label: 'Emitido em', value: a.emitidoEm },
-        { label: 'Canal principal', value: a.canal },
-        { label: 'Comunicados enviados', value: a.comunicados },
-        { label: 'Tarefas', value: a.tarefas },
-        { label: 'Contexto', value: a.contexto }
-      ],
-      actions: ['Divulgar alerta', 'Encaminhar para tarefa', 'Vincular tarefa', 'Acionar agente', 'Concluir alerta']
-    });
-  };
-
-  const openModal = (a: (typeof alertas)[number]) => {
-    onOpenDetail?.({
-      title: a.titulo,
-      subtitle: `Alerta · ${a.status}`,
-      badge: a.criticidade,
-      badgeTone: a.criticidade,
-      description: 'Visualização rápida do alerta. Use a Central de Alertas para monitorar comunicação, tratamento e tarefas geradas.',
-      meta: [
-        { label: 'Status', value: a.status },
-        { label: 'Prioridade', value: a.criticidade },
-        { label: 'Responsável', value: a.responsavel },
-        { label: 'Emitido em', value: a.emitidoEm },
-        { label: 'Canal principal', value: a.canal },
-        { label: 'Comunicados enviados', value: a.comunicados },
-        { label: 'Tarefas', value: a.tarefas }
-      ],
-      actions: ['Divulgar alerta', 'Encaminhar para tarefa', 'Concluir alerta']
-    });
-  };
-
-  const actionButtons = (a: (typeof alertas)[number], key: string) => (
-    <div className="alert-actions" onClick={(event) => event.stopPropagation()}>
-<button className="row-icon-btn" title="Abrir detalhe" onClick={() => openDetail(a)}><ExternalLink size={15} /></button>
-      <button className="row-icon-btn" title="Abrir em modal" onClick={() => openModal(a)}><Maximize2 size={15} /></button>
-      <AlertActionsMenu id={key} openMenuId={openMenu} setOpenMenuId={setOpenMenu} />
-    </div>
-  );
-
-  return (
-    <>
-      <PageHeader
-        title="Alertas"
-        action={<button className="secondary-btn"><BellPlus size={16} /> Cadastrar alerta</button>}
-      />
-      <DataSourceNotice source={source} loading={loading} error={error} connectionState={connectionState} />
-
-      <CollapsibleKpiSection>
-      <div className="kpi-grid five alert-kpis">
-        <KpiCard label="Alertas ativos" value={ativos} tone="blue" tooltip="Alertas que ainda não foram concluídos, cancelados ou excluídos." />
-        <KpiCard label="Alta prioridade" value={criticosAbertos} tone="red" tooltip="Alertas de maior prioridade que ainda exigem tratamento. Alertas concluídos não entram nesta contagem." />
-        <KpiCard label="Em andamento" value={emAndamento} tone="orange" tooltip="Alertas que já estão sendo tratados, comunicados ou acompanhados." />
-        <KpiCard label="Comunicados enviados" value={comunicados} tone="cyan" tooltip="Total de destinatários ou canais que receberam divulgação dos alertas filtrados." />
-        <KpiCard label="Tarefas" value={tarefasGeradas} tone="green" tooltip="Tarefas criadas automaticamente ou manualmente a partir dos alertas." />
-      </div>
-      </CollapsibleKpiSection>
-
-      <div className="tabs alert-status-tabs">
-        <button className={!status ? 'active' : ''} onClick={() => setStatus('')}>Todos</button>
-        {statusOptions.map((option) => <button key={option} className={status === option ? 'active' : ''} onClick={() => setStatus(option)}>{option}</button>)}
-      </div>
-
-      <SmartFilters
-        search={search}
-        onSearch={setSearch}
-        status={status}
-        onStatus={setStatus}
-        prioridade={prioridade}
-        onPrioridade={setPrioridade}
-        modulo={canal}
-        onModulo={setCanal}
-        placeholder="Buscar por descrição, responsável, canal ou contexto..."
-      />
-
-      <div className="card alert-table-card">
-        <div className="section-title-row">
-          <h3>Alertas</h3>
-          <span className="small-muted">{filtered.length} registros</span>
-        </div>
-
-        <table className="alert-table">
-          <thead>
-            <tr>
-              <th>Descrição do alerta</th>
-              <th>Status</th>
-              <th>Prioridade</th>
-              <th>Responsável</th>
-              <th>Emitido em</th>
-              <th>Tarefas</th>
-              <th>Ações</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.map((a, index) => {
-              const key = `${a.titulo}-${a.emitidoEm}-${index}`;
-              return (
-                <tr className="clickable-row alert-row" key={key} onClick={() => openDetail(a)}>
-                  <td className="alert-description-cell">
-                    <div className="knowledge-description-inline">
-                      <button className="row-title-button" onClick={(event) => { event.stopPropagation(); openDetail(a); }}>
-                        <strong>{a.titulo}</strong>
-                        <span>{a.contexto}</span>
-                      </button>
-                      <button className="row-icon-btn row-edit-hover" title="Editar descrição" onClick={(event) => event.stopPropagation()}><Pencil size={15} /></button>
-                    </div>
-                  </td>
-                  <td>
-                    <select className="semantic-select" defaultValue={a.status} title="Status do alerta" onClick={(event) => event.stopPropagation()}>
-                      {statusOptions.map((option) => <option key={option}>{option}</option>)}
-                    </select>
-                  </td>
-                  <td><Badge tone={a.criticidade.toLowerCase()}>{a.criticidade}</Badge></td>
-                  <td>
-                    <select className="semantic-select" defaultValue={a.responsavel} title="Responsável" onClick={(event) => event.stopPropagation()}>
-                      {responsaveis.map((option) => <option key={option}>{option}</option>)}
-                    </select>
-                  </td>
-                  <td>{a.emitidoEm}</td>
-<td className="task-count-cell"><strong>{a.tarefas}</strong></td>
-                  <td onClick={(event) => event.stopPropagation()}>{actionButtons(a, key)}</td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-        {filtered.length === 0 && <p className="empty-note">Nenhum alerta encontrado para os filtros aplicados.</p>}
-      </div>
-    </>
-  );
+  return <><PageHeader title="Alertas" action={<button className="primary-small" onClick={() => setOpen(true)}><Plus size={16} /> Cadastrar alerta</button>} />
+  <section className="card alert-list-card"><div className="section-title-row"><div><h3>Alertas registrados</h3><p className="section-description">Crie alertas e defina os canais operacionais de disparo vinculados às integrações configuradas.</p></div><span className="small-muted">{filtered.length} alertas</span></div><div className="smart-filter-bar alert-filter-bar"><div className="smart-search"><Search size={18} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar alerta, canal, responsável ou status..." /></div><select value={priority} onChange={(event) => setPriority(event.target.value)}><option value="">Todas as prioridades</option><option>Baixa</option><option>Média</option><option>Alta</option><option>Crítica</option></select></div><div className="cadastro-table-wrap full"><table><thead><tr><th>Descrição do alerta</th><th>Status</th><th>Prioridade</th><th>Responsável</th><th>Canais de disparo</th><th>Tarefas</th><th>Ações</th></tr></thead><tbody>{filtered.map((alert) => <tr key={alert.id}><td><strong>{alert.descricao}</strong><div className="table-subtitle">{alert.id} • {alert.conhecimento || 'Sem conhecimento vinculado'}</div></td><td><Badge tone={alert.status === 'Concluído' ? 'green' : alert.status === 'Em andamento' ? 'blue' : 'orange'}>{alert.status}</Badge></td><td><Badge tone={tone(alert.prioridade)}>{alert.prioridade}</Badge></td><td>{alert.responsavel || '-'}</td><td><div className="chip-list compact">{alert.canais.map((canal) => <span key={canal}>{canal}</span>)}</div></td><td>{alert.tarefas}</td><td><div className="row-action-group"><button title="Disparar alerta" onClick={() => showAppToast('Disparo de alerta preparado para backend.', 'info')}><Send size={16} /></button><button title="Concluir" onClick={() => setAlerts((current) => current.map((item) => item.id === alert.id ? { ...item, status: 'Concluído' } : item))}><CheckCircle2 size={16} /></button><button title="Detalhes" onClick={() => onOpenDetail?.({ title: alert.descricao, subtitle: alert.id, badge: alert.prioridade, description: `Canais: ${alert.canais.join(', ')}` })}><MessageSquareWarning size={16} /></button></div></td></tr>)}</tbody></table></div></section>
+  {open && <div className="modal-backdrop cadastro-modal-backdrop"><div className="agent-modal"><div className="cadastro-modal-header"><strong>Cadastrar alerta</strong><button className="icon-btn" onClick={() => setOpen(false)}><X size={18} /></button></div><div className="cadastro-modal-content"><section className="cadastro-form-section"><h3>Dados do alerta</h3><div className="cadastro-form-grid"><label className="span-2"><span>Descrição *</span><input value={form.descricao} onChange={(event) => update('descricao', event.target.value)} /></label><label><span>Prioridade</span><select value={form.prioridade} onChange={(event) => update('prioridade', event.target.value as AlertPriority)}><option>Baixa</option><option>Média</option><option>Alta</option><option>Crítica</option></select></label><label><span>Responsável</span><input value={form.responsavel} onChange={(event) => update('responsavel', event.target.value)} /></label><label><span>Conhecimento vinculado</span><input value={form.conhecimento} onChange={(event) => update('conhecimento', event.target.value)} placeholder="CON-0001" /></label><label><span>Gerar tarefa?</span><select value={String(form.tarefas > 0)} onChange={(event) => update('tarefas', event.target.value === 'true' ? 1 : 0)}><option value="false">Não</option><option value="true">Sim</option></select></label></div></section><section className="cadastro-form-section"><h3>Canais de disparo</h3><div className="option-columns two">{availableChannels.map((channel) => <label key={channel}><input type="checkbox" checked={form.canais.includes(channel)} onChange={() => update('canais', toggle(channel, form.canais))} /> {channel}</label>)}</div></section></div><div className="cadastro-modal-footer"><button onClick={() => setOpen(false)}>Cancelar</button><button className="primary" onClick={save}>Salvar alerta</button></div></div></div>}</>;
 }
+
+export default Alertas;

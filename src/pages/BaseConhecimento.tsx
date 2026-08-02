@@ -22,6 +22,7 @@ import {
 import { Badge } from '../components/Badge';
 import { PageHeader } from '../components/PageHeader';
 import { normalizeFilterText } from '../components/SmartFilters';
+import { confirmApp } from '../lib/appConfirm';
 
 type KnowledgeState = 'Ativo' | 'Arquivado';
 
@@ -89,17 +90,17 @@ const emptyKnowledge: KnowledgeRecord = {
 const mockKnowledge: KnowledgeRecord[] = [
   {
     id: 'CON-0001',
-    titulo: 'Regra de exportação BPA por competência',
-    resumo: 'Orientação sobre exportação da competência vigente e competências anteriores no BPA.',
+    titulo: 'Política de atendimento ao cliente',
+    resumo: 'Orientação geral para padronizar atendimento, registro e encaminhamento de solicitações.',
     situacao: 'Ativo',
     fonte: 'Nota operacional Produto',
     linkFonte: '',
     dataFonte: '2026-07-23',
     classificacao: 'Regra de negócio',
-    assunto: 'Faturamento BPA',
-    tags: ['BPA', 'Competência', 'Faturamento'],
+    assunto: 'Atendimento e relacionamento',
+    tags: ['Atendimento', 'Processo', 'Relacionamento'],
     responsavel: 'Produto',
-    conteudo: 'A exportação deve respeitar competência vigente e permitir reprocessamento de competências anteriores conforme regra operacional.',
+    conteudo: 'O atendimento deve registrar contexto, responsável, evidências e próximo passo para manter rastreabilidade operacional.',
     versao: '1.0',
     linkExterno: 'https://wiki.radar-sus.local/conhecimento/CON-0001',
     origemDetectada: 'Decisão interna',
@@ -110,17 +111,17 @@ const mockKnowledge: KnowledgeRecord[] = [
   },
   {
     id: 'CON-0002',
-    titulo: 'Integração e-SUS APS LEDI',
-    resumo: 'Conhecimento base para orientar clientes sobre evolução da integração com e-SUS APS.',
+    titulo: 'Procedimento de análise de solicitação',
+    resumo: 'Conhecimento base para orientar análise, classificação e acompanhamento de solicitações recebidas por canais digitais.',
     situacao: 'Ativo',
-    fonte: 'Ministério da Saúde',
-    linkFonte: 'https://www.gov.br/saude',
+    fonte: 'Fonte institucional',
+    linkFonte: 'https://exemplo.com/fonte',
     dataFonte: '2026-07-30',
     classificacao: 'Integração',
-    assunto: 'e-SUS APS',
-    tags: ['LEDI', 'FAI', 'FP'],
+    assunto: 'Solicitações',
+    tags: ['Solicitação', 'Análise', 'Encaminhamento'],
     responsavel: 'Produto',
-    conteudo: 'A integração deve ser explicada de forma simples, destacando evolução constante e redução de retrabalho.',
+    conteudo: 'A orientação deve ser clara, objetiva e indicar quais evidências são necessárias para análise ou encaminhamento.',
     versao: '0.9',
     linkExterno: 'https://wiki.radar-sus.local/conhecimento/CON-0002',
     origemDetectada: 'Página/Site',
@@ -222,9 +223,15 @@ export function BaseConhecimento(_: KnowledgePageProps) {
     });
   };
 
-  const removeAttachment = (id: string) => {
+  const removeAttachment = async (id: string) => {
     const item = form.anexos.find((attachment) => attachment.id === id);
-    if (!window.confirm(`Remover o anexo "${item?.nome || id}"?`)) return;
+    const confirmed = await confirmApp({
+      title: 'Remover anexo',
+      description: `Remover o anexo "${item?.nome || id}"?`,
+      confirmLabel: 'Remover anexo',
+      tone: 'danger',
+    });
+    if (!confirmed) return;
     setForm((current) => ({ ...current, anexos: current.anexos.filter((attachment) => attachment.id !== id) }));
   };
 
@@ -254,9 +261,14 @@ export function BaseConhecimento(_: KnowledgePageProps) {
     setIsFormOpen(false);
   };
 
-  const archiveKnowledge = (id: string) => {
+  const archiveKnowledge = async (id: string) => {
     const item = items.find((knowledge) => knowledge.id === id);
-    if (!window.confirm(`Arquivar o conhecimento "${item?.titulo || id}"?`)) return;
+    const confirmed = await confirmApp({
+      title: 'Arquivar conhecimento',
+      description: `Arquivar o conhecimento "${item?.titulo || id}"? Ele deixa de aparecer como ativo, mas permanece consultável no histórico.`,
+      confirmLabel: 'Arquivar',
+    });
+    if (!confirmed) return;
     setItems((current) => current.map((knowledge) => knowledge.id === id ? { ...knowledge, situacao: 'Arquivado' } : knowledge));
     setSelected((current) => current?.id === id ? { ...current, situacao: 'Arquivado' } : current);
   };
@@ -266,9 +278,15 @@ export function BaseConhecimento(_: KnowledgePageProps) {
     setSelected((current) => current?.id === id ? { ...current, situacao: 'Ativo' } : current);
   };
 
-  const deleteKnowledge = (id: string) => {
+  const deleteKnowledge = async (id: string) => {
     const item = items.find((knowledge) => knowledge.id === id);
-    if (!window.confirm(`Excluir definitivamente o conhecimento "${item?.titulo || id}"?`)) return;
+    const confirmed = await confirmApp({
+      title: 'Excluir conhecimento',
+      description: `Excluir definitivamente o conhecimento "${item?.titulo || id}"?`,
+      confirmLabel: 'Excluir conhecimento',
+      tone: 'danger',
+    });
+    if (!confirmed) return;
     setItems((current) => current.filter((knowledge) => knowledge.id !== id));
     if (selected?.id === id) setSelected(null);
   };
@@ -413,7 +431,7 @@ export function BaseConhecimento(_: KnowledgePageProps) {
                 <div className="cadastro-form-grid">
                   <label>
                     <FieldLabel required info="Título objetivo usado para busca, leitura e compartilhamento.">Título</FieldLabel>
-                    <input value={form.titulo} onChange={(event) => updateForm('titulo', event.target.value)} placeholder="Ex.: Regra de exportação BPA" />
+                    <input value={form.titulo} onChange={(event) => updateForm('titulo', event.target.value)} placeholder="Ex.: Regra de exportação Atendimento" />
                     {errors.titulo && <small className="field-error">{errors.titulo}</small>}
                   </label>
                   <label>
@@ -424,7 +442,7 @@ export function BaseConhecimento(_: KnowledgePageProps) {
                   </label>
                   <label>
                     <FieldLabel info="Assunto, módulo, tema ou área relacionada.">Assunto</FieldLabel>
-                    <input value={form.assunto} onChange={(event) => updateForm('assunto', event.target.value)} placeholder="Ex.: Faturamento BPA" />
+                    <input value={form.assunto} onChange={(event) => updateForm('assunto', event.target.value)} placeholder="Ex.: Atendimento e relacionamento" />
                   </label>
                   <label>
                     <FieldLabel info="Responsável pela curadoria ou validação do conhecimento.">Responsável</FieldLabel>
@@ -439,7 +457,6 @@ export function BaseConhecimento(_: KnowledgePageProps) {
                   <label><FieldLabel info="Nome da fonte, documento, reunião, ticket, site ou base usada.">Fonte</FieldLabel><input value={form.fonte} onChange={(event) => updateForm('fonte', event.target.value)} placeholder="Nome da fonte" /></label>
                   <label><FieldLabel info="Link da fonte quando existir.">Link da fonte</FieldLabel><input value={form.linkFonte} onChange={(event) => updateForm('linkFonte', event.target.value)} placeholder="https://..." /></label>
                   <label><FieldLabel info="Data da publicação, decisão ou coleta da fonte.">Data da fonte</FieldLabel><input type="date" value={form.dataFonte} onChange={(event) => updateForm('dataFonte', event.target.value)} /></label>
-                  <label><FieldLabel info="Versão do conhecimento para rastrear evolução.">Versão</FieldLabel><input value={form.versao} onChange={(event) => updateForm('versao', event.target.value)} placeholder="1.0" /></label>
                 </div>
               </section>
 
@@ -458,7 +475,7 @@ export function BaseConhecimento(_: KnowledgePageProps) {
                   </label>
                   <label className="span-2">
                     <FieldLabel info="Tags separadas por vírgula para busca e sugestão do agente.">Tags</FieldLabel>
-                    <input value={tagInput} onChange={(event) => setTagInput(event.target.value)} placeholder="BPA, Faturamento, Competência" />
+                    <input value={tagInput} onChange={(event) => setTagInput(event.target.value)} placeholder="Atendimento, Relacionamento, Processo" />
                   </label>
                 </div>
               </section>

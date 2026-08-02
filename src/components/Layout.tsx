@@ -89,18 +89,19 @@ const navGroups: NavGroup[] = [
     children: [
       { key: 'param-admin', label: 'Administração', icon: <Cog size={18} /> },
       { key: 'param-agentes', label: 'Agentes', icon: <UserCog size={18} /> },
-      { key: 'param-canais', label: 'Canais', icon: <Workflow size={18} /> },
+      { key: 'param-canais', label: 'Canais de Atendimento', icon: <Workflow size={18} /> },
       { key: 'param-integracoes', label: 'Integrações', icon: <Plug size={18} /> },
       { key: 'param-preferencias', label: 'Preferências', icon: <SlidersHorizontal size={18} /> },
-      { key: 'param-seguranca', label: 'Segurança', icon: <ShieldAlert size={18} /> },
+      { key: 'param-seguranca', label: 'Auditoria', icon: <ShieldAlert size={18} /> },
     ],
   },
   {
     key: 'relatorios',
     label: 'Relatórios',
     icon: <FileBarChart2 size={22} />,
-    defaultPage: 'rel-alertas',
+    defaultPage: 'rel-personalizado',
     children: [
+      { key: 'rel-personalizado', label: 'Personalizado', icon: <SlidersHorizontal size={18} /> },
       { key: 'rel-alertas', label: 'Alertas', icon: <ShieldAlert size={18} /> },
       { key: 'rel-atendimentos', label: 'Atendimentos', icon: <Headphones size={18} /> },
       { key: 'rel-auditoria', label: 'Auditoria', icon: <ListChecks size={18} /> },
@@ -189,7 +190,7 @@ export function Layout({ activePage, onNavigate, children, rightPanel }: { activ
           if (sidebarHoverTimer.current) window.clearTimeout(sidebarHoverTimer.current);
           sidebarHoverTimer.current = window.setTimeout(() => {
             setIsSidebarHovered(true);
-          }, 2000);
+          }, 1000);
         }}
         onMouseLeave={() => {
           if (sidebarHoverTimer.current) {
@@ -225,6 +226,7 @@ export function Layout({ activePage, onNavigate, children, rightPanel }: { activ
                 >
                   {group.icon}
                   <span>{group.label}</span>
+                  <ChevronDown size={17} className="nav-group-chevron nav-group-chevron-placeholder" />
                 </button>
               );
             }

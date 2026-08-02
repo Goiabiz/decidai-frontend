@@ -1,3 +1,9 @@
+
+function Read-Utf8 {
+  param([string]$Path)
+  # Le sempre como UTF-8 explicito (nunca cai no codepage ANSI do Windows).
+  return [System.IO.File]::ReadAllText((Resolve-Path $Path), (New-Object System.Text.UTF8Encoding($false)))
+}
 # Radar SUS Frontend - v23 refino Cadastros
 # Execute na raiz do radar-sus-frontend.
 
@@ -9,8 +15,8 @@ Write-Host "Aplicando v23 - refino de Usuarios e Unidades..." -ForegroundColor C
 $cssPath = "src/styles/global.css"
 $cssAppendPath = "docs/v23-css-append.css"
 if ((Test-Path $cssPath) -and (Test-Path $cssAppendPath)) {
-  $current = Get-Content $cssPath -Raw
-  $append = Get-Content $cssAppendPath -Raw
+  $current = Read-Utf8 $cssPath
+  $append = Read-Utf8 $cssAppendPath
   if ($current -notmatch "v23 - Refino Cadastros Usuarios e Unidades") {
     Add-Content $cssPath "`r`n$append"
     Write-Host "OK CSS v23 adicionado ao global.css." -ForegroundColor Green
@@ -24,7 +30,7 @@ if ((Test-Path $cssPath) -and (Test-Path $cssAppendPath)) {
 # -----------------------------
 $usuariosPath = "src/pages/cadastros/Usuarios.tsx"
 if (Test-Path $usuariosPath) {
-  $content = Get-Content $usuariosPath -Raw
+  $content = Read-Utf8 $usuariosPath
 
   # Icone de celular
   if ($content -notmatch "Smartphone") {
@@ -91,7 +97,7 @@ if (Test-Path $usuariosPath) {
 # -----------------------------
 $unidadesPath = "src/pages/cadastros/UnidadesCentrosCusto.tsx"
 if (Test-Path $unidadesPath) {
-  $content = Get-Content $unidadesPath -Raw
+  $content = Read-Utf8 $unidadesPath
 
   # Remove estados/filtros de Cidade/UF
   $content = $content -replace "\s*const \[cidadeUf, setCidadeUf\] = useState\(''\);", ""

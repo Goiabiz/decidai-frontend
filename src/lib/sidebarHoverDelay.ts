@@ -14,7 +14,7 @@ export function initSidebarHoverDelay() {
       timer = window.setTimeout(() => {
         sidebar.dataset.hoverDelayed = 'true';
         sidebar.dataset.hoverWaiting = 'false';
-      }, 2000);
+      }, 1000);
     });
 
     sidebar.addEventListener('mouseleave', () => {

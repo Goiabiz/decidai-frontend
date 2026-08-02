@@ -1,3 +1,9 @@
+
+function Read-Utf8 {
+  param([string]$Path)
+  # Le sempre como UTF-8 explicito (nunca cai no codepage ANSI do Windows).
+  return [System.IO.File]::ReadAllText((Resolve-Path $Path), (New-Object System.Text.UTF8Encoding($false)))
+}
 # Radar SUS Frontend - v20 submenus
 # Execute na raiz do radar-sus-frontend.
 
@@ -6,8 +12,8 @@ Write-Host "Aplicando v20 - submenus e telas por funcionalidade..." -ForegroundC
 $cssPath = "src/styles/global.css"
 $cssAppendPath = "docs/v20-css-append.css"
 if ((Test-Path $cssPath) -and (Test-Path $cssAppendPath)) {
-  $current = Get-Content $cssPath -Raw
-  $append = Get-Content $cssAppendPath -Raw
+  $current = Read-Utf8 $cssPath
+  $append = Read-Utf8 $cssAppendPath
 
   if ($current -notmatch "v20 - Submenus e telas por funcionalidade") {
     Add-Content $cssPath "`r`n$append"

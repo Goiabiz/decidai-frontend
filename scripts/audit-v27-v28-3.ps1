@@ -1,3 +1,9 @@
+
+function Read-Utf8 {
+  param([string]$Path)
+  # Le sempre como UTF-8 explicito (nunca cai no codepage ANSI do Windows).
+  return [System.IO.File]::ReadAllText((Resolve-Path $Path), (New-Object System.Text.UTF8Encoding($false)))
+}
 # Auditoria de qualidade v27-v28.3
 Write-Host "Auditando charset, BOM e pontos de codigo..." -ForegroundColor Cyan
 
@@ -11,7 +17,7 @@ foreach ($file in $files) {
     $found = $true
   }
 
-  $content = Get-Content $file.FullName -Raw
+  $content = Read-Utf8 $file.FullName
   if ($content.Contains("Ã") -or $content.Contains("Â") -or $content.Contains("�")) {
     Write-Host "Possivel mojibake: $($file.FullName)" -ForegroundColor Yellow
     $found = $true

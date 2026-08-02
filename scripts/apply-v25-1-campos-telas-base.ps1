@@ -1,3 +1,9 @@
+
+function Read-Utf8 {
+  param([string]$Path)
+  # Le sempre como UTF-8 explicito (nunca cai no codepage ANSI do Windows).
+  return [System.IO.File]::ReadAllText((Resolve-Path $Path), (New-Object System.Text.UTF8Encoding($false)))
+}
 # Radar SUS Frontend - v25.1 Campos, Telas e Base de Conhecimento
 # Execute na raiz do radar-sus-frontend.
 
@@ -7,8 +13,8 @@ $cssPath = "src/styles/global.css"
 $cssAppendPath = "docs/v25-1-css-append.css"
 
 if ((Test-Path $cssPath) -and (Test-Path $cssAppendPath)) {
-  $current = Get-Content $cssPath -Raw
-  $append = Get-Content $cssAppendPath -Raw
+  $current = Read-Utf8 $cssPath
+  $append = Read-Utf8 $cssAppendPath
 
   if ($current -notmatch "v25.1 - Campos Telas e Base de Conhecimento") {
     Add-Content $cssPath "`r`n$append"
@@ -22,7 +28,7 @@ if ((Test-Path $cssPath) -and (Test-Path $cssAppendPath)) {
 $possibleFiles = @("src/App.tsx", "src/components/Layout.tsx")
 foreach ($file in $possibleFiles) {
   if (Test-Path $file) {
-    $content = Get-Content $file -Raw
+    $content = Read-Utf8 $file
 
     $content = $content -replace "label:\s*'Formulários'", "label: 'Telas'"
     $content = $content -replace 'label:\s*"Formulários"', 'label: "Telas"'

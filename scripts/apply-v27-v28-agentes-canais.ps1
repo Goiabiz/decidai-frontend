@@ -9,10 +9,16 @@ function Write-Utf8NoBom {
   [System.IO.File]::WriteAllText((Resolve-Path $Path), $Content, $encoding)
 }
 
+function Read-Utf8 {
+  param([string]$Path)
+  # Le sempre como UTF-8 explicito (nunca cai no codepage ANSI do Windows).
+  return [System.IO.File]::ReadAllText((Resolve-Path $Path), (New-Object System.Text.UTF8Encoding($false)))
+}
+
 # Imports seguros no main.tsx
 $mainPath = "src/main.tsx"
 if (Test-Path $mainPath) {
-  $main = Get-Content $mainPath -Raw
+  $main = Read-Utf8 $mainPath
 
   if ($main -notmatch "lib/appToast") {
     $main = "import './lib/appToast';`r`n" + $main
@@ -31,8 +37,8 @@ if (Test-Path $mainPath) {
 $cssPath = "src/styles/global.css"
 $cssAppendPath = "docs/v27-v28-css-append.css"
 if ((Test-Path $cssPath) -and (Test-Path $cssAppendPath)) {
-  $current = Get-Content $cssPath -Raw
-  $append = Get-Content $cssAppendPath -Raw
+  $current = Read-Utf8 $cssPath
+  $append = Read-Utf8 $cssAppendPath
 
   if ($current -notmatch "v27-v28 - Agentes, Canais e estabilidade visual") {
     Write-Utf8NoBom $cssPath "$current`r`n$append"
@@ -114,7 +120,7 @@ $replacementPairs = @(
 
 $sourceFiles = Get-ChildItem -Path "src" -Recurse -Include *.tsx,*.ts,*.css -ErrorAction SilentlyContinue
 foreach ($file in $sourceFiles) {
-  $content = Get-Content $file.FullName -Raw
+  $content = Read-Utf8 $file.FullName
   $original = $content
 
   foreach ($pair in $replacementPairs) {
@@ -131,7 +137,7 @@ Write-Host "OK charset revisado em src." -ForegroundColor Green
 $layoutFiles = @("src/App.tsx", "src/components/Layout.tsx")
 foreach ($file in $layoutFiles) {
   if (Test-Path $file) {
-    $content = Get-Content $file -Raw
+    $content = Read-Utf8 $file
     $content = $content.Replace("Ambiente: ProduÃƒÂ§ÃƒÂ£o", "Ambiente: Produção")
     $content = $content.Replace("Ambiente: ProduÃ§Ã£o", "Ambiente: Produção")
     $content = $content.Replace("ParametrizaÃƒÂ§ÃƒÂ£o", "Parametrização")

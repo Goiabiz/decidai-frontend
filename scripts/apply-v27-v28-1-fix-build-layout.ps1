@@ -9,6 +9,12 @@ function Write-Utf8NoBom {
   [System.IO.File]::WriteAllText((Resolve-Path $Path), $Content, $encoding)
 }
 
+function Read-Utf8 {
+  param([string]$Path)
+  # Le sempre como UTF-8 explicito (nunca cai no codepage ANSI do Windows).
+  return [System.IO.File]::ReadAllText((Resolve-Path $Path), (New-Object System.Text.UTF8Encoding($false)))
+}
+
 # Corrige replaceAll para compatibilidade com tsconfig/lib atual.
 $channelFiles = @(
   "src/pages/Canais.tsx",
@@ -17,7 +23,7 @@ $channelFiles = @(
 
 foreach ($file in $channelFiles) {
   if (Test-Path $file) {
-    $content = Get-Content $file -Raw
+    $content = Read-Utf8 $file
     $content = $content.Replace("normalizeFilterText(form.nome).replaceAll(' ', '_')", "normalizeFilterText(form.nome).split(' ').join('_')")
     Write-Utf8NoBom $file $content
     Write-Host "OK replaceAll corrigido em $file" -ForegroundColor Green
@@ -27,7 +33,7 @@ foreach ($file in $channelFiles) {
 # Garante imports auxiliares no main.tsx.
 $mainPath = "src/main.tsx"
 if (Test-Path $mainPath) {
-  $main = Get-Content $mainPath -Raw
+  $main = Read-Utf8 $mainPath
 
   if ($main -notmatch "lib/appToast") {
     $main = "import './lib/appToast';`r`n" + $main
@@ -47,8 +53,8 @@ $cssPath = "src/styles/global.css"
 $cssAppendPath = "docs/v27-v28-1-css-append.css"
 
 if ((Test-Path $cssPath) -and (Test-Path $cssAppendPath)) {
-  $current = Get-Content $cssPath -Raw
-  $append = Get-Content $cssAppendPath -Raw
+  $current = Read-Utf8 $cssPath
+  $append = Read-Utf8 $cssAppendPath
 
   if ($current -notmatch "v27-v28.1 - fix visual agentes/canais/toast") {
     Write-Utf8NoBom $cssPath "$current`r`n$append"
@@ -99,7 +105,7 @@ $replacementPairs = @(
 
 $sourceFiles = Get-ChildItem -Path "src" -Recurse -Include *.tsx,*.ts,*.css -ErrorAction SilentlyContinue
 foreach ($file in $sourceFiles) {
-  $content = Get-Content $file.FullName -Raw
+  $content = Read-Utf8 $file.FullName
   $original = $content
 
   foreach ($pair in $replacementPairs) {
