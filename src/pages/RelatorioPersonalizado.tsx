@@ -1,1 +1,1 @@
-export { RelatorioPersonalizado as default, RelatorioPersonalizado } from './relatorios/RelatorioPersonalizado';
+export { default } from './relatorios/RelatorioPersonalizado';

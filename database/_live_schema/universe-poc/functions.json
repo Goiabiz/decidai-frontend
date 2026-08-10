@@ -1,0 +1,1 @@
+[{"routine_name":"atualizar_data_atualizacao","routine_type":"FUNCTION","return_type":"trigger","security_type":"INVOKER"},{"routine_name":"gerar_numero_protocolo_atendimento","routine_type":"FUNCTION","return_type":"trigger","security_type":"INVOKER"},{"routine_name":"rls_auto_enable","routine_type":"FUNCTION","return_type":"event_trigger","security_type":"DEFINER"}]

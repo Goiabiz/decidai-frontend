@@ -1,11 +1,14 @@
+import { useEffect, useState } from 'react';
 import { AlertTriangle, ClipboardList, FileText, Globe2, ListChecks } from 'lucide-react';
 import { PageHeader } from '../components/PageHeader';
 import { KpiCard } from '../components/KpiCard';
 import { Badge } from '../components/Badge';
-import { DataSourceNotice } from '../components/DataSourceNotice';
 import { alertas, documentos, kpis } from '../data/mock';
 import { useAsyncData } from '../hooks/useAsyncData';
 import { fetchAlertas, fetchDashboard, fetchDocumentos } from '../services/radarApi';
+import { useSession } from '../contexts/SessionContext';
+import { listTasks, type TaskRecord } from '../services/tarefas';
+import { STATUS_CATEGORY_LABELS, STATUS_CATEGORY_ORDER, type StatusCategory } from '../lib/statusCategory';
 import type { PageProps } from '../App';
 
 const getCombinedSource = (sources: string[]) => sources.every((source) => source === 'supabase') ? 'supabase' : 'mock';
@@ -15,22 +18,12 @@ const normalizeNumber = (value: unknown, fallback: number) => {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 };
 
-const statusResumo = [
-  { label: 'Novo', value: 4, tone: 'blue' },
-  { label: 'Em análise', value: 6, tone: 'orange' },
-  { label: 'Em andamento', value: 5, tone: 'cyan' },
-  { label: 'Aguardando validação', value: 3, tone: 'purple' },
-  { label: 'Concluído', value: 7, tone: 'green' },
-  { label: 'Cancelado', value: 1, tone: 'red' }
-];
-
-const tarefasRecentes = [
-  { origem: 'Alerta', titulo: 'Validar alteração da tabela SIGTAP', status: 'Novo', responsavel: 'Moises Mattos' },
-  { origem: 'Conhecimento', titulo: 'Classificar nova fonte de financiamento APS', status: 'Em análise', responsavel: 'Bruno Oliveira' },
-  { origem: 'Atendimento', titulo: 'Revisar impacto do BPA-I no fluxo operacional', status: 'Em andamento', responsavel: 'Mariana Lima' },
-  { origem: 'Regra', titulo: 'Preparar orientação interna para clientes', status: 'Aguardando validação', responsavel: 'Juliana Costa' },
-  { origem: 'Fonte', titulo: 'Conferir nova publicação cadastrada na base', status: 'Novo', responsavel: 'Rafael Mendes' }
-];
+const STATUS_DONUT_TONE: Record<StatusCategory, string> = {
+  novo: 'blue',
+  andamento: 'orange',
+  concluido: 'green',
+  cancelado: 'red',
+};
 
 const toneColor = (tone: string) => {
   const map: Record<string, string> = {
@@ -68,10 +61,22 @@ const getOriginCategory = (tipo: string) => {
   return { label: 'Documento/Arquivo', tone: 'slate' };
 };
 
-export function Dashboard({ onOpenDetail }: PageProps) {
+export function Dashboard({ onOpenDetail, onNavigate }: PageProps) {
+  const { session } = useSession();
+  const clienteId = session?.activeClientId ?? null;
+
   const dashboard = useAsyncData(fetchDashboard, kpis);
   const alertasData = useAsyncData(fetchAlertas, alertas);
   const documentosData = useAsyncData(fetchDocumentos, documentos);
+
+  const [tasks, setTasks] = useState<TaskRecord[]>([]);
+
+  useEffect(() => {
+    if (!clienteId) { setTasks([]); return; }
+    let active = true;
+    listTasks(clienteId).then((result) => { if (active) setTasks(result.items); });
+    return () => { active = false; };
+  }, [clienteId]);
 
   const source = getCombinedSource([dashboard.source, alertasData.source, documentosData.source]);
   const loading = dashboard.loading || alertasData.loading || documentosData.loading;
@@ -88,39 +93,50 @@ export function Dashboard({ onOpenDetail }: PageProps) {
       value: metricValue(['document', 'conhecimento'], documentosData.data.length || 9),
       tone: 'green',
       title: 'Conhecimentos disponíveis para consulta, análise, alertas, orientações e tarefas.',
-      icon: <FileText size={20} />
+      icon: <FileText size={20} />,
+      page: 'base' as const,
     },
     {
       label: 'Alertas',
       value: alertasData.data.length || metricValue(['alerta'], 4),
       tone: 'red',
       title: 'Sinais gerados a partir de fontes, regras, mudanças ou monitoramentos que exigem atenção.',
-      icon: <AlertTriangle size={20} />
+      icon: <AlertTriangle size={20} />,
+      page: 'alertas' as const,
     },
     {
       label: 'Ações pendentes',
       value: metricValue(['ação', 'ações', 'acao', 'acoes'], 1),
       tone: 'orange',
       title: 'Ações aguardando análise, decisão, validação ou encaminhamento.',
-      icon: <ClipboardList size={20} />
+      icon: <ClipboardList size={20} />,
+      page: 'atendimento-fila' as const,
     },
     {
       label: 'Novas tarefas',
-      value: tarefasRecentes.length,
+      value: tasks.filter((task) => task.categoria === 'novo').length,
       tone: 'blue',
       title: 'Tarefas criadas recentemente a partir de alertas, análises, orientações ou decisões.',
-      icon: <ListChecks size={20} />
+      icon: <ListChecks size={20} />,
+      page: 'analise' as const,
     },
     {
       label: 'Fontes monitoradas',
       value: new Set(documentosData.data.map((item) => item.fonte)).size || 4,
       tone: 'cyan',
       title: 'Fontes cadastradas para acompanhamento, captura ou consulta de conhecimento.',
-      icon: <Globe2 size={20} />
+      icon: <Globe2 size={20} />,
+      page: 'base' as const,
     }
   ];
 
   const latestAlertas = alertasData.data.slice(0, 5);
+  const latestTasks = tasks.slice(0, 5);
+  const statusResumo = STATUS_CATEGORY_ORDER.map((categoria) => ({
+    label: STATUS_CATEGORY_LABELS[categoria],
+    value: tasks.filter((task) => task.categoria === categoria).length,
+    tone: STATUS_DONUT_TONE[categoria],
+  }));
   const statusTotal = statusResumo.reduce((sum, item) => sum + item.value, 0);
   const statusGradient = getDonutGradient(statusResumo);
 
@@ -158,17 +174,18 @@ export function Dashboard({ onOpenDetail }: PageProps) {
     });
   };
 
-  const openTaskModal = (tarefa: (typeof tarefasRecentes)[number]) => {
+  const openTaskModal = (tarefa: TaskRecord) => {
+    const statusLabel = STATUS_CATEGORY_LABELS[tarefa.categoria];
     onOpenDetail?.({
-      title: tarefa.titulo,
+      title: tarefa.descricao,
       subtitle: tarefa.origem,
-      badge: tarefa.status,
-      badgeTone: tarefa.status,
+      badge: statusLabel,
+      badgeTone: statusLabel,
       description: 'Tarefa recente exibida na Área de Trabalho para acompanhamento executivo.',
       meta: [
         { label: 'Origem', value: tarefa.origem },
-        { label: 'Status', value: tarefa.status },
-        { label: 'Responsável', value: tarefa.responsavel }
+        { label: 'Status', value: statusLabel },
+        { label: 'Responsável', value: tarefa.responsavel || '-' }
       ],
       actions: ['Abrir tarefa', 'Ver origem', 'Concluir']
     });
@@ -177,9 +194,8 @@ export function Dashboard({ onOpenDetail }: PageProps) {
   return (
     <>
       <PageHeader title="Área de Trabalho" />
-      <DataSourceNotice source={source} loading={loading} error={error} connectionState={source === 'supabase' ? 'connected' : loading ? 'connecting' : error ? 'error' : (dashboard.connectionState === 'slow' || alertasData.connectionState === 'slow' || documentosData.connectionState === 'slow') ? 'slow' : 'demo'} />
 
-            <div className="kpi-grid five dashboard-kpis">
+      <div className="kpi-grid five dashboard-kpis">
         {cards.map((card) => (
           <KpiCard
             key={card.label}
@@ -188,6 +204,7 @@ export function Dashboard({ onOpenDetail }: PageProps) {
             tone={card.tone}
             tooltip={card.title}
             icon={card.icon}
+            onClick={onNavigate ? () => onNavigate(card.page) : undefined}
           />
         ))}
       </div>
@@ -210,11 +227,12 @@ export function Dashboard({ onOpenDetail }: PageProps) {
                 <div key={item.label}>
                   <i className={`tone-${item.tone}`} />
                   <span>{item.label}</span>
-                  <strong>{Math.round((item.value / statusTotal) * 100)}%</strong>
+                  <strong>{statusTotal ? Math.round((item.value / statusTotal) * 100) : 0}%</strong>
                 </div>
               ))}
             </div>
           </div>
+          {statusTotal === 0 && <p className="empty-note">Nenhuma tarefa registrada ainda.</p>}
         </section>
 
         <section className="card dashboard-donut-card">
@@ -248,15 +266,17 @@ export function Dashboard({ onOpenDetail }: PageProps) {
         </div>
 
         <div className="executive-list">
-          {tarefasRecentes.map((tarefa) => (
-            <button className="executive-list-row" key={`${tarefa.origem}-${tarefa.titulo}`} onClick={() => openTaskModal(tarefa)}>
+          {latestTasks.map((tarefa) => (
+            <button className="executive-list-row" key={tarefa.id} onClick={() => openTaskModal(tarefa)}>
               <Badge tone="blue">{tarefa.origem}</Badge>
-              <strong>{tarefa.titulo}</strong>
-              <span>{tarefa.responsavel}</span>
-              <small>{tarefa.status}</small>
+              <strong>{tarefa.descricao}</strong>
+              <span>{tarefa.responsavel || 'Sem responsável'}</span>
+              <small>{STATUS_CATEGORY_LABELS[tarefa.categoria]}</small>
             </button>
           ))}
         </div>
+
+        {latestTasks.length === 0 && <p className="empty-note">Nenhuma tarefa registrada ainda.</p>}
       </section>
 
       <section className="card dashboard-wide-list">

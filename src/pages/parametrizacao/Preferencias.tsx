@@ -7,7 +7,7 @@ import { showAppToast } from '../../lib/appToast';
 type ThemeMode = 'system' | 'light' | 'dark';
 
 export function Preferencias() {
-  const [companyName, setCompanyName] = useState('Radar SUS');
+  const [companyName, setCompanyName] = useState('DecidAI');
   const [logoDataUrl, setLogoDataUrl] = useState('');
   const [themeMode, setThemeMode] = useState<ThemeMode>('system');
   const [language, setLanguage] = useState('pt-BR');
@@ -16,7 +16,7 @@ export function Preferencias() {
 
   useEffect(() => {
     const current = getBrandingConfig();
-    setCompanyName(current.companyName || 'Radar SUS');
+    setCompanyName(current.companyName || 'DecidAI');
     setLogoDataUrl(current.logoDataUrl || '');
     setThemeMode(current.themeMode || 'system');
   }, []);
@@ -30,7 +30,7 @@ export function Preferencias() {
   };
 
   const save = () => {
-    saveBrandingConfig({ companyName: companyName.trim() || 'Radar SUS', logoDataUrl, themeMode });
+    saveBrandingConfig({ companyName: companyName.trim() || 'DecidAI', logoDataUrl, themeMode });
     showAppToast('Preferências salvas.', 'success');
   };
 

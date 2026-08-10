@@ -1,32 +1,105 @@
-import { Bot, CalendarDays, Download, Filter, KeyRound, Search, ShieldCheck, UserRound } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { CalendarDays, Filter, Search } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
 import { PageHeader } from '../../components/PageHeader';
 import { Badge } from '../../components/Badge';
+import { ExportAction } from '../../components/ExportAction';
 import { normalizeFilterText } from '../../components/SmartFilters';
+import { useSession } from '../../contexts/SessionContext';
+import { listAuditLogs, type AuditLogRecord, type AuditOperacao } from '../../services/auditLog';
 
-const logs = [
-  { id: 'AUD-001', data: '2026-08-01 20:42', usuario: 'Moises Mattos', modulo: 'Integrações', acao: 'Conector API criado', tipo: 'API', criticidade: 'Média' },
-  { id: 'AUD-002', data: '2026-08-01 20:30', usuario: 'SUSi', modulo: 'Agentes', acao: 'Sugestão de fluxo gerada', tipo: 'Agente', criticidade: 'Baixa' },
-  { id: 'AUD-003', data: '2026-08-01 19:58', usuario: 'Bruno Oliveira', modulo: 'Campos', acao: 'Campo externo vinculado', tipo: 'Dados', criticidade: 'Alta' },
-];
+function formatDateTime(iso: string) {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return iso;
+  return date.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+
+const OPERACAO_LABELS: Record<AuditOperacao, string> = {
+  insert: 'Criação',
+  update: 'Edição',
+  delete: 'Exclusão',
+  login: 'Login',
+  export: 'Exportação',
+  print: 'Impressão',
+  external_link: 'Link externo',
+  susi_action: 'Ação de agente',
+  acesso_suporte_iniciado: 'Acesso de suporte iniciado',
+  acesso_suporte_encerrado: 'Acesso de suporte encerrado',
+};
+
+const OPERACAO_TONE: Record<AuditOperacao, string> = {
+  insert: 'green',
+  update: 'blue',
+  delete: 'red',
+  login: 'gray',
+  export: 'purple',
+  print: 'purple',
+  external_link: 'blue',
+  susi_action: 'orange',
+  acesso_suporte_iniciado: 'yellow',
+  acesso_suporte_encerrado: 'yellow',
+};
 
 export function SegurancaAuditoria() {
+  const { isSupport } = useSession();
+  const [logs, setLogs] = useState<AuditLogRecord[]>([]);
+  const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
-  const [type, setType] = useState('');
+  const [operacao, setOperacao] = useState('');
+  const [modulo, setModulo] = useState('');
+  const [periodoInicio, setPeriodoInicio] = useState('');
+  const [periodoFim, setPeriodoFim] = useState('');
+  const [openPopover, setOpenPopover] = useState<'periodo' | 'filtros' | null>(null);
+
+  useEffect(() => {
+    if (!isSupport) { setLoading(false); return; }
+    setLoading(true);
+    listAuditLogs().then((result) => setLogs(result.items)).finally(() => setLoading(false));
+  }, [isSupport]);
+
+  useEffect(() => {
+    if (!openPopover) return;
+    const closePopover = () => setOpenPopover(null);
+    window.addEventListener('mousedown', closePopover);
+    return () => window.removeEventListener('mousedown', closePopover);
+  }, [openPopover]);
+
+  const modulos = useMemo(() => Array.from(new Set(logs.map((item) => item.modulo))).sort(), [logs]);
 
   const filtered = useMemo(() => {
     const normalized = normalizeFilterText(query);
     return logs.filter((item) => {
-      const text = normalizeFilterText(Object.values(item).join(' '));
-      return (!normalized || text.includes(normalized)) && (!type || item.tipo === type);
+      const text = normalizeFilterText([item.usuario, item.modulo, item.funcionalidade, item.observacao].join(' '));
+      const dataOnly = item.data.slice(0, 10);
+      return (!normalized || text.includes(normalized))
+        && (!operacao || item.operacao === operacao)
+        && (!modulo || item.modulo === modulo)
+        && (!periodoInicio || dataOnly >= periodoInicio)
+        && (!periodoFim || dataOnly <= periodoFim);
     });
-  }, [query, type]);
+  }, [logs, query, operacao, modulo, periodoInicio, periodoFim]);
+
+  const periodoAtivo = Boolean(periodoInicio || periodoFim);
+  const filtrosAtivos = Boolean(modulo);
+
+  if (!isSupport) {
+    return (
+      <>
+        <PageHeader title="Auditoria" />
+        <section className="card audit-clean-card">
+          <p className="muted">
+            A trilha de auditoria completa é visível apenas para a equipe de suporte da plataforma. Ações do seu
+            ambiente continuam sendo registradas normalmente — fale com o suporte se precisar consultar um evento específico.
+          </p>
+        </section>
+      </>
+    );
+  }
 
   return (
     <>
       <PageHeader
         title="Auditoria"
-        action={<button className="secondary-btn"><Download size={16} /> Exportar</button>}
+        action={<ExportAction filename="auditoria" title="Exportar consulta de auditoria" />}
       />
 
       <section className="card audit-clean-card">
@@ -35,22 +108,48 @@ export function SegurancaAuditoria() {
             <h3>Consulta de logs</h3>
             <p className="section-description">Pesquise acessos, ações sensíveis, exportações, integrações e execuções do agente.</p>
           </div>
-          <Badge tone="blue">{filtered.length} registros</Badge>
+          <Badge tone="blue">{loading ? '...' : `${filtered.length} registros`}</Badge>
         </div>
 
         <div className="audit-filter-grid">
           <div className="smart-search">
             <Search size={18} />
-            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar por usuário, módulo, ação, agente ou período..." />
+            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar por usuário, módulo, ação ou observação..." />
           </div>
-          <select value={type} onChange={(event) => setType(event.target.value)}>
-            <option value="">Todos os tipos</option>
-            <option>API</option>
-            <option>Agente</option>
-            <option>Dados</option>
+          <select value={operacao} onChange={(event) => setOperacao(event.target.value)}>
+            <option value="">Todas as operações</option>
+            {Object.entries(OPERACAO_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
           </select>
-          <button><CalendarDays size={16} /> Período</button>
-          <button><Filter size={16} /> Filtros</button>
+
+          <div className="row-menu-wrap">
+            <button className={periodoAtivo ? 'active-filter' : ''} onClick={() => setOpenPopover(openPopover === 'periodo' ? null : 'periodo')}>
+              <CalendarDays size={16} /> Período
+            </button>
+            {openPopover === 'periodo' && (
+              <div className="row-more-menu audit-filter-popover" onClick={(event) => event.stopPropagation()}>
+                <label>De<input type="date" value={periodoInicio} onChange={(event) => setPeriodoInicio(event.target.value)} /></label>
+                <label>Até<input type="date" value={periodoFim} onChange={(event) => setPeriodoFim(event.target.value)} /></label>
+                {periodoAtivo && <button type="button" className="audit-filter-clear" onClick={() => { setPeriodoInicio(''); setPeriodoFim(''); }}>Limpar período</button>}
+              </div>
+            )}
+          </div>
+
+          <div className="row-menu-wrap">
+            <button className={filtrosAtivos ? 'active-filter' : ''} onClick={() => setOpenPopover(openPopover === 'filtros' ? null : 'filtros')}>
+              <Filter size={16} /> Filtros
+            </button>
+            {openPopover === 'filtros' && (
+              <div className="row-more-menu audit-filter-popover" onClick={(event) => event.stopPropagation()}>
+                <label>Módulo
+                  <select value={modulo} onChange={(event) => setModulo(event.target.value)}>
+                    <option value="">Todos</option>
+                    {modulos.map((item) => <option key={item} value={item}>{item}</option>)}
+                  </select>
+                </label>
+                {filtrosAtivos && <button type="button" className="audit-filter-clear" onClick={() => setModulo('')}>Limpar filtros</button>}
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="simple-table-wrap">
@@ -61,23 +160,22 @@ export function SegurancaAuditoria() {
                 <th>Usuário/Agente</th>
                 <th>Módulo</th>
                 <th>Ação</th>
-                <th>Tipo</th>
-                <th>Criticidade</th>
+                <th>Operação</th>
               </tr>
             </thead>
             <tbody>
               {filtered.map((item) => (
                 <tr key={item.id}>
-                  <td>{item.data}</td>
+                  <td>{formatDateTime(item.data)}</td>
                   <td>{item.usuario}</td>
                   <td>{item.modulo}</td>
-                  <td>{item.acao}</td>
-                  <td>{item.tipo}</td>
-                  <td><Badge tone={item.criticidade === 'Alta' ? 'orange' : 'blue'}>{item.criticidade}</Badge></td>
+                  <td>{item.funcionalidade !== '-' ? item.funcionalidade : item.observacao}</td>
+                  <td><Badge tone={OPERACAO_TONE[item.operacao]}>{OPERACAO_LABELS[item.operacao] || item.operacao}</Badge></td>
                 </tr>
               ))}
             </tbody>
           </table>
+          {!loading && filtered.length === 0 && <p className="empty-note">Nenhum registro de auditoria encontrado.</p>}
         </div>
       </section>
     </>

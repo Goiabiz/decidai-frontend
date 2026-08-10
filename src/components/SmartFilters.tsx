@@ -47,9 +47,9 @@ const responsaveis: Option[] = [
 const modulos: Option[] = [
   { label: 'Todos os módulos', value: '' },
   { label: 'Faturamento', value: 'faturamento' },
-  { label: 'BPA', value: 'bpa' },
-  { label: 'CNES', value: 'cnes' },
-  { label: 'SIGTAP', value: 'sigtap' },
+  { label: 'Integrações', value: 'integracoes' },
+  { label: 'Cadastros', value: 'cadastros' },
+  { label: 'Relatórios', value: 'relatorios' },
   { label: 'Parametrização', value: 'config' }
 ];
 

@@ -1,140 +1,318 @@
-import { useMemo, useState } from 'react';
-import { Bot, CheckCircle2, Clock, Inbox, PackagePlus, PanelRightOpen, Plus, Search, Send, X } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { Bot, CheckCircle2, Clock, Inbox, Lock, MessageSquare, PackagePlus, Plus, Search, Send } from 'lucide-react';
+import { ConversationThread, type ThreadMessage } from '../components/ConversationThread';
+import { useSession } from '../contexts/SessionContext';
+import { showAppToast } from '../lib/appToast';
+import { categorizeStatusLabel, STATUS_CATEGORY_TONE, type StatusCategory } from '../lib/statusCategory';
+import {
+  createAtendimentoManual,
+  formatProtocolo,
+  listAtendimentosAdmin,
+  listMensagensAdmin,
+  postMensagemAdmin,
+  updateAtendimentoStatus,
+  type Atendimento,
+  type AtendimentoMensagem,
+  type AtendimentoStatus,
+} from '../services/atendimentos';
+import type { PanelDetail } from '../components/RightPanel';
 
-export type CentralAtendimentoProps = { onSelectDetail?: (detail: any) => void; onOpenDetail?: (detail: any) => void };
-
-const kpis = [
-  ['Demandas abertas', 4, Inbox, '#00875a'],
-  ['Novas demandas', 1, PackagePlus, '#0f62fe'],
-  ['Aguardando resposta', 1, Clock, '#ff8b22'],
-  ['Em andamento', 2, Send, '#00a6d6'],
-  ['Concluídas hoje', 0, CheckCircle2, '#00875a'],
-];
-
-type Demanda = {
-  id: string;
-  canal: string;
-  solicitante: string;
-  assunto: string;
-  status: 'Novo' | 'Em andamento' | 'Aguardando resposta' | 'Concluído';
-  prioridade: 'Alta' | 'Média' | 'Baixa';
-  mensagem: string;
+export type CentralAtendimentoProps = {
+  onSelectDetail?: (detail: PanelDetail) => void;
+  onOpenDetail?: (detail: PanelDetail) => void;
 };
 
-const demandas: Demanda[] = [
-  { id: 'ATD-20260802-0001', canal: 'E-mail', solicitante: 'cliente@exemplo.com', assunto: 'Demanda recebida por e-mail', status: 'Novo', prioridade: 'Alta', mensagem: 'Mensagem recebida pelo canal integrado. O atendimento pode gerar tarefa, alerta, conhecimento ou ação externa.' },
-  { id: 'ATD-20260801-0002', canal: 'WhatsApp', solicitante: '+55 (11) 99999-0002', assunto: 'Dúvida sobre faturamento BPA-I', status: 'Em andamento', prioridade: 'Média', mensagem: 'Solicitante relata divergência no faturamento do mês corrente, aguardando validação da regra aplicada.' },
-  { id: 'ATD-20260801-0003', canal: 'Widget', solicitante: 'visitante@site.gov.br', assunto: 'Solicitação de acesso ao sistema', status: 'Aguardando resposta', prioridade: 'Baixa', mensagem: 'Usuário solicitou liberação de acesso via widget do site institucional.' },
-  { id: 'ATD-20260731-0004', canal: 'API', solicitante: 'Integração Jira', assunto: 'Ticket sincronizado automaticamente', status: 'Em andamento', prioridade: 'Média', mensagem: 'Ticket criado automaticamente a partir da integração configurada com o Jira.' },
-];
+const statusList: AtendimentoStatus[] = ['Novo', 'Em andamento', 'Aguardando resposta', 'Concluído', 'Cancelado'];
+const canais = ['E-mail', 'WhatsApp', 'Widget', 'API', 'Manual'];
 
-const statusTone: Record<Demanda['status'], string> = {
-  'Novo': '#0f62fe',
-  'Em andamento': '#00a6d6',
-  'Aguardando resposta': '#ff8b22',
-  'Concluído': '#00875a',
-};
+function buildDetail(atendimento: Atendimento): PanelDetail {
+  const categoria: StatusCategory = categorizeStatusLabel(atendimento.status);
+  return {
+    title: atendimento.assunto,
+    subtitle: `${atendimento.canal} • ${atendimento.solicitante_nome || 'Solicitante não informado'}`,
+    badge: atendimento.status,
+    badgeTone: STATUS_CATEGORY_TONE[categoria],
+    meta: [
+      { label: 'Status', value: atendimento.status },
+      { label: 'Prioridade', value: atendimento.prioridade },
+      { label: 'Protocolo', value: formatProtocolo(atendimento) },
+      { label: 'Origem', value: `${atendimento.canal} • ${atendimento.solicitante_nome || '-'}` },
+    ],
+  };
+}
 
-export function CentralAtendimento(_props: CentralAtendimentoProps) {
+export function CentralAtendimento({ onOpenDetail }: CentralAtendimentoProps) {
+  const { session } = useSession();
+  const clienteId = session?.activeClientId ?? null;
+
+  const [demandas, setDemandas] = useState<Atendimento[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [mensagens, setMensagens] = useState<AtendimentoMensagem[]>([]);
+  const [loadingMensagens, setLoadingMensagens] = useState(false);
   const [modal, setModal] = useState(false);
-  const [side, setSide] = useState(true);
   const [query, setQuery] = useState('');
-  const [selectedId, setSelectedId] = useState(demandas[0].id);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [resposta, setResposta] = useState('');
+  const [tipoResposta, setTipoResposta] = useState<'publica' | 'interna'>('publica');
+  const [activeTab, setActiveTab] = useState<'comentarios' | 'atividade'>('comentarios');
+  const [novoForm, setNovoForm] = useState({ canal: canais[0], solicitante: '', resumo: '' });
+  const [enviando, setEnviando] = useState(false);
+  const [salvando, setSalvando] = useState(false);
+
+  useEffect(() => {
+    if (!clienteId) {
+      setDemandas([]);
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    listAtendimentosAdmin(clienteId)
+      .then(({ chamados }) => {
+        setDemandas(chamados);
+        setSelectedId((current) => (current && chamados.some((item) => item.id === current) ? current : chamados[0]?.id ?? null));
+      })
+      .finally(() => setLoading(false));
+  }, [clienteId]);
+
+  const selected = useMemo(() => demandas.find((item) => item.id === selectedId) || null, [demandas, selectedId]);
+
+  useEffect(() => {
+    if (!selected) {
+      setMensagens([]);
+      return;
+    }
+    setLoadingMensagens(true);
+    listMensagensAdmin(selected.id)
+      .then(({ mensagens: lista }) => setMensagens(lista))
+      .finally(() => setLoadingMensagens(false));
+  }, [selected?.id]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return demandas;
-    return demandas.filter((item) => `${item.canal} ${item.solicitante} ${item.assunto}`.toLowerCase().includes(q));
-  }, [query]);
+    return demandas.filter((item) => `${item.canal} ${item.solicitante_nome ?? ''} ${item.assunto}`.toLowerCase().includes(q));
+  }, [demandas, query]);
 
-  const selected = demandas.find((item) => item.id === selectedId) || demandas[0];
+  const kpis: Array<[string, number, typeof Inbox, string]> = [
+    ['Demandas abertas', demandas.filter((d) => categorizeStatusLabel(d.status) !== 'concluido' && categorizeStatusLabel(d.status) !== 'cancelado').length, Inbox, '#00875a'],
+    ['Novas demandas', demandas.filter((d) => d.status === 'Novo').length, PackagePlus, '#0f62fe'],
+    ['Aguardando resposta', demandas.filter((d) => d.status === 'Aguardando resposta').length, Clock, '#ff8b22'],
+    ['Em andamento', demandas.filter((d) => d.status === 'Em andamento').length, Send, '#00a6d6'],
+    ['Concluídas', demandas.filter((d) => d.status === 'Concluído').length, CheckCircle2, '#00875a'],
+  ];
+
+  const selectDemanda = (demanda: Atendimento) => {
+    setSelectedId(demanda.id);
+    setActiveTab('comentarios');
+  };
+
+  const changeStatus = async (nextStatus: AtendimentoStatus) => {
+    if (!selected || nextStatus === selected.status) return;
+    const statusAnterior = selected.status;
+    const selectedId2 = selected.id;
+    await updateAtendimentoStatus(selectedId2, statusAnterior, nextStatus);
+    const now = new Date().toISOString();
+    setDemandas((current) => current.map((item) => item.id === selectedId2 ? { ...item, status: nextStatus, atualizado_em: now } : item));
+    setMensagens((current) => [...current, {
+      id: `temp-status-${Date.now()}`,
+      atendimento_id: selectedId2,
+      tipo: 'sistema',
+      autor_nome: null,
+      texto: `Status alterado de "${statusAnterior}" para "${nextStatus}".`,
+      criado_em: now,
+    }]);
+    showAppToast(`Status atualizado para ${nextStatus}.`, 'success');
+  };
+
+  const enviarResposta = async () => {
+    const texto = resposta.trim();
+    if (!texto || !selected) {
+      showAppToast('Escreva uma mensagem antes de enviar.', 'warning');
+      return;
+    }
+    setEnviando(true);
+    try {
+      const autor = session?.user.displayName || 'Você';
+      await postMensagemAdmin(selected.id, autor, tipoResposta, texto);
+      setMensagens((current) => [...current, {
+        id: `temp-${Date.now()}`,
+        atendimento_id: selected.id,
+        tipo: tipoResposta,
+        autor_nome: autor,
+        texto,
+        criado_em: new Date().toISOString(),
+      }]);
+      setResposta('');
+      showAppToast(tipoResposta === 'interna' ? 'Nota interna registrada.' : 'Resposta enviada.', 'success');
+    } finally {
+      setEnviando(false);
+    }
+  };
+
+  const salvarAtendimento = async () => {
+    if (!novoForm.solicitante.trim() || !novoForm.resumo.trim() || !clienteId) {
+      showAppToast('Informe solicitante e resumo antes de salvar.', 'warning');
+      return;
+    }
+    setSalvando(true);
+    try {
+      const { atendimento } = await createAtendimentoManual({
+        clienteId,
+        canal: novoForm.canal,
+        solicitanteNome: novoForm.solicitante.trim(),
+        assunto: novoForm.resumo.trim(),
+        mensagem: novoForm.resumo.trim(),
+      });
+      setDemandas((current) => [atendimento, ...current]);
+      setSelectedId(atendimento.id);
+      setActiveTab('comentarios');
+      setNovoForm({ canal: canais[0], solicitante: '', resumo: '' });
+      setModal(false);
+      showAppToast('Atendimento criado.', 'success');
+    } finally {
+      setSalvando(false);
+    }
+  };
+
+  const mensagensPublicas: ThreadMessage[] = mensagens
+    .filter((m) => m.tipo !== 'sistema')
+    .map((m) => ({
+      id: m.id,
+      autor: m.autor_nome || 'Desconhecido',
+      tipo: m.tipo as 'publica' | 'interna',
+      texto: m.texto,
+      criadoEm: new Date(m.criado_em).toLocaleString('pt-BR'),
+    }));
+
+  if (!clienteId) {
+    return (
+      <div className="v3464-page">
+        <div className="v3464-page-head"><h1>Atendimentos</h1></div>
+        <div className="v3464-card" style={{ padding: 30, textAlign: 'center', color: 'var(--slate-500)' }}>
+          Acesse o contexto de um cliente para ver os atendimentos dele.
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="v3464-page">
       <div className="v3464-page-head">
         <h1>Atendimentos</h1>
-        <div style={{ display: 'flex', gap: 10 }}>
-          {!side && (
-            <button className="v3464-btn secondary" onClick={() => setSide(true)}><PanelRightOpen size={16} /> Mostrar resumo</button>
-          )}
-          <button className="v3464-btn primary" onClick={() => setModal(true)}><Plus size={16} />Novo atendimento</button>
-        </div>
+        <button className="v3464-btn primary" onClick={() => setModal(true)}><Plus size={16} />Novo atendimento</button>
       </div>
 
       <div className="v3464-kpis">
-        {kpis.map(([t, n, I, c]: any) => (
-          <div className="v3464-kpi" key={t}>
-            <span className="v3464-kpi-icon" style={{ background: c }}><I size={22} /></span>
-            <div><strong>{t}</strong><h2>{n}</h2></div>
+        {kpis.map(([title, value, Icon, color]) => (
+          <div className="v3464-kpi" key={title}>
+            <span className="v3464-kpi-icon" style={{ background: color }}><Icon size={22} /></span>
+            <div><strong>{title}</strong><h2>{value}</h2></div>
           </div>
         ))}
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: side ? '300px minmax(0, 1fr) 320px' : '300px minmax(0, 1fr)', gap: 18, alignItems: 'start' }}>
-        <section className="v3464-card" style={{ padding: 12 }}>
+      <div className="atendimento-layout">
+        <section className="v3464-card atendimento-queue">
           <div className="v3464-search" style={{ margin: '0 0 10px' }}>
             <Search size={18} />
             <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar demanda, canal ou solicitante..." />
           </div>
           <div style={{ display: 'grid', gap: 8 }}>
-            {filtered.map((item) => (
-              <button
-                key={item.id}
-                onClick={() => setSelectedId(item.id)}
-                style={{
-                  textAlign: 'left',
-                  border: `1px solid ${item.id === selectedId ? 'var(--v3464-green)' : 'var(--v3464-border)'}`,
-                  borderRadius: 14,
-                  padding: '10px 12px',
-                  background: item.id === selectedId ? 'var(--v3464-green-soft)' : 'var(--v3464-card)',
-                  color: 'var(--v3464-text)',
-                  cursor: 'pointer',
-                  display: 'grid',
-                  gap: 4,
-                }}
-              >
-                <small style={{ color: 'var(--v3464-muted)' }}>{item.id}</small>
-                <strong style={{ fontSize: 13 }}>{item.assunto}</strong>
-                <span style={{ fontSize: 12, color: 'var(--v3464-muted)' }}>{item.canal} • {item.solicitante}</span>
-                <span style={{ fontSize: 11, fontWeight: 800, color: statusTone[item.status] }}>{item.status}</span>
-              </button>
-            ))}
-            {filtered.length === 0 && <p style={{ color: 'var(--v3464-muted)' }}>Nenhuma demanda encontrada.</p>}
-          </div>
-        </section>
-
-        <section className="v3464-card">
-          <h2>{selected.assunto}</h2>
-          <p>{selected.canal} • {selected.solicitante}</p>
-          <div className="v3464-side-box">
-            <strong>{selected.solicitante}</strong>
-            <p>{selected.mensagem}</p>
-          </div>
-          <textarea value={resposta} onChange={(event) => setResposta(event.target.value)} placeholder="Escreva uma resposta ou orientação..." style={{ width: '100%', minHeight: 90 }} />
-          <footer style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 12 }}>
-            <button className="v3464-btn secondary">Anexar</button>
-            <button className="v3464-btn secondary"><Bot size={16} />Acionar agente</button>
-            <button className="v3464-btn secondary"><Plus size={16} />Gerar ação</button>
-            <button className="v3464-btn primary" onClick={() => setResposta('')}>Responder</button>
-          </footer>
-        </section>
-
-        {side && (
-          <aside className="v3464-side-panel">
-            <button className="v3464-icon" style={{ float: 'right' }} onClick={() => setSide(false)}><X size={16} /></button>
-            <h2>Resumo</h2>
-            {[
-              `Status|${selected.status}`,
-              `Prioridade|${selected.prioridade}`,
-              `Fila|Suporte operacional`,
-              `Origem|${selected.canal} • ${selected.solicitante}`,
-            ].map((x) => {
-              const [a, b] = x.split('|');
-              return <div className="v3464-side-box" key={a}><strong>{a}</strong><p>{b}</p></div>;
+            {loading && <p style={{ color: 'var(--v3464-muted)' }}>Carregando...</p>}
+            {!loading && filtered.map((item) => {
+              const categoria = categorizeStatusLabel(item.status);
+              return (
+                <button
+                  key={item.id}
+                  className={`atendimento-queue-item ${item.id === selectedId ? 'active' : ''}`}
+                  onClick={() => selectDemanda(item)}
+                >
+                  <small>{formatProtocolo(item)}</small>
+                  <strong>{item.assunto}</strong>
+                  <span className="atendimento-queue-meta">{item.canal} • {item.solicitante_nome || 'Solicitante não informado'}</span>
+                  <span className={`badge badge-status-${categoria}`}>{item.status}</span>
+                </button>
+              );
             })}
-          </aside>
-        )}
+            {!loading && filtered.length === 0 && <p style={{ color: 'var(--v3464-muted)' }}>Nenhuma demanda encontrada.</p>}
+          </div>
+        </section>
+
+        <section className="v3464-card atendimento-conversation">
+          {!selected ? (
+            <p style={{ color: 'var(--v3464-muted)', padding: 20 }}>Selecione um atendimento na lista ao lado.</p>
+          ) : (
+            <>
+              <div className="atendimento-conversation-head">
+                <h2>{selected.assunto}</h2>
+                <p>{selected.canal} • {selected.solicitante_nome || 'Solicitante não informado'}</p>
+                <select
+                  className="atendimento-status-select"
+                  value={selected.status}
+                  onChange={(event) => changeStatus(event.target.value as AtendimentoStatus)}
+                >
+                  {statusList.map((item) => <option key={item} value={item}>{item}</option>)}
+                </select>
+                <button className="v3464-btn secondary" onClick={() => onOpenDetail?.(buildDetail(selected))}>
+                  <MessageSquare size={16} /> Ver detalhes
+                </button>
+              </div>
+
+              <div className="atendimento-response-toggle atendimento-activity-tabs">
+                <button type="button" className={activeTab === 'comentarios' ? 'active' : ''} onClick={() => setActiveTab('comentarios')}>
+                  Comentários
+                </button>
+                <button type="button" className={activeTab === 'atividade' ? 'active' : ''} onClick={() => setActiveTab('atividade')}>
+                  Atividade
+                </button>
+              </div>
+
+              {loadingMensagens ? (
+                <p style={{ color: 'var(--v3464-muted)' }}>Carregando mensagens...</p>
+              ) : activeTab === 'comentarios' ? (
+                <ConversationThread messages={mensagensPublicas} />
+              ) : (
+                <div className="conversation-thread">
+                  {mensagens.map((entry) => (
+                    <div key={entry.id} className={`thread-message ${entry.tipo}`}>
+                      <div className="thread-message-head">
+                        <strong>{entry.autor_nome ?? 'Sistema'}</strong>
+                        {entry.tipo === 'interna' && <span className="thread-internal-tag"><Lock size={11} /> Nota interna</span>}
+                        <small>{new Date(entry.criado_em).toLocaleString('pt-BR')}</small>
+                      </div>
+                      <p>{entry.texto}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className="atendimento-composer">
+                <div className="atendimento-response-toggle">
+                  <button type="button" className={tipoResposta === 'publica' ? 'active' : ''} onClick={() => setTipoResposta('publica')}>
+                    Resposta pública
+                  </button>
+                  <button type="button" className={tipoResposta === 'interna' ? 'active' : ''} onClick={() => setTipoResposta('interna')}>
+                    <Lock size={13} /> Nota interna
+                  </button>
+                </div>
+                <textarea
+                  value={resposta}
+                  onChange={(event) => setResposta(event.target.value)}
+                  placeholder={tipoResposta === 'interna' ? 'Escreva uma nota interna, visível só pra equipe...' : 'Escreva uma resposta ao solicitante...'}
+                  style={{ width: '100%', minHeight: 90 }}
+                />
+                <footer style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 12 }}>
+                  <button className="v3464-btn secondary">Anexar</button>
+                  <button className="v3464-btn secondary"><Bot size={16} />Acionar agente</button>
+                  <button className="v3464-btn secondary"><Plus size={16} />Gerar ação</button>
+                  <button className="v3464-btn primary" onClick={enviarResposta} disabled={enviando}>
+                    {enviando ? 'Enviando...' : tipoResposta === 'interna' ? 'Registrar nota' : 'Responder'}
+                  </button>
+                </footer>
+              </div>
+            </>
+          )}
+        </section>
       </div>
 
       {modal && (
@@ -144,13 +322,21 @@ export function CentralAtendimento(_props: CentralAtendimentoProps) {
             <h2>Novo atendimento</h2>
             <p>Registre uma demanda de e-mail, ticket, API, integração ou atendimento manual.</p>
             <div className="v3464-modal-form">
-              <label>Origem<select><option>E-mail</option><option>WhatsApp</option><option>Widget</option><option>API</option><option>Manual</option></select></label>
-              <label>Solicitante<input /></label>
-              <label>Resumo<textarea /></label>
+              <label>Origem
+                <select value={novoForm.canal} onChange={(event) => setNovoForm((current) => ({ ...current, canal: event.target.value }))}>
+                  {canais.map((item) => <option key={item}>{item}</option>)}
+                </select>
+              </label>
+              <label>Solicitante
+                <input value={novoForm.solicitante} onChange={(event) => setNovoForm((current) => ({ ...current, solicitante: event.target.value }))} />
+              </label>
+              <label>Resumo
+                <textarea value={novoForm.resumo} onChange={(event) => setNovoForm((current) => ({ ...current, resumo: event.target.value }))} />
+              </label>
             </div>
             <footer>
               <button className="v3464-secondary-btn" onClick={() => setModal(false)}>Cancelar</button>
-              <button className="v3464-primary-btn" onClick={() => setModal(false)}>Salvar atendimento</button>
+              <button className="v3464-primary-btn" onClick={salvarAtendimento} disabled={salvando}>{salvando ? 'Salvando...' : 'Salvar atendimento'}</button>
             </footer>
           </section>
         </div>

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { X, Maximize2, Clock3, Link2, MessageSquareText, ShieldCheck, Paperclip, GitBranch, CheckCircle2 } from 'lucide-react';
 import type { PanelDetail } from './RightPanel';
 import { createRoadmapItem, discardItem, getHistory, getOperationalEventName, markReview, type OperationalHistory } from '../services/operationalStore';
+import { getBrandingConfig } from '../lib/branding';
 
 type TabKey = 'resumo' | 'historico' | 'vinculos' | 'acoes' | 'anexos';
 
@@ -53,7 +54,7 @@ export function DetailModal({ detail, onClose }: { detail: PanelDetail | null; o
       <section className="detail-modal">
         <header className="detail-modal-header">
           <div>
-            <span className="modal-eyebrow">Radar SUS</span>
+            <span className="modal-eyebrow">{getBrandingConfig().companyName}</span>
             <h2>{detail.title}</h2>
             {detail.subtitle && <p>{detail.subtitle}</p>}
           </div>

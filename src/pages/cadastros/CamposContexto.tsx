@@ -1,10 +1,13 @@
 import { Copy, Database, Edit3, FileJson, FunctionSquare, Plus, Search, Trash2, X } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { PageHeader } from '../../components/PageHeader';
 import { Badge } from '../../components/Badge';
 import { normalizeFilterText } from '../../components/SmartFilters';
 import { showAppConfirm } from '../../lib/appConfirm';
 import { showAppToast } from '../../lib/appToast';
+import { useSession } from '../../contexts/SessionContext';
+import { logAudit } from '../../services/auditLog';
+import { listV35ApiDictionary, type V35ApiDictionaryField, type V35LoadState } from '../../services/v35Supabase';
 
 type FieldOrigin = 'Manual' | 'Sistema' | 'Fórmula' | 'Integração/API';
 
@@ -23,6 +26,7 @@ type FieldRecord = {
   usarAlerta?: boolean;
   usarRelatorio?: boolean;
   usarAgente?: boolean;
+  excluidoEm?: string;
 };
 
 const initialFields: FieldRecord[] = [
@@ -58,22 +62,58 @@ function originIcon(origin: FieldOrigin) {
 }
 
 export function CamposContexto() {
+  const { session } = useSession();
   const [items, setItems] = useState(initialFields);
   const [form, setForm] = useState(emptyField);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [origin, setOrigin] = useState('');
+  const [apiFields, setApiFields] = useState<V35ApiDictionaryField[]>([]);
+  const [apiSource, setApiSource] = useState<V35LoadState>('empty');
+  const [apiQuery, setApiQuery] = useState('');
+
+  useEffect(() => {
+    void listV35ApiDictionary().then((result) => {
+      setApiFields(result.data);
+      setApiSource(result.source);
+    });
+  }, []);
+
+  const itemsAtivos = useMemo(() => items.filter((item) => !item.excluidoEm), [items]);
 
   const filtered = useMemo(() => {
     const normalized = normalizeFilterText(query);
-    return items.filter((item) => {
+    return itemsAtivos.filter((item) => {
       const text = normalizeFilterText(Object.values(item).join(' '));
       return (!normalized || text.includes(normalized)) && (!origin || item.origem === origin);
     });
-  }, [items, query, origin]);
+  }, [itemsAtivos, query, origin]);
 
   const update = <K extends keyof FieldRecord>(key: K, value: FieldRecord[K]) => setForm((current) => ({ ...current, [key]: value }));
+
+  const filteredApiFields = useMemo(() => {
+    const normalized = normalizeFilterText(apiQuery);
+    return apiFields
+      .filter((field) => {
+        const text = normalizeFilterText([field.connection_name, field.endpoint_name, field.field_label, field.field_key, field.field_path, field.data_type].join(' '));
+        return !normalized || text.includes(normalized);
+      })
+      .slice(0, 10);
+  }, [apiFields, apiQuery]);
+
+  const applyApiField = (field: V35ApiDictionaryField) => {
+    update('origem', 'Integração/API');
+    update('integracao', field.connection_name || 'API guiada');
+    update('endpoint', field.endpoint_name || field.endpoint_key || 'Endpoint');
+    update('campoExterno', field.field_label || field.field_key || field.field_path || 'Campo externo');
+    update('tipo', field.data_type || 'Texto curto');
+    update('sensivel', !!field.is_sensitive);
+    update('usarTela', !!field.can_use_in_screen);
+    update('usarAlerta', !!field.can_use_in_alert);
+    update('usarRelatorio', !!field.can_use_in_report);
+    update('usarAgente', !!field.can_use_by_agent);
+  };
 
   const openNew = () => {
     setForm(emptyField);
@@ -96,12 +136,24 @@ export function CamposContexto() {
   const remove = (item: FieldRecord) => {
     void showAppConfirm({
       title: 'Excluir campo',
-      description: `Excluir o campo "${item.nome}"? Essa ação não deve ser usada se o campo já estiver vinculado a uma tela em produção.`,
+      description: `Excluir o campo "${item.nome}"? Essa ação não deve ser usada se o campo já estiver vinculado a uma tela em produção. O registro fica oculto, não é apagado de verdade.`,
       confirmLabel: 'Excluir campo',
       tone: 'danger',
       onConfirm: () => {
-        setItems((current) => current.filter((field) => field.id !== item.id));
+        const excluidoEm = new Date().toISOString();
+        setItems((current) => current.map((field) => field.id === item.id ? { ...field, excluidoEm } : field));
         showAppToast('Campo excluído.', 'info');
+
+        void logAudit({
+          usuarioNome: session?.user.displayName || 'Desconhecido',
+          usuarioEmail: session?.user.email || '',
+          modulo: 'campos_contexto',
+          funcionalidade: 'exclusao_campo',
+          operacao: 'delete',
+          registroId: item.id,
+          dadosAntes: item,
+          observacao: `Campo "${item.nome}" excluído (soft delete).`,
+        });
       },
     });
   };
@@ -135,7 +187,7 @@ export function CamposContexto() {
             <h3>Cadastro de campos</h3>
             <p className="section-description">Campos podem ser manuais, do sistema, calculados ou vindos de integração/API.</p>
           </div>
-          <span className="small-muted">{filtered.length} de {items.length} registros</span>
+          <span className="small-muted">{filtered.length} de {itemsAtivos.length} registros</span>
         </div>
 
         <div className="field-filter-grid">
@@ -218,7 +270,14 @@ export function CamposContexto() {
               {form.origem === 'Integração/API' && (
                 <section className="cadastro-form-section">
                   <h3>Origem Integração/API</h3>
+                  <p className="section-description">Dicionário carregado do Supabase v35. Quando a API guiada descobrir campos, eles aparecem aqui para vínculo com o campo personalizado.</p>
+                  <div className="v36-status-strip compact"><span>Fonte: {apiSource === 'supabase' ? 'Supabase v35' : apiSource === 'empty' ? 'Sem campos descobertos' : 'Local/fallback'}</span><span>{apiFields.length} campos externos</span></div>
                   <div className="cadastro-form-grid">
+                    <label><span>Buscar no dicionário</span><input value={apiQuery} onChange={(event) => setApiQuery(event.target.value)} placeholder="Digite para buscar conexão, endpoint ou campo externo..." /></label>
+                    <label><span>Campos encontrados</span><select value="" onChange={(event) => { const field = apiFields.find((item) => item.response_field_id === event.target.value); if (field) applyApiField(field); }}>
+                      <option value="">Selecione um campo externo</option>
+                      {filteredApiFields.map((field) => <option key={field.response_field_id || field.field_path || field.field_key} value={field.response_field_id || ''}>{field.connection_name || 'API'} / {field.endpoint_name || field.endpoint_key} / {field.field_label || field.field_key}</option>)}
+                    </select></label>
                     <label><span>Integração</span><input value={form.integracao || ''} onChange={(event) => update('integracao', event.target.value)} placeholder="Ex.: Bling, Salesforce, API personalizada" /></label>
                     <label><span>Endpoint</span><input value={form.endpoint || ''} onChange={(event) => update('endpoint', event.target.value)} placeholder="Ex.: Produtos, Pedidos, Clientes" /></label>
                     <label><span>Campo externo</span><input value={form.campoExterno || ''} onChange={(event) => update('campoExterno', event.target.value)} placeholder="Ex.: estoque_atual" /></label>

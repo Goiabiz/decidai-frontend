@@ -1,5 +1,4 @@
 import './styles/v34_6_4_pending.css';
-import './lib/uiActionGuards';
 import './styles/v29_4_v34_6_final.css';
 import './styles/v29_4_v34_5_global_product.css';
 import './styles/v29_4_v34_4_dark_menu.css';
@@ -13,10 +12,16 @@ import './lib/branding';
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { App } from './App';
+import { SessionProvider } from './contexts/SessionContext';
 import './styles/global.css';
+import './styles/v36_supabase_bindings.css';
+import './styles/v36_2_secure_api_actions.css';
+import './styles/v36_3_cleanup.css';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <App />
+    <SessionProvider>
+      <App />
+    </SessionProvider>
   </React.StrictMode>
 );

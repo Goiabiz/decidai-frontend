@@ -1,3 +1,12 @@
-import { StandardReportPage } from './StandardReportPage';
-export function RelatorioIntegracoes(){return <StandardReportPage title="Relatório de Integracoes" description="Consulta de provedores, conexões, recursos, erros e uso pelos agentes."/>}
-export default RelatorioIntegracoes;
+import StandardReportPage from './StandardReportPage';
+
+export default function RelatorioIntegracoes() {
+  return (
+    <StandardReportPage
+      title="Relatório de Integrações"
+      description="Consulta de conexões, provedores, testes, falhas, chamadas e uso por canal ou agente."
+      filename="relatorio-integracoes"
+      typeOptions={["Todos os tipos", "OAuth", "API", "Webhook", "Canal", "Arquivo"]}
+    />
+  );
+}

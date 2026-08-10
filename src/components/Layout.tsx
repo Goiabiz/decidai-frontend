@@ -1,32 +1,40 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Bell,
   BookOpen,
-  Building2,
   ChartNoAxesCombined,
   ChevronDown,
   CircleHelp,
   ClipboardList,
+  Coins,
   Cog,
   FileBarChart2,
   Headphones,
   Home,
   LayoutTemplate,
+  LifeBuoy,
   ListChecks,
-  Menu,
   PanelLeftClose,
   PanelLeftOpen,
   Plug,
   Search,
   ShieldAlert,
   SlidersHorizontal,
+  Store,
   UserCog,
-  UserRound,
+  UserPlus,
   Users,
   Workflow,
 } from 'lucide-react';
 import type { PageKey } from '../App';
 import { loadWorkspacePreferences } from '../lib/preferences';
+import { useSession } from '../contexts/SessionContext';
+import { listPlatformClients, type PlatformClient } from '../services/auth';
+import { getBrandingConfig } from '../lib/branding';
+import { NotificationsMenu } from './NotificationsMenu';
+import { UserMenu } from './UserMenu';
+import { BrandMenu } from './BrandMenu';
+import { HelpPanel } from './HelpPanel';
+import markArrowDark from '../assets/brand/mark-arrow-dark.svg';
 
 type NavChild = {
   key: PageKey;
@@ -57,9 +65,6 @@ const navGroups: NavGroup[] = [
     defaultPage: 'base',
     children: [
       { key: 'base', label: 'Base de Conhecimento', icon: <BookOpen size={18} /> },
-      { key: 'cad-campos', label: 'Campos', icon: <SlidersHorizontal size={18} /> },
-      { key: 'cad-formularios', label: 'Telas', icon: <LayoutTemplate size={18} /> },
-      { key: 'cad-unidades', label: 'Unidades', icon: <Building2 size={18} /> },
       { key: 'cad-usuarios', label: 'Usuários', icon: <Users size={18} /> },
     ],
   },
@@ -71,6 +76,7 @@ const navGroups: NavGroup[] = [
     children: [
       { key: 'alertas', label: 'Alertas', icon: <ShieldAlert size={18} /> },
       { key: 'atendimento', label: 'Atendimentos', icon: <Headphones size={18} /> },
+      { key: 'atendimento-fila', label: 'Fila de Chamados', icon: <ListChecks size={18} /> },
       { key: 'atendimento-servicos', label: 'Serviços', icon: <Workflow size={18} /> },
     ],
   },
@@ -90,7 +96,12 @@ const navGroups: NavGroup[] = [
       { key: 'param-admin', label: 'Administração', icon: <Cog size={18} /> },
       { key: 'param-agentes', label: 'Agentes', icon: <UserCog size={18} /> },
       { key: 'param-canais', label: 'Canais de Atendimento', icon: <Workflow size={18} /> },
+      { key: 'param-portal', label: 'Portal do Cliente', icon: <LifeBuoy size={18} /> },
+      { key: 'cad-campos', label: 'Campos', icon: <SlidersHorizontal size={18} /> },
+      { key: 'cad-formularios', label: 'Telas', icon: <LayoutTemplate size={18} /> },
       { key: 'param-integracoes', label: 'Integrações', icon: <Plug size={18} /> },
+      { key: 'param-marketplace', label: 'Marketplace', icon: <Store size={18} /> },
+      { key: 'param-creditos', label: 'Créditos e Consumo', icon: <Coins size={18} /> },
       { key: 'param-preferencias', label: 'Preferências', icon: <SlidersHorizontal size={18} /> },
       { key: 'param-seguranca', label: 'Auditoria', icon: <ShieldAlert size={18} /> },
     ],
@@ -116,12 +127,20 @@ function getActiveGroupKey(activePage: PageKey) {
   return navGroups.find((group) => group.children.some((child) => child.key === activePage))?.key || 'workspace';
 }
 
+function getPageLabel(activePage: PageKey) {
+  return navGroups.flatMap((group) => group.children).find((child) => child.key === activePage)?.label || 'Esta tela';
+}
+
 export function Layout({ activePage, onNavigate, children, rightPanel }: { activePage: PageKey; onNavigate: (page: PageKey) => void; children: React.ReactNode; rightPanel?: React.ReactNode }) {
+  const { session, isSupport, signOut, accessClient, releaseClient } = useSession();
+  const [supportClients, setSupportClients] = useState<PlatformClient[]>([]);
   const [prefs, setPrefs] = useState(() => loadWorkspacePreferences());
+  const [branding, setBranding] = useState(() => getBrandingConfig());
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => window.localStorage.getItem('radar-sus-sidebar-collapsed') === 'true');
   const [isSidebarHovered, setIsSidebarHovered] = useState(false);
   const [panelSize, setPanelSize] = useState(() => window.localStorage.getItem('radar-sus-right-panel-size') || 'medium');
   const [panelWidth, setPanelWidth] = useState(() => Number(window.localStorage.getItem('radar-sus-right-panel-width') || 0));
+  const [helpOpen, setHelpOpen] = useState(false);
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() => {
     const activeGroup = getActiveGroupKey(activePage);
     return { [activeGroup]: true };
@@ -138,6 +157,7 @@ export function Layout({ activePage, onNavigate, children, rightPanel }: { activ
 
   useEffect(() => {
     const refresh = () => setPrefs(loadWorkspacePreferences());
+    const refreshBranding = () => setBranding(getBrandingConfig());
     const refreshPanel = () => {
       setPanelSize(window.localStorage.getItem('radar-sus-right-panel-size') || 'medium');
       setPanelWidth(Number(window.localStorage.getItem('radar-sus-right-panel-width') || 0));
@@ -158,17 +178,34 @@ export function Layout({ activePage, onNavigate, children, rightPanel }: { activ
     };
 
     window.addEventListener('storage', refresh);
+    window.addEventListener('radar-branding-updated', refreshBranding);
     window.addEventListener('radar-sus-panel-size-changed', refreshPanel);
     window.addEventListener('mousemove', handleMouseMove);
     window.addEventListener('mouseup', handleMouseUp);
 
     return () => {
       window.removeEventListener('storage', refresh);
+      window.removeEventListener('radar-branding-updated', refreshBranding);
       window.removeEventListener('radar-sus-panel-size-changed', refreshPanel);
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
     };
   }, []);
+
+  useEffect(() => {
+    if (!isSupport) return;
+    let active = true;
+    listPlatformClients()
+      .then((clients) => {
+        if (active) setSupportClients(clients);
+      })
+      .catch(() => {
+        if (active) setSupportClients([]);
+      });
+    return () => {
+      active = false;
+    };
+  }, [isSupport]);
 
   const toggleSidebarPinned = () => {
     const next = !isSidebarCollapsed;
@@ -200,13 +237,23 @@ export function Layout({ activePage, onNavigate, children, rightPanel }: { activ
           if (isSidebarCollapsed) setIsSidebarHovered(false);
         }}
       >
-        <div className="brand">
-          <div className="brand-left">
-            <Menu size={23} />
-            <span>Radar <strong>SUS</strong></span>
-          </div>
-          <div className="radar-mark" />
-        </div>
+        <BrandMenu
+          companyName={branding.companyName}
+          tipoAcesso={session?.user.tipoAcesso}
+          markSrc={markArrowDark}
+          onNavigateAccount={() => onNavigate('minha-conta')}
+          onNavigateAdmin={() => onNavigate('param-admin')}
+          onNavigateMarketplace={() => onNavigate('param-marketplace')}
+          onRequestNewUser={() => {
+            window.sessionStorage.setItem('radar-sus-open-new-user', '1');
+            onNavigate('cad-usuarios');
+          }}
+          onRequestImportUsers={() => {
+            window.sessionStorage.setItem('radar-sus-open-import-users', '1');
+            onNavigate('cad-usuarios');
+          }}
+          onSignOut={() => signOut()}
+        />
 
         <nav className="sidebar-nav">
           {navGroups.map((group) => {
@@ -287,12 +334,52 @@ export function Layout({ activePage, onNavigate, children, rightPanel }: { activ
             </button>
           </div>
 
-          <div className="search-box"><Search size={18} /><input placeholder="Buscar por atendimentos, alertas, conhecimentos ou tarefas..." /><kbd>⌘ K</kbd></div>
+          <div className="search-box"><Search size={18} /><input placeholder="Buscar por atendimentos, alertas, conhecimentos ou tarefas..." /></div>
           <div className="topbar-actions">
-            <button className="environment"><span /> Ambiente: <strong>Produção</strong></button>
-            <button className="icon-btn"><Bell size={19} /><em>12</em></button>
-            <button className="icon-btn"><CircleHelp size={19} /></button>
-            <div className="user-area"><div className="avatar">{prefs.userPhotoUrl ? <img src={prefs.userPhotoUrl} alt={prefs.userName} /> : <UserRound size={18} />}</div><div><strong>{prefs.userName}</strong><small>{prefs.userEmail || 'Administrador'}</small></div></div>
+            {isSupport && (
+              <select
+                className="support-client-switcher"
+                title="Acessar como cliente (acesso de suporte, sempre auditado)"
+                value={session?.activeClientId ?? ''}
+                onChange={(event) => {
+                  const value = event.target.value;
+                  if (value) accessClient(value);
+                  else releaseClient();
+                }}
+              >
+                <option value="">Suporte — nenhum cliente ativo</option>
+                {supportClients.map((client) => (
+                  <option key={client.id} value={client.id}>
+                    Acessar como: {client.tradeName || client.name}
+                  </option>
+                ))}
+              </select>
+            )}
+            <button
+              className="icon-btn"
+              title="Convidar membros"
+              onClick={() => {
+                window.sessionStorage.setItem('radar-sus-open-new-user', '1');
+                onNavigate('cad-usuarios');
+              }}
+            >
+              <UserPlus size={19} />
+            </button>
+            <NotificationsMenu />
+            <button
+              className="icon-btn"
+              title="Ajuda"
+              onClick={() => setHelpOpen(true)}
+            >
+              <CircleHelp size={19} />
+            </button>
+            <UserMenu
+              name={session?.user.displayName ?? prefs.userName}
+              email={session?.user.email ?? prefs.userEmail ?? 'Administrador'}
+              photoUrl={prefs.userPhotoUrl}
+              onNavigateAccount={() => onNavigate('minha-conta')}
+              onSignOut={() => signOut()}
+            />
           </div>
         </header>
 
@@ -313,6 +400,8 @@ export function Layout({ activePage, onNavigate, children, rightPanel }: { activ
           )}
         </div>
       </main>
+
+      <HelpPanel open={helpOpen} onClose={() => setHelpOpen(false)} page={activePage} pageTitle={getPageLabel(activePage)} />
     </div>
   );
 }

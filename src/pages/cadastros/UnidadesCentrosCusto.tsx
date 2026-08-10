@@ -17,6 +17,8 @@ import {
 import { Badge } from '../../components/Badge';
 import { PageHeader } from '../../components/PageHeader';
 import { normalizeFilterText } from '../../components/SmartFilters';
+import { formatCep, lookupCep } from '../../lib/viaCep';
+import { showAppToast } from '../../lib/appToast';
 
 type UnitType = 'Matriz' | 'Filial' | 'Prestador' | 'Fornecedor' | 'Cliente';
 type UnitStatus = 'Ativa' | 'Inativa' | 'Bloqueada' | 'Pendente';
@@ -77,11 +79,11 @@ const emptyUnit: Unit = {
 const mockUnits: Unit[] = [
   {
     id: 'UND-0001',
-    nome: 'ConectaSUS Matriz',
+    nome: 'Operadora Matriz',
     tipo: 'Matriz',
     status: 'Ativa',
     responsavel: 'Bruno Oliveira',
-    email: 'administracao@conectasus.com.br',
+    email: 'administracao@operadora.com.br',
     telefone: '+55 (11) 99999-0001',
     cep: '01001-000',
     logradouro: 'Praça da Sé',
@@ -97,15 +99,15 @@ const mockUnits: Unit[] = [
       { id: 's1', nome: 'Administrativo', responsavel: 'Bruno Oliveira' },
       { id: 's2', nome: 'Produto', responsavel: 'Gestor Produto' },
     ],
-    dados: { razaoSocial: 'ConectaSUS Tecnologia Ltda.', cnpj: '00.000.000/0001-00', site: 'www.conectasus.com.br' },
+    dados: { razaoSocial: 'Operadora Tecnologia Ltda.', cnpj: '00.000.000/0001-00', site: 'www.operadora.com.br' },
   },
   {
     id: 'UND-0002',
-    nome: 'Suporte Faturamento',
+    nome: 'Suporte e Faturamento',
     tipo: 'Filial',
     status: 'Ativa',
     responsavel: 'Operador Atendimento',
-    email: 'suporte@conectasus.com.br',
+    email: 'suporte@operadora.com.br',
     telefone: '+55 (11) 99999-0002',
     cep: '07000-000',
     logradouro: 'Avenida Exemplo',
@@ -119,17 +121,17 @@ const mockUnits: Unit[] = [
     longitude: '-46.53367',
     setores: [
       { id: 's3', nome: 'Suporte', responsavel: 'Operador Atendimento' },
-      { id: 's4', nome: 'Faturamento', responsavel: 'Analista BPA' },
+      { id: 's4', nome: 'Faturamento', responsavel: 'Analista de Faturamento' },
     ],
     dados: { horarioFuncionamento: '08:00 às 18:00', capacidadeOperacional: '30 atendimentos/dia' },
   },
   {
     id: 'UND-0003',
-    nome: 'Prefeitura Cliente Piloto',
+    nome: 'Cliente Piloto',
     tipo: 'Cliente',
     status: 'Pendente',
-    responsavel: 'Secretaria Municipal',
-    email: 'saude@prefeitura.gov.br',
+    responsavel: 'Gestor do Contrato',
+    email: 'contato@clientepiloto.com.br',
     telefone: '+55 (11) 99999-0003',
     cep: '',
     logradouro: '',
@@ -141,8 +143,8 @@ const mockUnits: Unit[] = [
     pais: 'Brasil',
     latitude: '',
     longitude: '',
-    setores: [{ id: 's5', nome: 'Saúde', responsavel: 'Gestor Municipal' }],
-    dados: { tipoCliente: 'Município', planoContrato: 'Piloto', canalPrincipal: 'E-mail' },
+    setores: [{ id: 's5', nome: 'Operações', responsavel: 'Gestor do Contrato' }],
+    dados: { tipoCliente: 'Contratante', planoContrato: 'Piloto', canalPrincipal: 'E-mail' },
   },
 ];
 
@@ -214,6 +216,7 @@ export function UnidadesCentrosCusto() {
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [isExportOpen, setIsExportOpen] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [cepLoading, setCepLoading] = useState(false);
 
   const filtered = useMemo(() => {
     const query = normalizeFilterText(search);
@@ -245,21 +248,28 @@ export function UnidadesCentrosCusto() {
   const addSector = () => setForm((current) => ({ ...current, setores: [...current.setores, { id: `setor-${Date.now()}`, nome: '', responsavel: '' }] }));
   const removeSector = (id: string) => setForm((current) => ({ ...current, setores: current.setores.length === 1 ? current.setores : current.setores.filter((sector) => sector.id !== id) }));
 
-  const simulateCepSearch = () => {
+  const searchCep = async () => {
     if (!form.cep.trim()) {
       setErrors((current) => ({ ...current, cep: 'Informe um CEP para buscar o endereço.' }));
       return;
     }
 
+    setCepLoading(true);
+    const address = await lookupCep(form.cep);
+    setCepLoading(false);
+
+    if (!address) {
+      setErrors((current) => ({ ...current, cep: 'CEP não encontrado.' }));
+      return;
+    }
+
     setForm((current) => ({
       ...current,
-      logradouro: current.logradouro || 'Praça da Sé',
-      bairro: current.bairro || 'Sé',
-      cidade: current.cidade || 'São Paulo',
-      uf: current.uf || 'SP',
+      logradouro: address.logradouro,
+      bairro: address.bairro,
+      cidade: address.cidade,
+      uf: address.uf,
       pais: current.pais || 'Brasil',
-      latitude: current.latitude || '-23.55052',
-      longitude: current.longitude || '-46.63331',
     }));
     setErrors((current) => ({ ...current, cep: '' }));
   };
@@ -388,7 +398,7 @@ export function UnidadesCentrosCusto() {
               <section className="unit-form-section">
                 <h3>Identificação</h3>
                 <div className="unit-form-grid">
-                  <label><FieldLabel required info="Nome usado para identificar a unidade nas telas, relatórios, vínculos e atendimentos.">Nome da unidade</FieldLabel><input value={form.nome} onChange={(event) => updateForm('nome', event.target.value)} placeholder="Informe o nome da unidade" />{errors.nome && <small className="field-error">{errors.nome}</small>}</label>
+                  <label><FieldLabel required info="Nome pelo qual a unidade é conhecida (ex.: matriz, nome da filial ou do parceiro).">Nome da unidade</FieldLabel><input value={form.nome} onChange={(event) => updateForm('nome', event.target.value)} placeholder="Informe o nome da unidade" />{errors.nome && <small className="field-error">{errors.nome}</small>}</label>
                   <label><FieldLabel required info="Classifica a unidade como Matriz, Filial, Prestador, Fornecedor ou Cliente.">Tipo</FieldLabel><select value={form.tipo} onChange={(event) => updateForm('tipo', event.target.value as UnitType)}>{unitTypes.map((item) => <option key={item} value={item}>{item}</option>)}</select>{errors.tipo && <small className="field-error">{errors.tipo}</small>}</label>
                   <label><FieldLabel required info="Define se a unidade pode ser usada em vínculos e operações.">Status</FieldLabel><select value={form.status} onChange={(event) => updateForm('status', event.target.value as UnitStatus)}>{unitStatuses.map((item) => <option key={item} value={item}>{item}</option>)}</select>{errors.status && <small className="field-error">{errors.status}</small>}</label>
                   <label><FieldLabel info="Responsável operacional ou administrativo pela unidade.">Responsável</FieldLabel><input value={form.responsavel} onChange={(event) => updateForm('responsavel', event.target.value)} placeholder="Nome do responsável" /></label>
@@ -422,10 +432,10 @@ export function UnidadesCentrosCusto() {
               </section>
 
               <section className="unit-form-section">
-                <div className="section-title-row"><h3>Endereço e localização</h3><button className="secondary-btn" type="button" onClick={simulateCepSearch}><MapPin size={15} /> Buscar CEP</button></div>
+                <div className="section-title-row"><h3>Endereço e localização</h3><button className="secondary-btn" type="button" disabled={cepLoading} onClick={() => void searchCep()}><MapPin size={15} /> {cepLoading ? 'Buscando...' : 'Buscar CEP'}</button></div>
                 <div className="unit-form-grid address-grid">
-                  <label><FieldLabel info="Campo preparado para integração com Correios/ViaCEP.">CEP</FieldLabel><input value={form.cep} onChange={(event) => updateForm('cep', event.target.value)} placeholder="00000-000" />{errors.cep && <small className="field-error">{errors.cep}</small>}</label>
-                  <label><FieldLabel info="Preenchido automaticamente pelo CEP quando a integração estiver ativa.">Logradouro</FieldLabel><input value={form.logradouro} onChange={(event) => updateForm('logradouro', event.target.value)} placeholder="Rua, avenida, praça..." /></label>
+                  <label><FieldLabel info="CEP do endereço. Buscar preenche rua, bairro, cidade e UF automaticamente.">CEP</FieldLabel><input value={form.cep} onChange={(event) => updateForm('cep', formatCep(event.target.value))} placeholder="00000-000" maxLength={9} />{errors.cep && <small className="field-error">{errors.cep}</small>}</label>
+                  <label><FieldLabel info="Nome da rua, avenida ou logradouro.">Logradouro</FieldLabel><input value={form.logradouro} onChange={(event) => updateForm('logradouro', event.target.value)} placeholder="Rua, avenida, praça..." /></label>
                   <label><FieldLabel info="Número do imóvel ou da unidade.">Número</FieldLabel><input value={form.numero} onChange={(event) => updateForm('numero', event.target.value)} placeholder="Número" /></label>
                   <label><FieldLabel info="Complemento do endereço.">Complemento</FieldLabel><input value={form.complemento} onChange={(event) => updateForm('complemento', event.target.value)} placeholder="Sala, bloco, andar..." /></label>
                   <label><FieldLabel info="Bairro retornado pelo CEP ou informado manualmente.">Bairro</FieldLabel><input value={form.bairro} onChange={(event) => updateForm('bairro', event.target.value)} placeholder="Bairro" /></label>

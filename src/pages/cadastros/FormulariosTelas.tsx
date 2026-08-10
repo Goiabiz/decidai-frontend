@@ -1,5 +1,16 @@
 import { useMemo, useState } from 'react';
 import {
+  DndContext,
+  DragOverlay,
+  PointerSensor,
+  useDraggable,
+  useDroppable,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+  type DragStartEvent,
+} from '@dnd-kit/core';
+import {
   Copy,
   Edit3,
   Eye,
@@ -17,6 +28,9 @@ import { Badge } from '../../components/Badge';
 import { PageHeader } from '../../components/PageHeader';
 import { normalizeFilterText } from '../../components/SmartFilters';
 import { confirmApp } from '../../lib/appConfirm';
+import { showAppToast } from '../../lib/appToast';
+import { useSession } from '../../contexts/SessionContext';
+import { logAudit } from '../../services/auditLog';
 
 type ScreenStatus = 'Ativa' | 'Inativa' | 'Rascunho';
 type DisplayBehavior = 'Exibir ao abrir funcionalidade' | 'Exibir como atalho';
@@ -71,6 +85,7 @@ type ScreenRecord = {
   campos: ScreenField[];
   agente: boolean;
   atualizadoEm: string;
+  excluidoEm?: string;
 };
 
 const statuses: ScreenStatus[] = ['Ativa', 'Inativa', 'Rascunho'];
@@ -195,7 +210,130 @@ function widthClass(width: FieldWidth) {
   return 'span-half';
 }
 
+// ---- dnd-kit: paleta de campos disponíveis (arrasta para criar um campo novo na tela) ----
+function PaletteFieldButton({ field, onAdd }: { field: AvailableField; onAdd: () => void }) {
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+    id: `palette-${field.id}`,
+    data: { kind: 'palette', fieldId: field.id },
+  });
+
+  return (
+    <button
+      ref={setNodeRef}
+      type="button"
+      className={isDragging ? 'dragging' : ''}
+      onClick={onAdd}
+      {...listeners}
+      {...attributes}
+    >
+      <Plus size={15} />
+      <span>{field.campo}</span>
+      <strong>{field.tipo}</strong>
+    </button>
+  );
+}
+
+// ---- dnd-kit: campo já posicionado na tela (arrasta pra mover entre seção/contexto, ou solta fora pra remover) ----
+function FieldCard({
+  field,
+  expanded,
+  onToggleExpand,
+  onUpdate,
+  onRemove,
+}: {
+  field: ScreenField;
+  expanded: boolean;
+  onToggleExpand: () => void;
+  onUpdate: (key: keyof ScreenField, value: ScreenField[keyof ScreenField]) => void;
+  onRemove: () => void;
+}) {
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+    id: `field-${field.instanceId}`,
+    data: { kind: 'field', instanceId: field.instanceId },
+  });
+
+  return (
+    <div
+      ref={setNodeRef}
+      className={`mini-field-card ${widthClass(field.largura)} ${expanded ? 'expanded' : ''} ${isDragging ? 'dragging' : ''}`}
+    >
+      <div className="mini-field-top">
+        <span className="drag-handle" {...listeners} {...attributes}><GripVertical size={15} /></span>
+        <strong>{field.campo}</strong>
+        <button type="button" onClick={onToggleExpand}><Settings2 size={15} /></button>
+      </div>
+      {renderPreviewInput(field.tipo)}
+
+      {expanded && (
+        <div className="inline-field-config">
+          <label>Largura
+            <select value={field.largura} onChange={(event) => onUpdate('largura', event.target.value as FieldWidth)}>
+              <option>Inteira</option>
+              <option>Metade</option>
+              <option>Terço</option>
+            </select>
+          </label>
+          <label>Valor padrão
+            <input value={field.valorPadrao} onChange={(event) => onUpdate('valorPadrao', event.target.value)} placeholder="Valor padrão" />
+          </label>
+          <label><input type="checkbox" checked={field.obrigatorio} onChange={(event) => onUpdate('obrigatorio', event.target.checked)} /> Obrigatório</label>
+          <label><input type="checkbox" checked={!field.ocultoUsuario} onChange={(event) => onUpdate('ocultoUsuario', !event.target.checked)} /> Exibir para usuário</label>
+          <label><input type="checkbox" checked={field.visivel} onChange={(event) => onUpdate('visivel', event.target.checked)} /> Visível na tela</label>
+          <button className="danger-inline-btn" type="button" onClick={onRemove}>Remover campo</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---- dnd-kit: chip de campo de contexto (mesma lógica de arraste do FieldCard, layout mais compacto) ----
+function ContextFieldChip({ field }: { field: ScreenField }) {
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+    id: `field-${field.instanceId}`,
+    data: { kind: 'field', instanceId: field.instanceId },
+  });
+
+  return (
+    <div ref={setNodeRef} className={`mini-context-field ${isDragging ? 'dragging' : ''}`}>
+      <span className="drag-handle" {...listeners} {...attributes}><GripVertical size={14} /></span>
+      <span>{field.campo}</span>
+      <small>{field.tipo}</small>
+    </div>
+  );
+}
+
+// ---- dnd-kit: área de soltar (seção da tela) ----
+function SectionDropZone({
+  section,
+  children,
+}: {
+  section: ScreenSection;
+  children: React.ReactNode;
+}) {
+  const { setNodeRef, isOver } = useDroppable({
+    id: `section-${section.id}`,
+    data: { kind: 'section', sectionId: section.id },
+  });
+
+  return (
+    <section ref={setNodeRef} className={`screen-section-block columns-${section.colunas} ${isOver ? 'drop-target-active' : ''}`}>
+      {children}
+    </section>
+  );
+}
+
+// ---- dnd-kit: área de soltar (contexto global) ----
+function ContextDropZone({ children }: { children: React.ReactNode }) {
+  const { setNodeRef, isOver } = useDroppable({ id: 'context-drop', data: { kind: 'context' } });
+  return (
+    <aside ref={setNodeRef} className={`jira-mini-context global-context ${isOver ? 'drop-target-active' : ''}`}>
+      {children}
+    </aside>
+  );
+}
+
 export function FormulariosTelas() {
+  const { session } = useSession();
   const [screens, setScreens] = useState<ScreenRecord[]>(mockScreens);
   const [search, setSearch] = useState('');
   const [funcionalidade, setFuncionalidade] = useState('');
@@ -207,24 +345,26 @@ export function FormulariosTelas() {
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [fieldSearch, setFieldSearch] = useState('');
   const [activeTabId, setActiveTabId] = useState('principal');
-  const [draggedFieldId, setDraggedFieldId] = useState<string | null>(null);
-  const [draggedInstanceId, setDraggedInstanceId] = useState<string | null>(null);
-  const [fieldDropHandled, setFieldDropHandled] = useState(false);
   const [expandedFieldId, setExpandedFieldId] = useState<string | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [activeDragLabel, setActiveDragLabel] = useState<string | null>(null);
+
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
+
+  const screensAtivas = useMemo(() => screens.filter((item) => !item.excluidoEm), [screens]);
 
   const filtered = useMemo(() => {
     const query = normalizeFilterText(search);
     const functionalityFilter = normalizeFilterText(funcionalidade);
     const statusFilter = normalizeFilterText(status);
 
-    return screens.filter((item) => {
+    return screensAtivas.filter((item) => {
       const text = normalizeFilterText([item.nome, item.funcionalidade, item.status, item.descricao, item.comportamento].join(' '));
       return (!query || text.includes(query))
         && (!functionalityFilter || normalizeFilterText(item.funcionalidade) === functionalityFilter)
         && (!statusFilter || normalizeFilterText(item.status) === statusFilter);
     });
-  }, [screens, search, funcionalidade, status]);
+  }, [screensAtivas, search, funcionalidade, status]);
 
   const availableToAdd = useMemo(() => {
     const alreadyUsed = new Set(form.campos.map((field) => field.id));
@@ -372,33 +512,42 @@ export function FormulariosTelas() {
     }));
   };
 
-  const handleDrop = (area: FieldArea, sectionId?: string) => {
-    setFieldDropHandled(true);
+  const handleDragStart = (event: DragStartEvent) => {
+    const data = event.active.data.current as { kind: 'palette' | 'field'; fieldId?: string; instanceId?: string } | undefined;
+    if (!data) return;
+    if (data.kind === 'palette') {
+      setActiveDragLabel(allAvailableFields.find((field) => field.id === data.fieldId)?.campo || null);
+    } else {
+      setActiveDragLabel(form.campos.find((field) => field.instanceId === data.instanceId)?.campo || null);
+    }
+  };
 
-    if (draggedFieldId) {
-      addField(draggedFieldId, area, sectionId);
-      setDraggedFieldId(null);
+  const handleDragEnd = (event: DragEndEvent) => {
+    setActiveDragLabel(null);
+    const { active, over } = event;
+    const activeData = active.data.current as { kind: 'palette' | 'field'; fieldId?: string; instanceId?: string } | undefined;
+    if (!activeData) return;
+
+    if (!over) {
+      // Soltou fora de qualquer área reconhecida: se era um campo já posicionado, remove sem confirmação
+      // (mesmo comportamento do protótipo nativo original).
+      if (activeData.kind === 'field' && activeData.instanceId) {
+        void removeField(activeData.instanceId, false);
+      }
       return;
     }
 
-    if (draggedInstanceId) {
-      moveExistingField(draggedInstanceId, area, sectionId);
-      setDraggedInstanceId(null);
+    const overData = over.data.current as { kind: 'section' | 'context'; sectionId?: string } | undefined;
+    if (!overData) return;
+
+    const targetArea: FieldArea = overData.kind === 'context' ? 'Contexto' : 'Principal';
+    const targetSectionId = overData.kind === 'section' ? overData.sectionId : undefined;
+
+    if (activeData.kind === 'palette' && activeData.fieldId) {
+      addField(activeData.fieldId, targetArea, targetSectionId);
+    } else if (activeData.kind === 'field' && activeData.instanceId) {
+      moveExistingField(activeData.instanceId, targetArea, targetSectionId);
     }
-  };
-
-  const handleFieldDragStart = (instanceId: string) => {
-    setDraggedInstanceId(instanceId);
-    setFieldDropHandled(false);
-  };
-
-  const handleFieldDragEnd = (instanceId: string) => {
-    if (!fieldDropHandled) {
-      removeField(instanceId, false);
-    }
-
-    setDraggedInstanceId(null);
-    setFieldDropHandled(false);
   };
 
   const saveScreen = () => {
@@ -435,12 +584,26 @@ export function FormulariosTelas() {
     const item = screens.find((screen) => screen.id === id);
     const confirmed = await confirmApp({
       title: 'Excluir tela',
-      description: `Excluir a tela "${item?.nome || id}"?`,
+      description: `Excluir a tela "${item?.nome || id}"? O registro fica oculto, não é apagado de verdade.`,
       confirmLabel: 'Excluir tela',
       tone: 'danger',
     });
     if (!confirmed) return;
-    setScreens((current) => current.filter((screen) => screen.id !== id));
+
+    const excluidoEm = new Date().toISOString();
+    setScreens((current) => current.map((screen) => screen.id === id ? { ...screen, excluidoEm } : screen));
+    showAppToast('Tela excluída.', 'info');
+
+    void logAudit({
+      usuarioNome: session?.user.displayName || 'Desconhecido',
+      usuarioEmail: session?.user.email || '',
+      modulo: 'formularios_telas',
+      funcionalidade: 'exclusao_tela',
+      operacao: 'delete',
+      registroId: id,
+      dadosAntes: item,
+      observacao: `Tela "${item?.nome || id}" excluída (soft delete).`,
+    });
   };
 
   const previewScreen = isFormOpen ? form : selectedScreen;
@@ -459,7 +622,7 @@ export function FormulariosTelas() {
       <section className="card cadastro-functional-card no-side-detail">
         <div className="section-title-row">
           <h3>Cadastro de telas</h3>
-          <span className="small-muted">{filtered.length} de {screens.length} registros</span>
+          <span className="small-muted">{filtered.length} de {screensAtivas.length} registros</span>
         </div>
 
         <div className="smart-filter-bar cadastro-filter-bar">
@@ -522,202 +685,157 @@ export function FormulariosTelas() {
               <button className="icon-btn" onClick={() => setIsFormOpen(false)}><X size={18} /></button>
             </div>
 
-            <div className="jira-builder-content">
-              <main className="jira-builder-canvas">
-                <section className="builder-config-strip">
-                  <label>
-                    <FieldLabel required info="Nome usado para identificar a tela configurável.">Tela</FieldLabel>
-                    <input value={form.nome} onChange={(event) => updateForm('nome', event.target.value)} placeholder="Nome da tela" />
-                    {errors.nome && <small className="field-error">{errors.nome}</small>}
-                  </label>
-                  <label>
-                    <FieldLabel required info="Funcionalidade onde esta tela será usada.">Funcionalidade</FieldLabel>
-                    <select value={form.funcionalidade} onChange={(event) => updateForm('funcionalidade', event.target.value)}>
-                      {funcionalidades.map((item) => <option key={item} value={item}>{item}</option>)}
-                    </select>
-                  </label>
-                  <label>
-                    <FieldLabel info="Define se a tela abre direto ou aparece como atalho.">Exibição</FieldLabel>
-                    <select value={form.comportamento} onChange={(event) => updateForm('comportamento', event.target.value as DisplayBehavior)}>
-                      {displayBehaviors.map((item) => <option key={item} value={item}>{item}</option>)}
-                    </select>
-                  </label>
-                  <label>
-                    <FieldLabel required info="Define se a tela pode ser usada na operação.">Status</FieldLabel>
-                    <select value={form.status} onChange={(event) => updateForm('status', event.target.value as ScreenStatus)}>
-                      {statuses.map((item) => <option key={item} value={item}>{item}</option>)}
-                    </select>
-                  </label>
-                </section>
-
-                <section className="visual-tabs-bar jira-tabs v25-5-tabs">
-                  {form.tabs.map((tab) => (
-                    <button
-                      key={tab.id}
-                      className={activeTabId === tab.id ? 'active' : ''}
-                      onClick={() => setActiveTabId(tab.id)}
-                      type="button"
-                    >
-                      <input
-                        value={tab.nome}
-                        onFocus={() => setActiveTabId(tab.id)}
-                        onClick={() => setActiveTabId(tab.id)}
-                        onChange={(event) => updateTab(tab.id, { nome: event.target.value })}
-                      />
-                    </button>
-                  ))}
-                  <button type="button" className="tab-plus-button" onClick={addTab}>+</button>
-
-                  <div className="tab-toolbar-inline">
-                    <label>Visual
-                      <select value={activeTab.modo} onChange={(event) => updateTab(activeTab.id, { modo: event.target.value as TabMode })}>
-                        <option>Campos</option>
-                        <option>Lista</option>
+            <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+              <div className="jira-builder-content">
+                <main className="jira-builder-canvas">
+                  <section className="builder-config-strip">
+                    <label>
+                      <FieldLabel required info="Nome desta tela configurável.">Tela</FieldLabel>
+                      <input value={form.nome} onChange={(event) => updateForm('nome', event.target.value)} placeholder="Nome da tela" />
+                      {errors.nome && <small className="field-error">{errors.nome}</small>}
+                    </label>
+                    <label>
+                      <FieldLabel required info="A qual funcionalidade do sistema esta tela pertence.">Funcionalidade</FieldLabel>
+                      <select value={form.funcionalidade} onChange={(event) => updateForm('funcionalidade', event.target.value)}>
+                        {funcionalidades.map((item) => <option key={item} value={item}>{item}</option>)}
                       </select>
                     </label>
-                    <button className="secondary-btn" type="button" onClick={addSection}><Plus size={16} /> Seção</button>
-                    <button className="secondary-btn" type="button" onClick={() => setIsPreviewOpen(true)}><Eye size={16} /> Pré-visualizar</button>
-                  </div>
-                </section>
+                    <label>
+                      <FieldLabel info="Define se a tela abre direto ou aparece como atalho.">Exibição</FieldLabel>
+                      <select value={form.comportamento} onChange={(event) => updateForm('comportamento', event.target.value as DisplayBehavior)}>
+                        {displayBehaviors.map((item) => <option key={item} value={item}>{item}</option>)}
+                      </select>
+                    </label>
+                    <label>
+                      <FieldLabel required info="Define se a tela pode ser usada na operação.">Status</FieldLabel>
+                      <select value={form.status} onChange={(event) => updateForm('status', event.target.value as ScreenStatus)}>
+                        {statuses.map((item) => <option key={item} value={item}>{item}</option>)}
+                      </select>
+                    </label>
+                  </section>
 
-                <section className="jira-mini-screen">
-                  <div className="jira-mini-main sectioned-builder">
-                    {activeSections.map((section) => {
-                      const fields = form.campos.filter((field) => field.visivel && field.area === 'Principal' && field.sectionId === section.id);
-
-                      return (
-                        <section
-                          key={section.id}
-                          className={`screen-section-block columns-${section.colunas}`}
-                          onDragOver={(event) => event.preventDefault()}
-                          onDrop={() => handleDrop('Principal', section.id)}
-                        >
-                          <div className="screen-section-header">
-                            <LayoutTemplate size={17} />
-                            <input value={section.nome} onChange={(event) => updateSection(section.id, { nome: event.target.value })} />
-                            <select value={section.colunas} onChange={(event) => updateSection(section.id, { colunas: Number(event.target.value) as 1 | 2 | 3 })}>
-                              <option value={1}>1 coluna</option>
-                              <option value={2}>2 colunas</option>
-                              <option value={3}>3 colunas</option>
-                            </select>
-                          </div>
-
-                          {activeTab.modo === 'Lista' ? (
-                            <div className="board-preview full">
-                              <div className="board-group-title"><Table2 size={18} /> {section.nome || 'Grupo'}</div>
-                              <table>
-                                <thead>
-                                  <tr>
-                                    {fields.map((field) => <th key={field.instanceId}>{field.campo}</th>)}
-                                    {fields.length === 0 && <th>Solte campos aqui</th>}
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  <tr>
-                                    {fields.map((field) => <td key={field.instanceId}>{field.tipo}</td>)}
-                                    {fields.length === 0 && <td>Prévia da linha</td>}
-                                  </tr>
-                                </tbody>
-                              </table>
-                            </div>
-                          ) : (
-                            <div className="mini-field-grid">
-                              {fields.map((field) => (
-                                <div
-                                  key={field.instanceId}
-                                  className={`mini-field-card ${widthClass(field.largura)} ${expandedFieldId === field.instanceId ? 'expanded' : ''}`}
-                                  draggable
-                                  onDragStart={() => handleFieldDragStart(field.instanceId)}
-                                  onDragEnd={() => handleFieldDragEnd(field.instanceId)}
-                                >
-                                  <div className="mini-field-top">
-                                    <GripVertical size={15} />
-                                    <strong>{field.campo}</strong>
-                                    <button type="button" onClick={() => setExpandedFieldId(expandedFieldId === field.instanceId ? null : field.instanceId)}><Settings2 size={15} /></button>
-                                  </div>
-                                  {renderPreviewInput(field.tipo)}
-
-                                  {expandedFieldId === field.instanceId && (
-                                    <div className="inline-field-config">
-                                      <label>Largura
-                                        <select value={field.largura} onChange={(event) => updateScreenField(field.instanceId, 'largura', event.target.value as FieldWidth)}>
-                                          <option>Inteira</option>
-                                          <option>Metade</option>
-                                          <option>Terço</option>
-                                        </select>
-                                      </label>
-                                      <label>Valor padrão
-                                        <input value={field.valorPadrao} onChange={(event) => updateScreenField(field.instanceId, 'valorPadrao', event.target.value)} placeholder="Valor padrão" />
-                                      </label>
-                                      <label><input type="checkbox" checked={field.obrigatorio} onChange={(event) => updateScreenField(field.instanceId, 'obrigatorio', event.target.checked)} /> Obrigatório</label>
-                                      <label><input type="checkbox" checked={!field.ocultoUsuario} onChange={(event) => updateScreenField(field.instanceId, 'ocultoUsuario', !event.target.checked)} /> Exibir para usuário</label>
-                                      <label><input type="checkbox" checked={field.visivel} onChange={(event) => updateScreenField(field.instanceId, 'visivel', event.target.checked)} /> Visível na tela</label>
-                                      <button className="danger-inline-btn" type="button" onClick={() => removeField(field.instanceId)}>Remover campo</button>
-                                    </div>
-                                  )}
-                                </div>
-                              ))}
-                              {fields.length === 0 && <div className="drop-empty">Arraste campos para esta seção.</div>}
-                            </div>
-                          )}
-                        </section>
-                      );
-                    })}
-                  </div>
-
-                  <aside
-                    className="jira-mini-context global-context"
-                    onDragOver={(event) => event.preventDefault()}
-                    onDrop={() => handleDrop('Contexto')}
-                  >
-                    <strong>Campos de contexto</strong>
-                    <p>Contexto único da tela, válido para todas as abas.</p>
-                    {fieldsInGlobalContext.map((field) => (
-                      <div
-                        className="mini-context-field"
-                        key={field.instanceId}
-                        draggable
-                        onDragStart={() => handleFieldDragStart(field.instanceId)}
-                        onDragEnd={() => handleFieldDragEnd(field.instanceId)}
-                      >
-                        <GripVertical size={14} />
-                        <span>{field.campo}</span>
-                        <small>{field.tipo}</small>
-                      </div>
-                    ))}
-                    {fieldsInGlobalContext.length === 0 && <p className="empty-note">Arraste campos para o contexto.</p>}
-                  </aside>
-                </section>
-              </main>
-
-              <aside className="jira-field-sidebar v25-5-sidebar">
-                <section className="field-sidebar-section">
-                  <h3>Campos</h3>
-                  <div className="smart-search builder-field-search">
-                    <Search size={17} />
-                    <input value={fieldSearch} onChange={(event) => setFieldSearch(event.target.value)} placeholder="Digite para pesquisar todos os campos" />
-                  </div>
-
-                  <div className="available-field-list jira-field-list no-origin">
-                    {availableToAdd.map((field) => (
+                  <section className="visual-tabs-bar jira-tabs v25-5-tabs">
+                    {form.tabs.map((tab) => (
                       <button
-                        key={field.id}
+                        key={tab.id}
+                        className={activeTabId === tab.id ? 'active' : ''}
+                        onClick={() => setActiveTabId(tab.id)}
                         type="button"
-                        draggable
-                        onDragStart={() => setDraggedFieldId(field.id)}
-                        onDragEnd={() => setDraggedFieldId(null)}
-                        onClick={() => addField(field.id, 'Principal', activeSections[0]?.id)}
                       >
-                        <Plus size={15} />
-                        <span>{field.campo}</span>
-                        <strong>{field.tipo}</strong>
+                        <input
+                          value={tab.nome}
+                          onFocus={() => setActiveTabId(tab.id)}
+                          onClick={() => setActiveTabId(tab.id)}
+                          onChange={(event) => updateTab(tab.id, { nome: event.target.value })}
+                        />
                       </button>
                     ))}
-                    {availableToAdd.length === 0 && <p className="empty-note">Nenhum campo disponível.</p>}
-                  </div>
-                </section>
-              </aside>
-            </div>
+                    <button type="button" className="tab-plus-button" onClick={addTab}>+</button>
+
+                    <div className="tab-toolbar-inline">
+                      <label>Visual
+                        <select value={activeTab.modo} onChange={(event) => updateTab(activeTab.id, { modo: event.target.value as TabMode })}>
+                          <option>Campos</option>
+                          <option>Lista</option>
+                        </select>
+                      </label>
+                      <button className="secondary-btn" type="button" onClick={addSection}><Plus size={16} /> Seção</button>
+                      <button className="secondary-btn" type="button" onClick={() => setIsPreviewOpen(true)}><Eye size={16} /> Pré-visualizar</button>
+                    </div>
+                  </section>
+
+                  <section className="jira-mini-screen">
+                    <div className="jira-mini-main sectioned-builder">
+                      {activeSections.map((section) => {
+                        const fields = form.campos.filter((field) => field.visivel && field.area === 'Principal' && field.sectionId === section.id);
+
+                        return (
+                          <SectionDropZone key={section.id} section={section}>
+                            <div className="screen-section-header">
+                              <LayoutTemplate size={17} />
+                              <input value={section.nome} onChange={(event) => updateSection(section.id, { nome: event.target.value })} />
+                              <select value={section.colunas} onChange={(event) => updateSection(section.id, { colunas: Number(event.target.value) as 1 | 2 | 3 })}>
+                                <option value={1}>1 coluna</option>
+                                <option value={2}>2 colunas</option>
+                                <option value={3}>3 colunas</option>
+                              </select>
+                            </div>
+
+                            {activeTab.modo === 'Lista' ? (
+                              <div className="board-preview full">
+                                <div className="board-group-title"><Table2 size={18} /> {section.nome || 'Grupo'}</div>
+                                <table>
+                                  <thead>
+                                    <tr>
+                                      {fields.map((field) => <th key={field.instanceId}>{field.campo}</th>)}
+                                      {fields.length === 0 && <th>Solte campos aqui</th>}
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    <tr>
+                                      {fields.map((field) => <td key={field.instanceId}>{field.tipo}</td>)}
+                                      {fields.length === 0 && <td>Prévia da linha</td>}
+                                    </tr>
+                                  </tbody>
+                                </table>
+                              </div>
+                            ) : (
+                              <div className="mini-field-grid">
+                                {fields.map((field) => (
+                                  <FieldCard
+                                    key={field.instanceId}
+                                    field={field}
+                                    expanded={expandedFieldId === field.instanceId}
+                                    onToggleExpand={() => setExpandedFieldId(expandedFieldId === field.instanceId ? null : field.instanceId)}
+                                    onUpdate={(key, value) => updateScreenField(field.instanceId, key, value)}
+                                    onRemove={() => removeField(field.instanceId)}
+                                  />
+                                ))}
+                                {fields.length === 0 && <div className="drop-empty">Arraste campos para esta seção.</div>}
+                              </div>
+                            )}
+                          </SectionDropZone>
+                        );
+                      })}
+                    </div>
+
+                    <ContextDropZone>
+                      <strong>Campos de contexto</strong>
+                      <p>Contexto único da tela, válido para todas as abas.</p>
+                      {fieldsInGlobalContext.map((field) => (
+                        <ContextFieldChip key={field.instanceId} field={field} />
+                      ))}
+                      {fieldsInGlobalContext.length === 0 && <p className="empty-note">Arraste campos para o contexto.</p>}
+                    </ContextDropZone>
+                  </section>
+                </main>
+
+                <aside className="jira-field-sidebar v25-5-sidebar">
+                  <section className="field-sidebar-section">
+                    <h3>Campos</h3>
+                    <div className="smart-search builder-field-search">
+                      <Search size={17} />
+                      <input value={fieldSearch} onChange={(event) => setFieldSearch(event.target.value)} placeholder="Digite para pesquisar todos os campos" />
+                    </div>
+
+                    <div className="available-field-list jira-field-list no-origin">
+                      {availableToAdd.map((field) => (
+                        <PaletteFieldButton
+                          key={field.id}
+                          field={field}
+                          onAdd={() => addField(field.id, 'Principal', activeSections[0]?.id)}
+                        />
+                      ))}
+                      {availableToAdd.length === 0 && <p className="empty-note">Nenhum campo disponível.</p>}
+                    </div>
+                  </section>
+                </aside>
+              </div>
+
+              <DragOverlay>
+                {activeDragLabel ? <div className="mini-field-drag-preview">{activeDragLabel}</div> : null}
+              </DragOverlay>
+            </DndContext>
 
             <div className="cadastro-modal-footer">
               <button onClick={() => setIsFormOpen(false)}>Cancelar</button>

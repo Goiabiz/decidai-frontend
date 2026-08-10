@@ -1,28 +1,18 @@
-import { BellPlus, MessageCircle, Plus, Search, Send, X } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { BellPlus, Search, Send, X } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
 import { PageHeader } from '../components/PageHeader';
 import { Badge } from '../components/Badge';
+import { BrandIcon } from '../components/BrandIcon';
 import { normalizeFilterText } from '../components/SmartFilters';
 import { showAppToast } from '../lib/appToast';
+import { useSession } from '../contexts/SessionContext';
+import { createAlerta, listAlertas, type AlertRecord } from '../services/alertas';
+import { listChannels, type ChannelRecord } from '../services/canaisAgentes';
+import { providerDomain } from '../services/v35Supabase';
 
-type AlertRecord = {
-  id: string;
-  descricao: string;
-  status: 'Novo' | 'Em andamento' | 'Concluído';
-  prioridade: 'Baixa' | 'Média' | 'Alta' | 'Crítica';
-  responsavel: string;
-  canais: string[];
-  mensagem: string;
-  tarefas: number;
-};
+type AlertFormState = Omit<AlertRecord, 'id' | 'enviados'>;
 
-const initialAlerts: AlertRecord[] = [
-  { id: 'ALT-001', descricao: 'Acompanhar alteração operacional relevante', status: 'Em andamento', prioridade: 'Média', responsavel: 'Moises Mattos', canais: ['Widget', 'E-mail'], mensagem: 'Atenção para atualização operacional.', tarefas: 1 },
-  { id: 'ALT-002', descricao: 'Monitorar publicação externa cadastrada', status: 'Novo', prioridade: 'Alta', responsavel: 'Bruno Oliveira', canais: ['WhatsApp'], mensagem: 'Nova publicação precisa ser revisada.', tarefas: 2 },
-];
-
-const emptyAlert: AlertRecord = {
-  id: '',
+const emptyAlert: AlertFormState = {
   descricao: '',
   status: 'Novo',
   prioridade: 'Média',
@@ -30,20 +20,42 @@ const emptyAlert: AlertRecord = {
   canais: [],
   mensagem: '',
   tarefas: 0,
+  duracaoHoras: undefined,
 };
-
-const channelOptions = ['Widget', 'E-mail', 'WhatsApp', 'Telegram', 'Teams', 'Discord'];
 
 function toggleItem(value: string, list: string[]) {
   return list.includes(value) ? list.filter((item) => item !== value) : [...list, value];
 }
 
+function channelDomain(channel: ChannelRecord) {
+  return providerDomain({ code: channel.providerCode, logo_hint: null, name: channel.providerName }) || undefined;
+}
+
 export function Alertas() {
-  const [items, setItems] = useState(initialAlerts);
-  const [form, setForm] = useState(emptyAlert);
+  const { session } = useSession();
+  const clienteId = session?.activeClientId ?? null;
+
+  const [items, setItems] = useState<AlertRecord[]>([]);
+  const [channels, setChannels] = useState<ChannelRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [form, setForm] = useState<AlertFormState>(emptyAlert);
   const [open, setOpen] = useState(false);
+  const [salvando, setSalvando] = useState(false);
   const [query, setQuery] = useState('');
   const [status, setStatus] = useState('');
+
+  useEffect(() => {
+    if (!clienteId) { setLoading(false); return; }
+    setLoading(true);
+    Promise.all([listAlertas(clienteId), listChannels(clienteId)])
+      .then(([alertasResult, channelsResult]) => {
+        setItems(alertasResult.items);
+        setChannels(channelsResult.items);
+      })
+      .finally(() => setLoading(false));
+  }, [clienteId]);
+
+  const channelName = (id: string) => channels.find((channel) => channel.id === id)?.nome || id;
 
   const filtered = useMemo(() => {
     const normalized = normalizeFilterText(query);
@@ -53,25 +65,46 @@ export function Alertas() {
     });
   }, [items, query, status]);
 
-  const update = <K extends keyof AlertRecord>(key: K, value: AlertRecord[K]) => setForm((current) => ({ ...current, [key]: value }));
+  const update = <K extends keyof AlertFormState>(key: K, value: AlertFormState[K]) => setForm((current) => ({ ...current, [key]: value }));
 
-  const save = () => {
+  const save = async () => {
     if (!form.descricao.trim()) {
       showAppToast('Informe a descrição do alerta.', 'warning');
       return;
     }
-
-    setItems((current) => [{ ...form, id: `ALT-${String(current.length + 1).padStart(3, '0')}` }, ...current]);
-    setOpen(false);
-    setForm(emptyAlert);
-    showAppToast('Alerta cadastrado.', 'success');
+    if (!clienteId) {
+      showAppToast('Acesse o contexto de um cliente antes de cadastrar.', 'warning');
+      return;
+    }
+    setSalvando(true);
+    try {
+      const { item } = await createAlerta({ clienteId, ...form });
+      setItems((current) => [item, ...current]);
+      setOpen(false);
+      setForm(emptyAlert);
+      showAppToast('Alerta cadastrado.', 'success');
+    } finally {
+      setSalvando(false);
+    }
   };
+
+  if (!clienteId) {
+    return (
+      <>
+        <PageHeader title="Alertas" />
+        <div className="card" style={{ padding: 30, textAlign: 'center', color: 'var(--slate-500)' }}>
+          Acesse o contexto de um cliente para ver os alertas dele.
+        </div>
+      </>
+    );
+  }
 
   return (
     <>
       <PageHeader title="Alertas" action={<button className="primary-small" onClick={() => setOpen(true)}><BellPlus size={16} /> Cadastrar alerta</button>} />
 
       <section className="card alerts-clean-card">
+        {loading && <p className="section-description">Carregando...</p>}
         <div className="section-title-row">
           <div>
             <h3>Alertas registrados</h3>
@@ -102,6 +135,7 @@ export function Alertas() {
                 <th>Prioridade</th>
                 <th>Responsável</th>
                 <th>Canais de disparo</th>
+                <th>Enviado para</th>
                 <th>Tarefas</th>
               </tr>
             </thead>
@@ -112,7 +146,22 @@ export function Alertas() {
                   <td><Badge tone="blue">{item.status}</Badge></td>
                   <td><Badge tone={item.prioridade === 'Alta' || item.prioridade === 'Crítica' ? 'orange' : 'blue'}>{item.prioridade}</Badge></td>
                   <td>{item.responsavel}</td>
-                  <td><div className="chip-list">{item.canais.map((canal) => <span key={canal}>{canal}</span>)}</div></td>
+                  <td>
+                    <div className="chip-list channel-chip-list">
+                      {item.canais.map((canal) => {
+                        const channel = channels.find((c) => c.id === canal);
+                        return (
+                          <span key={canal} className="channel-chip">
+                            <BrandIcon label={channelName(canal)} domain={channel ? channelDomain(channel) : undefined} size={18} />
+                            {channelName(canal)}
+                          </span>
+                        );
+                      })}
+                    </div>
+                  </td>
+                  <td className="alert-audience-cell" title="Canais de disparo registrados — ainda não existe confirmação de leitura no produto">
+                    {item.enviados} canal(is)
+                  </td>
                   <td>{item.tarefas}</td>
                 </tr>
               ))}
@@ -142,17 +191,52 @@ export function Alertas() {
 
               <section className="cadastro-form-section">
                 <h3>Canais de disparo</h3>
-                <div className="option-columns three">
-                  {channelOptions.map((canal) => (
-                    <label key={canal}><input type="checkbox" checked={form.canais.includes(canal)} onChange={() => update('canais', toggleItem(canal, form.canais))} /> {canal}</label>
-                  ))}
+                <p className="section-description">Só os canais já configurados neste ambiente aparecem aqui.</p>
+                {channels.length === 0 ? (
+                  <p className="section-description">Nenhum canal configurado ainda — cadastre em Parametrização → Canais de Atendimento.</p>
+                ) : (
+                  <div className="option-columns three">
+                    {channels.map((canal) => (
+                      <label key={canal.id} className="channel-option-label">
+                        <input type="checkbox" checked={form.canais.includes(canal.id)} onChange={() => update('canais', toggleItem(canal.id, form.canais))} />
+                        <BrandIcon label={canal.nome} domain={channelDomain(canal)} size={20} />
+                        {canal.nome}
+                        {canal.status !== 'Ativo' && <Badge tone="yellow">{canal.status}</Badge>}
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </section>
+
+              <section className="cadastro-form-section">
+                <h3>Duração de exibição</h3>
+                <p className="section-description">Opcional — use para alertas de emergência que precisam ficar visíveis por mais tempo que o padrão.</p>
+                <div className="alert-duration-row">
+                  <label className="inline-check">
+                    <input
+                      type="checkbox"
+                      checked={form.duracaoHoras !== undefined}
+                      onChange={(event) => update('duracaoHoras', event.target.checked ? 24 : undefined)}
+                    />
+                    Definir duração de exibição
+                  </label>
+                  {form.duracaoHoras !== undefined && (
+                    <label className="alert-duration-input"><span>Manter visível por (horas)</span>
+                      <input
+                        type="number"
+                        min={1}
+                        value={form.duracaoHoras}
+                        onChange={(event) => update('duracaoHoras', Number(event.target.value) || 1)}
+                      />
+                    </label>
+                  )}
                 </div>
               </section>
             </div>
 
             <div className="cadastro-modal-footer">
               <button onClick={() => setOpen(false)}>Cancelar</button>
-              <button className="primary" onClick={save}><Send size={16} /> Salvar e preparar disparo</button>
+              <button className="primary" onClick={save} disabled={salvando}><Send size={16} /> {salvando ? 'Salvando...' : 'Salvar e preparar disparo'}</button>
             </div>
           </div>
         </div>

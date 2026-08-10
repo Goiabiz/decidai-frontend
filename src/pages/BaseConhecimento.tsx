@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Archive,
   BellPlus,
@@ -6,8 +6,6 @@ import {
   Copy,
   Download,
   Edit3,
-  ExternalLink,
-  FileImage,
   FileText,
   Image,
   Info,
@@ -17,12 +15,17 @@ import {
   Search,
   Share2,
   Trash2,
+  UserPlus,
   X,
 } from 'lucide-react';
 import { Badge } from '../components/Badge';
 import { PageHeader } from '../components/PageHeader';
 import { normalizeFilterText } from '../components/SmartFilters';
 import { confirmApp } from '../lib/appConfirm';
+import { showAppToast } from '../lib/appToast';
+import { useSession } from '../contexts/SessionContext';
+import { logAudit } from '../services/auditLog';
+import { createUsuarioClienteQuick, listUsuariosCliente, type UsuarioCliente } from '../services/auth';
 
 type KnowledgeState = 'Ativo' | 'Arquivado';
 
@@ -56,6 +59,7 @@ type KnowledgeRecord = {
   alertas: number;
   tarefas: number;
   atendimentos: number;
+  excluidoEm?: string;
 };
 
 type KnowledgePageProps = {
@@ -155,6 +159,7 @@ function buildExternalLink(id: string) {
 }
 
 export function BaseConhecimento(_: KnowledgePageProps) {
+  const { session } = useSession();
   const [items, setItems] = useState<KnowledgeRecord[]>(mockKnowledge);
   const [search, setSearch] = useState('');
   const [classification, setClassification] = useState('');
@@ -165,12 +170,50 @@ export function BaseConhecimento(_: KnowledgePageProps) {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [previewAttachment, setPreviewAttachment] = useState<KnowledgeAttachment | null>(null);
   const [toast, setToast] = useState('');
+  const [pessoas, setPessoas] = useState<UsuarioCliente[]>([]);
+  const [addingPessoa, setAddingPessoa] = useState(false);
+  const [novaPessoaNome, setNovaPessoaNome] = useState('');
+  const [novaPessoaEmail, setNovaPessoaEmail] = useState('');
+  const [savingPessoa, setSavingPessoa] = useState(false);
+  const [isDraggingFile, setIsDraggingFile] = useState(false);
+
+  const clienteId = session?.activeClientId ?? null;
+
+  useEffect(() => {
+    if (!clienteId) { setPessoas([]); return; }
+    let active = true;
+    listUsuariosCliente(clienteId).then((result) => { if (active) setPessoas(result); }).catch(() => { if (active) setPessoas([]); });
+    return () => { active = false; };
+  }, [clienteId]);
+
+  const salvarNovaPessoa = async () => {
+    if (!clienteId || !novaPessoaNome.trim() || !novaPessoaEmail.trim()) {
+      showAppToast('Informe nome e e-mail da pessoa.', 'warning');
+      return;
+    }
+    setSavingPessoa(true);
+    try {
+      const pessoa = await createUsuarioClienteQuick(clienteId, { nome: novaPessoaNome.trim(), email: novaPessoaEmail.trim() });
+      setPessoas((current) => [...current, pessoa].sort((a, b) => a.nome.localeCompare(b.nome)));
+      updateForm('responsavel', pessoa.nome);
+      setAddingPessoa(false);
+      setNovaPessoaNome('');
+      setNovaPessoaEmail('');
+      showAppToast('Pessoa cadastrada.', 'success');
+    } catch (error) {
+      showAppToast(error instanceof Error ? error.message : 'Não foi possível cadastrar a pessoa.', 'error');
+    } finally {
+      setSavingPessoa(false);
+    }
+  };
+
+  const itemsAtivos = useMemo(() => items.filter((item) => !item.excluidoEm), [items]);
 
   const filtered = useMemo(() => {
     const query = normalizeFilterText(search);
     const classFilter = normalizeFilterText(classification);
 
-    return items.filter((item) => {
+    return itemsAtivos.filter((item) => {
       const text = normalizeFilterText([
         item.titulo,
         item.resumo,
@@ -185,7 +228,7 @@ export function BaseConhecimento(_: KnowledgePageProps) {
       return (!query || text.includes(query))
         && (!classFilter || normalizeFilterText(item.classificacao) === classFilter);
     });
-  }, [items, search, classification]);
+  }, [itemsAtivos, search, classification]);
 
   const updateForm = <K extends keyof KnowledgeRecord>(key: K, value: KnowledgeRecord[K]) => {
     setForm((current) => ({ ...current, [key]: value }));
@@ -193,9 +236,10 @@ export function BaseConhecimento(_: KnowledgePageProps) {
   };
 
   const openNewKnowledge = () => {
-    setForm(emptyKnowledge);
+    setForm({ ...emptyKnowledge, dataFonte: new Date().toISOString().slice(0, 10) });
     setTagInput('');
     setErrors({});
+    setAddingPessoa(false);
     setIsFormOpen(true);
   };
 
@@ -282,13 +326,26 @@ export function BaseConhecimento(_: KnowledgePageProps) {
     const item = items.find((knowledge) => knowledge.id === id);
     const confirmed = await confirmApp({
       title: 'Excluir conhecimento',
-      description: `Excluir definitivamente o conhecimento "${item?.titulo || id}"?`,
+      description: `Excluir o conhecimento "${item?.titulo || id}"? O registro fica oculto, não é apagado de verdade.`,
       confirmLabel: 'Excluir conhecimento',
       tone: 'danger',
     });
     if (!confirmed) return;
-    setItems((current) => current.filter((knowledge) => knowledge.id !== id));
+
+    const excluidoEm = new Date().toISOString();
+    setItems((current) => current.map((knowledge) => knowledge.id === id ? { ...knowledge, excluidoEm } : knowledge));
     if (selected?.id === id) setSelected(null);
+
+    void logAudit({
+      usuarioNome: session?.user.displayName || 'Desconhecido',
+      usuarioEmail: session?.user.email || '',
+      modulo: 'base_conhecimento',
+      funcionalidade: 'exclusao_conhecimento',
+      operacao: 'delete',
+      registroId: id,
+      dadosAntes: item,
+      observacao: `Conhecimento "${item?.titulo || id}" excluído (soft delete).`,
+    });
   };
 
   const generateAlert = (item: KnowledgeRecord) => {
@@ -321,7 +378,7 @@ export function BaseConhecimento(_: KnowledgePageProps) {
       <section className="card knowledge-functional-card simplified">
         <div className="section-title-row">
           <h3>Conhecimentos registrados</h3>
-          <span className="small-muted">{filtered.length} de {items.length} registros</span>
+          <span className="small-muted">{filtered.length} de {itemsAtivos.length} registros</span>
         </div>
 
         <div className="smart-filter-bar knowledge-filter-bar simplified">
@@ -419,7 +476,25 @@ export function BaseConhecimento(_: KnowledgePageProps) {
 
       {isFormOpen && (
         <div className="modal-backdrop cadastro-modal-backdrop">
-          <div className="knowledge-form-modal simplified">
+          <div
+            className="knowledge-form-modal simplified"
+            onDragOver={(event) => { event.preventDefault(); setIsDraggingFile(true); }}
+            onDragLeave={(event) => {
+              if (event.currentTarget.contains(event.relatedTarget as Node)) return;
+              setIsDraggingFile(false);
+            }}
+            onDrop={(event) => {
+              event.preventDefault();
+              setIsDraggingFile(false);
+              handleFiles(event.dataTransfer.files);
+            }}
+          >
+            {isDraggingFile && (
+              <div className="knowledge-drop-overlay">
+                <Paperclip size={28} />
+                <strong>Solte para anexar</strong>
+              </div>
+            )}
             <div className="cadastro-modal-header">
               <strong>Novo conhecimento</strong>
               <button className="icon-btn" onClick={() => setIsFormOpen(false)}><X size={18} /></button>
@@ -430,12 +505,12 @@ export function BaseConhecimento(_: KnowledgePageProps) {
                 <h3>Identificação</h3>
                 <div className="cadastro-form-grid">
                   <label>
-                    <FieldLabel required info="Título objetivo usado para busca, leitura e compartilhamento.">Título</FieldLabel>
+                    <FieldLabel required info="Nome curto e objetivo que identifica este conhecimento.">Título</FieldLabel>
                     <input value={form.titulo} onChange={(event) => updateForm('titulo', event.target.value)} placeholder="Ex.: Regra de exportação Atendimento" />
                     {errors.titulo && <small className="field-error">{errors.titulo}</small>}
                   </label>
                   <label>
-                    <FieldLabel info="Classificação principal para busca, governança e sugestão do agente.">Classificação</FieldLabel>
+                    <FieldLabel info="Categoria principal deste conhecimento.">Classificação</FieldLabel>
                     <select value={form.classificacao} onChange={(event) => updateForm('classificacao', event.target.value)}>
                       {classifications.map((item) => <option key={item} value={item}>{item}</option>)}
                     </select>
@@ -445,8 +520,25 @@ export function BaseConhecimento(_: KnowledgePageProps) {
                     <input value={form.assunto} onChange={(event) => updateForm('assunto', event.target.value)} placeholder="Ex.: Atendimento e relacionamento" />
                   </label>
                   <label>
-                    <FieldLabel info="Responsável pela curadoria ou validação do conhecimento.">Responsável</FieldLabel>
-                    <input value={form.responsavel} onChange={(event) => updateForm('responsavel', event.target.value)} placeholder="Produto, Suporte, Comercial..." />
+                    <FieldLabel info="Pessoa responsável pela curadoria ou validação deste conhecimento.">Responsável</FieldLabel>
+                    {!addingPessoa ? (
+                      <div className="input-with-icon">
+                        <select value={form.responsavel} onChange={(event) => updateForm('responsavel', event.target.value)}>
+                          <option value="">Selecione</option>
+                          {pessoas.map((pessoa) => <option key={pessoa.id} value={pessoa.nome}>{pessoa.nome}</option>)}
+                        </select>
+                      </div>
+                    ) : (
+                      <div className="quick-add-pessoa">
+                        <input value={novaPessoaNome} onChange={(event) => setNovaPessoaNome(event.target.value)} placeholder="Nome da pessoa" />
+                        <input value={novaPessoaEmail} onChange={(event) => setNovaPessoaEmail(event.target.value)} placeholder="E-mail" />
+                        <button type="button" className="secondary-btn" disabled={savingPessoa} onClick={() => void salvarNovaPessoa()}>{savingPessoa ? 'Salvando...' : 'Salvar'}</button>
+                        <button type="button" className="icon-btn" onClick={() => setAddingPessoa(false)}><X size={14} /></button>
+                      </div>
+                    )}
+                    {!addingPessoa && (
+                      <button type="button" className="link-action" onClick={() => setAddingPessoa(true)}><UserPlus size={14} /> Nova pessoa</button>
+                    )}
                   </label>
                 </div>
               </section>
@@ -464,7 +556,7 @@ export function BaseConhecimento(_: KnowledgePageProps) {
                 <h3>Conteúdo</h3>
                 <div className="cadastro-form-grid">
                   <label className="span-2">
-                    <FieldLabel required info="Resumo curto para leitura rápida, lista e compartilhamento externo.">Resumo</FieldLabel>
+                    <FieldLabel required info="Resumo curto do conteúdo, em uma ou duas frases.">Resumo</FieldLabel>
                     <input value={form.resumo} onChange={(event) => updateForm('resumo', event.target.value)} placeholder="Resumo do conhecimento" />
                     {errors.resumo && <small className="field-error">{errors.resumo}</small>}
                   </label>
@@ -474,7 +566,7 @@ export function BaseConhecimento(_: KnowledgePageProps) {
                     {errors.conteudo && <small className="field-error">{errors.conteudo}</small>}
                   </label>
                   <label className="span-2">
-                    <FieldLabel info="Tags separadas por vírgula para busca e sugestão do agente.">Tags</FieldLabel>
+                    <FieldLabel info="Palavras-chave separadas por vírgula.">Tags</FieldLabel>
                     <input value={tagInput} onChange={(event) => setTagInput(event.target.value)} placeholder="Atendimento, Relacionamento, Processo" />
                   </label>
                 </div>
@@ -482,35 +574,32 @@ export function BaseConhecimento(_: KnowledgePageProps) {
 
               <section className="cadastro-form-section">
                 <h3>Imagens e arquivos</h3>
-                <label className="knowledge-upload-box">
-                  <Paperclip size={30} />
-                  <strong>Adicionar imagens ou arquivos</strong>
-                  <span>Permite anexar documentos, evidências, prints e imagens para consulta ou download.</span>
+                <label className="knowledge-upload-box compact">
+                  <Paperclip size={18} />
+                  <span>Arraste arquivos aqui ou clique para anexar</span>
                   <input type="file" multiple onChange={(event) => handleFiles(event.target.files)} />
                 </label>
 
                 {form.anexos.length > 0 && (
-                  <div className="knowledge-attachment-list form">
+                  <div className="knowledge-attachment-grid">
                     {form.anexos.map((attachment) => (
-                      <div key={attachment.id}>
-                        {attachment.tipo === 'Imagem' ? <FileImage size={18} /> : <FileText size={18} />}
+                      <div className="knowledge-attachment-thumb" key={attachment.id}>
+                        <button type="button" className="knowledge-attachment-remove" onClick={() => removeAttachment(attachment.id)}><X size={12} /></button>
+                        {attachment.tipo === 'Imagem' && attachment.dataUrl
+                          ? <img src={attachment.dataUrl} alt={attachment.nome} />
+                          : <div className="knowledge-attachment-icon"><FileText size={22} /></div>}
                         <span>{attachment.nome}</span>
                         <small>{attachment.tamanho}</small>
-                        <button onClick={() => removeAttachment(attachment.id)}><X size={14} /></button>
                       </div>
                     ))}
                   </div>
                 )}
               </section>
 
-              <section className="cadastro-form-section">
-                <h3>Compartilhamento externo</h3>
-                <div className="external-link-preview">
-                  <ExternalLink size={20} />
-                  <div>
-                    <strong>Link externo será gerado ao salvar</strong>
-                    <span>Usado para consulta por usuários fora do sistema, como uma página de wiki.</span>
-                  </div>
+              <section className="cadastro-form-section compact">
+                <div className="external-link-preview compact">
+                  <Link2 size={16} />
+                  <span>Link — gerado automaticamente ao salvar, para consulta fora do sistema.</span>
                 </div>
               </section>
             </div>

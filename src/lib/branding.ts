@@ -9,7 +9,7 @@ export type BrandingConfig = {
 const STORAGE_KEY = 'radar_sus_branding_config';
 
 const defaultConfig: BrandingConfig = {
-  companyName: 'Radar SUS',
+  companyName: 'DecidAI',
   logoDataUrl: '',
   themeMode: 'system',
 };
