@@ -1,31 +1,58 @@
 import { universoSupabase } from '../lib/supabase';
 
+export type AgentRole =
+  | 'conhecedor-mapeador'
+  | 'po-produto'
+  | 'suporte-atendimento'
+  | 'radar-monitoramento'
+  | 'chatbot-online'
+  | 'construtor-configurador';
+
+export type AgentMode = 'usuario-cliente' | 'administrador-cliente' | 'equipe-interna-produto' | 'desenvolvimento-interno';
+
+export type AgentToolCall = {
+  name: string;
+  args: Record<string, unknown>;
+  ok: boolean;
+  result?: unknown;
+};
+
 export type AgentRunResponse = {
   ok: boolean;
   requestId?: string;
   conversationId?: string;
+  clienteId?: string;
   response?: {
+    ok: boolean;
+    provider: string;
+    model: string;
+    status: string;
+    fallbackUsed: boolean;
     answer: string;
-    sources?: string[];
-    warning?: string;
+    toolCalls?: AgentToolCall[];
+    usage?: { inputTokens: number; outputTokens: number };
+    memorySnippetsUsed?: number;
+    memoryPersisted?: boolean;
   };
   error?: string;
 };
 
 export type AgentRunInput = {
   question: string;
-  clientId: string;
+  clienteId: string;
+  role?: AgentRole;
+  mode?: AgentMode;
   userId?: string;
   conversationId?: string;
   context?: Record<string, unknown>;
 };
 
 /**
- * Chama a Edge Function `agent-run` (pacote "Platform Agent Integration v1", preparado em
- * universo-conectasus-agent). Ainda não há função nenhuma implantada no projeto Supabase
- * nem servidor de runtime do agente rodando/alcançável -- por isso este client sempre
- * retorna `{ ok: false }` num ambiente sem essas duas peças no ar, e quem chama precisa
- * tratar isso como "IA ainda não disponível", não como bug.
+ * Chama a Edge Function real `agent-run` (deployada em 10/08/2026 no projeto Supabase,
+ * runtime hospedado no Railway) -- contrato documentado em
+ * universo-conectasus-db/database/00_controle/brief-conectar-widget-agente-real.md
+ * (11/08/2026). `clienteId` precisa ser um uuid real de platform_clients.id -- garante
+ * BYOK e isolamento de memória/conhecimento por tenant.
  */
 export async function runAgent(input: AgentRunInput): Promise<AgentRunResponse> {
   const client = universoSupabase;
@@ -34,15 +61,14 @@ export async function runAgent(input: AgentRunInput): Promise<AgentRunResponse> 
   try {
     const { data, error } = await client.functions.invoke('agent-run', {
       body: {
-        role: 'chatbot-online',
+        role: input.role ?? 'chatbot-online',
         question: input.question,
-        mode: 'usuario-cliente',
+        mode: input.mode ?? 'usuario-cliente',
+        clienteId: input.clienteId,
         context: {
           ...(input.context || {}),
-          clientId: input.clientId,
           userId: input.userId,
           conversationId: input.conversationId,
-          agentId: 'susi',
         },
       },
     });

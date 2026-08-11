@@ -33,6 +33,7 @@ export function FloatingPlatformAssistant({ pageTitle }: FloatingPlatformAssista
   const [messages, setMessages] = useState<AssistantMessage[]>([]);
   const [showTour, setShowTour] = useState(false);
   const [sending, setSending] = useState(false);
+  const [conversationId, setConversationId] = useState<string | undefined>(undefined);
 
   const [context, setContext] = useState('tela atual');
 
@@ -55,6 +56,7 @@ export function FloatingPlatformAssistant({ pageTitle }: FloatingPlatformAssista
 
   useEffect(() => {
     setMessages([]);
+    setConversationId(undefined);
     if (open) return;
 
     const tourKey = `assistant-tour-seen-${slugify(context)}`;
@@ -95,13 +97,21 @@ export function FloatingPlatformAssistant({ pageTitle }: FloatingPlatformAssista
 
       const result = await runAgent({
         question: trimmed,
-        clientId: session.activeClientId,
+        clienteId: session.activeClientId,
         userId: session.user.authUserId,
+        conversationId,
         context: { screen: context },
       });
 
+      if (result.ok && result.conversationId) {
+        setConversationId(result.conversationId);
+      }
+
       const answer = result.ok && result.response?.answer ? result.response.answer : AGENT_UNAVAILABLE_MESSAGE;
-      setMessages((current) => [...current, { role: 'assistant', text: answer }]);
+      const text = result.response?.fallbackUsed
+        ? `${answer}\n\n(Resposta gerada em modo de contingência — motor principal indisponível no momento.)`
+        : answer;
+      setMessages((current) => [...current, { role: 'assistant', text }]);
     } finally {
       setSending(false);
     }

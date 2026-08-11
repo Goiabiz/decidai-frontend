@@ -399,6 +399,10 @@
   color: var(--slate-700);
 }
 
+.v363-assistant-bubble span {
+  white-space: pre-line;
+}
+
 .v363-assistant-panel {
   width: 360px;
   max-height: min(620px, calc(100vh - 44px));
