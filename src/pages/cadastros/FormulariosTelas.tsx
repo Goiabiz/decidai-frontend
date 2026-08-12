@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   DndContext,
   DragOverlay,
@@ -29,14 +29,11 @@ import { PageHeader } from '../../components/PageHeader';
 import { normalizeFilterText } from '../../components/SmartFilters';
 import { confirmApp } from '../../lib/appConfirm';
 import { showAppToast } from '../../lib/appToast';
+import { formatDate } from '../../lib/formatDate';
 import { useSession } from '../../contexts/SessionContext';
 import { logAudit } from '../../services/auditLog';
-
-type ScreenStatus = 'Ativa' | 'Inativa' | 'Rascunho';
-type DisplayBehavior = 'Exibir ao abrir funcionalidade' | 'Exibir como atalho';
-type FieldArea = 'Principal' | 'Contexto';
-type TabMode = 'Campos' | 'Lista';
-type FieldWidth = 'Inteira' | 'Metade' | 'Terço';
+import { listCamposContexto } from '../../services/camposContexto';
+import { createTela, listTelas, softDeleteTela, updateTela, type TelaCampoPosicionado, type TelaComportamento, type TelaFieldArea, type TelaFieldWidth, type TelaInput, type TelaRecord, type TelaStatus, type TelaTabModo } from '../../services/telas';
 
 type AvailableField = {
   id: string;
@@ -49,7 +46,7 @@ type AvailableField = {
 type ScreenTab = {
   id: string;
   nome: string;
-  modo: TabMode;
+  modo: TelaTabModo;
 };
 
 type ScreenSection = {
@@ -64,10 +61,10 @@ type ScreenField = AvailableField & {
   instanceId: string;
   obrigatorio: boolean;
   visivel: boolean;
-  area: FieldArea;
+  area: TelaFieldArea;
   tabId: string;
   sectionId: string;
-  largura: FieldWidth;
+  largura: TelaFieldWidth;
   valorPadrao: string;
   ocultoUsuario: boolean;
   ordem: number;
@@ -77,19 +74,18 @@ type ScreenRecord = {
   id: string;
   nome: string;
   funcionalidade: string;
-  status: ScreenStatus;
-  comportamento: DisplayBehavior;
+  status: TelaStatus;
+  comportamento: TelaComportamento;
   descricao: string;
   tabs: ScreenTab[];
   sections: ScreenSection[];
   campos: ScreenField[];
   agente: boolean;
   atualizadoEm: string;
-  excluidoEm?: string;
 };
 
-const statuses: ScreenStatus[] = ['Ativa', 'Inativa', 'Rascunho'];
-const displayBehaviors: DisplayBehavior[] = ['Exibir ao abrir funcionalidade', 'Exibir como atalho'];
+const statuses: TelaStatus[] = ['Ativa', 'Inativa', 'Rascunho'];
+const displayBehaviors: TelaComportamento[] = ['Exibir ao abrir funcionalidade', 'Exibir como atalho'];
 
 const systemFields: AvailableField[] = [
   { id: 'std-codigo', campo: 'Código', tipo: 'Texto curto', descricao: 'Identificador do registro.', origem: 'Padrão do sistema' },
@@ -101,18 +97,6 @@ const systemFields: AvailableField[] = [
   { id: 'std-titulo', campo: 'Título', tipo: 'Texto curto', descricao: 'Título principal do registro.', origem: 'Padrão do sistema' },
 ];
 
-const customFields: AvailableField[] = [
-  { id: 'cus-anexo-contrato', campo: 'Anexos do contrato', tipo: 'Anexo', descricao: 'Documentos anexados ao registro.', origem: 'Personalizado' },
-  { id: 'cus-classificacao', campo: 'Classificação comercial', tipo: 'Lista seleção única', descricao: 'Classificação do cliente ou fornecedor.', origem: 'Personalizado' },
-  { id: 'cus-data-inicio', campo: 'Data de início do contrato', tipo: 'Data', descricao: 'Data inicial de vigência.', origem: 'Personalizado' },
-  { id: 'cus-orientacao', campo: 'Descrição da orientação', tipo: 'Parágrafo / Rich text', descricao: 'Texto formatado para orientação ou descrição.', origem: 'Personalizado' },
-  { id: 'cus-margem', campo: 'Margem comercial', tipo: 'Percentual', descricao: 'Percentual comercial aplicado.', origem: 'Personalizado' },
-  { id: 'cus-modulo-funcionalidade', campo: 'Módulo e funcionalidade', tipo: 'Lista em cascata', descricao: 'Lista dependente por módulo e funcionalidade.', origem: 'Personalizado' },
-  { id: 'cus-telefone', campo: 'Telefone do responsável', tipo: 'Telefone', descricao: 'Telefone principal para contato.', origem: 'Personalizado' },
-  { id: 'cus-valor', campo: 'Valor mensal', tipo: 'Moeda', descricao: 'Valor financeiro mensal.', origem: 'Personalizado' },
-];
-
-const allAvailableFields = [...systemFields, ...customFields].sort((a, b) => a.campo.localeCompare(b.campo));
 const funcionalidades = ['Alertas', 'Atendimentos', 'Base de Conhecimento', 'Campos', 'Serviços', 'Telas', 'Unidades', 'Usuários'];
 
 const defaultTab: ScreenTab = { id: 'principal', nome: 'Principal', modo: 'Campos' };
@@ -132,41 +116,6 @@ const emptyScreen: ScreenRecord = {
   atualizadoEm: '',
 };
 
-const mockScreens: ScreenRecord[] = [
-  {
-    id: 'TEL-0001',
-    nome: 'Cadastro de usuários',
-    funcionalidade: 'Usuários',
-    status: 'Ativa',
-    comportamento: 'Exibir ao abrir funcionalidade',
-    descricao: 'Tela principal do cadastro de usuários.',
-    agente: true,
-    atualizadoEm: 'Hoje 18:20',
-    tabs: [defaultTab],
-    sections: [defaultSection],
-    campos: [
-      { ...systemFields[6], instanceId: 'f1', obrigatorio: true, visivel: true, area: 'Principal', tabId: 'principal', sectionId: 'sec-principal', largura: 'Metade', valorPadrao: '', ocultoUsuario: false, ordem: 1 },
-      { ...systemFields[4], instanceId: 'f2', obrigatorio: false, visivel: true, area: 'Contexto', tabId: 'contexto-global', sectionId: 'contexto-global', largura: 'Inteira', valorPadrao: '', ocultoUsuario: false, ordem: 2 },
-    ],
-  },
-  {
-    id: 'TEL-0002',
-    nome: 'Quadro comercial do cliente',
-    funcionalidade: 'Unidades',
-    status: 'Rascunho',
-    comportamento: 'Exibir como atalho',
-    descricao: 'Visualização em lista para dados comerciais do cliente.',
-    agente: false,
-    atualizadoEm: 'Ontem 15:10',
-    tabs: [{ id: 'principal', nome: 'Principal', modo: 'Lista' }],
-    sections: [{ id: 'sec-comercial', tabId: 'principal', nome: 'Comercial', colunas: 3, ordem: 1 }],
-    campos: [
-      { ...customFields[1], instanceId: 'f3', obrigatorio: false, visivel: true, area: 'Principal', tabId: 'principal', sectionId: 'sec-comercial', largura: 'Metade', valorPadrao: '', ocultoUsuario: false, ordem: 1 },
-      { ...customFields[2], instanceId: 'f4', obrigatorio: false, visivel: true, area: 'Principal', tabId: 'principal', sectionId: 'sec-comercial', largura: 'Metade', valorPadrao: '', ocultoUsuario: false, ordem: 2 },
-    ],
-  },
-];
-
 const cloneScreen = (screen: ScreenRecord): ScreenRecord => ({
   ...screen,
   tabs: screen.tabs.map((tab) => ({ ...tab })),
@@ -174,7 +123,71 @@ const cloneScreen = (screen: ScreenRecord): ScreenRecord => ({
   campos: screen.campos.map((field) => ({ ...field })),
 });
 
-const statusTone = (status: ScreenStatus) => {
+function telaToScreenRecord(tela: TelaRecord, allFields: AvailableField[]): ScreenRecord {
+  const fieldById = new Map(allFields.map((field) => [field.id, field]));
+  return {
+    id: tela.id,
+    nome: tela.nome,
+    funcionalidade: tela.funcionalidade,
+    status: tela.status,
+    comportamento: tela.comportamento,
+    descricao: tela.descricao,
+    agente: tela.agente,
+    atualizadoEm: tela.atualizadoEm,
+    tabs: tela.tabs.map((tab) => ({ id: tab.id, nome: tab.nome, modo: tab.modo })),
+    sections: tela.sections.map((section) => ({ id: section.id, tabId: section.tabId, nome: section.nome, colunas: section.colunas, ordem: section.ordem })),
+    campos: tela.campos.map((campo) => {
+      const refId = campo.campoContextoId || campo.campoSistemaChave || '';
+      const base = fieldById.get(refId);
+      return {
+        id: refId,
+        campo: base?.campo || '(campo removido)',
+        tipo: base?.tipo || '-',
+        descricao: base?.descricao || '',
+        origem: campo.campoSistemaChave ? 'Padrão do sistema' : 'Personalizado',
+        instanceId: campo.id,
+        obrigatorio: campo.obrigatorio,
+        visivel: campo.visivel,
+        area: campo.area,
+        tabId: campo.tabId,
+        sectionId: campo.sectionId || 'contexto-global',
+        largura: campo.largura,
+        valorPadrao: campo.valorPadrao,
+        ocultoUsuario: campo.ocultoUsuario,
+        ordem: campo.ordem,
+      };
+    }),
+  };
+}
+
+function screenToTelaInput(form: ScreenRecord): TelaInput {
+  return {
+    nome: form.nome,
+    funcionalidade: form.funcionalidade,
+    status: form.status,
+    comportamento: form.comportamento,
+    descricao: form.descricao,
+    agente: form.agente,
+    tabs: form.tabs.map((tab, index) => ({ id: tab.id, nome: tab.nome, modo: tab.modo, ordem: index + 1 })),
+    sections: form.sections.map((section) => ({ id: section.id, tabId: section.tabId, nome: section.nome, colunas: section.colunas, ordem: section.ordem })),
+    campos: form.campos.map((field): TelaCampoPosicionado => ({
+      id: field.instanceId,
+      tabId: field.tabId,
+      sectionId: field.area === 'Contexto' ? null : field.sectionId,
+      area: field.area,
+      largura: field.largura,
+      obrigatorio: field.obrigatorio,
+      visivel: field.visivel,
+      ocultoUsuario: field.ocultoUsuario,
+      valorPadrao: field.valorPadrao,
+      ordem: field.ordem,
+      campoContextoId: field.origem === 'Personalizado' ? field.id : null,
+      campoSistemaChave: field.origem === 'Padrão do sistema' ? field.id : null,
+    })),
+  };
+}
+
+const statusTone = (status: TelaStatus) => {
   if (status === 'Ativa') return 'green';
   if (status === 'Rascunho') return 'orange';
   return 'blue';
@@ -204,7 +217,7 @@ function renderPreviewInput(type: string) {
   return <input placeholder={type} disabled />;
 }
 
-function widthClass(width: FieldWidth) {
+function widthClass(width: TelaFieldWidth) {
   if (width === 'Inteira') return 'span-full';
   if (width === 'Terço') return 'span-third';
   return 'span-half';
@@ -267,7 +280,7 @@ function FieldCard({
       {expanded && (
         <div className="inline-field-config">
           <label>Largura
-            <select value={field.largura} onChange={(event) => onUpdate('largura', event.target.value as FieldWidth)}>
+            <select value={field.largura} onChange={(event) => onUpdate('largura', event.target.value as TelaFieldWidth)}>
               <option>Inteira</option>
               <option>Metade</option>
               <option>Terço</option>
@@ -334,11 +347,16 @@ function ContextDropZone({ children }: { children: React.ReactNode }) {
 
 export function FormulariosTelas() {
   const { session } = useSession();
-  const [screens, setScreens] = useState<ScreenRecord[]>(mockScreens);
+  const clienteId = session?.activeClientId ?? null;
+
+  const [customFields, setCustomFields] = useState<AvailableField[]>([]);
+  const [screens, setScreens] = useState<ScreenRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [salvando, setSalvando] = useState(false);
   const [search, setSearch] = useState('');
   const [funcionalidade, setFuncionalidade] = useState('');
   const [status, setStatus] = useState('');
-  const [selectedScreen, setSelectedScreen] = useState<ScreenRecord | null>(mockScreens[0]);
+  const [selectedScreen, setSelectedScreen] = useState<ScreenRecord | null>(null);
   const [form, setForm] = useState<ScreenRecord>(emptyScreen);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -351,7 +369,28 @@ export function FormulariosTelas() {
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
 
-  const screensAtivas = useMemo(() => screens.filter((item) => !item.excluidoEm), [screens]);
+  const allAvailableFields = useMemo(() => [...systemFields, ...customFields].sort((a, b) => a.campo.localeCompare(b.campo)), [customFields]);
+
+  const carregar = async () => {
+    if (!clienteId) { setLoading(false); return; }
+    setLoading(true);
+    const camposResult = await listCamposContexto(clienteId);
+    const fieldsFromCampos: AvailableField[] = camposResult.items
+      .filter((campo) => campo.usarTela)
+      .map((campo) => ({ id: campo.id, campo: campo.nome, tipo: campo.tipo, descricao: campo.descricao, origem: 'Personalizado' as const }));
+    setCustomFields(fieldsFromCampos);
+
+    const allFields = [...systemFields, ...fieldsFromCampos];
+    const telasResult = await listTelas(clienteId);
+    const mapped = telasResult.items.map((tela) => telaToScreenRecord(tela, allFields));
+    setScreens(mapped);
+    setSelectedScreen((current) => current ?? mapped[0] ?? null);
+    setLoading(false);
+  };
+
+  useEffect(() => { void carregar(); }, [clienteId]);
+
+  const screensAtivas = screens;
 
   const filtered = useMemo(() => {
     const query = normalizeFilterText(search);
@@ -376,7 +415,7 @@ export function FormulariosTelas() {
         return !alreadyUsed.has(field.id) && (!query || text.includes(query));
       })
       .sort((a, b) => a.campo.localeCompare(b.campo));
-  }, [form.campos, fieldSearch]);
+  }, [form.campos, fieldSearch, allAvailableFields]);
 
   const activeTab = form.tabs.find((tab) => tab.id === activeTabId) || form.tabs[0];
   const activeSections = form.sections.filter((section) => section.tabId === activeTab.id).sort((a, b) => a.ordem - b.ordem);
@@ -426,7 +465,7 @@ export function FormulariosTelas() {
   };
 
   const addTab = () => {
-    const tab = { id: `tab-${Date.now()}`, nome: `Aba ${form.tabs.length + 1}`, modo: 'Campos' as TabMode };
+    const tab = { id: `tab-${Date.now()}`, nome: `Aba ${form.tabs.length + 1}`, modo: 'Campos' as TelaTabModo };
     const section = { id: `sec-${Date.now()}`, tabId: tab.id, nome: 'Dados principais', colunas: 2 as 1 | 2 | 3, ordem: 1 };
     setForm((current) => ({ ...current, tabs: [...current.tabs, tab], sections: [...current.sections, section] }));
     setActiveTabId(tab.id);
@@ -443,7 +482,7 @@ export function FormulariosTelas() {
     setForm((current) => ({ ...current, sections: [...current.sections, section] }));
   };
 
-  const addField = (fieldId: string, targetArea: FieldArea = 'Principal', sectionId = activeSections[0]?.id || 'sec-principal') => {
+  const addField = (fieldId: string, targetArea: TelaFieldArea = 'Principal', sectionId = activeSections[0]?.id || 'sec-principal') => {
     const field = allAvailableFields.find((item) => item.id === fieldId);
     if (!field) return;
 
@@ -473,7 +512,7 @@ export function FormulariosTelas() {
     setFieldSearch('');
   };
 
-  const moveExistingField = (instanceId: string, area: FieldArea, sectionId = activeSections[0]?.id || 'sec-principal') => {
+  const moveExistingField = (instanceId: string, area: TelaFieldArea, sectionId = activeSections[0]?.id || 'sec-principal') => {
     setForm((current) => {
       const targetSection = current.sections.find((section) => section.id === sectionId);
       return {
@@ -540,7 +579,7 @@ export function FormulariosTelas() {
     const overData = over.data.current as { kind: 'section' | 'context'; sectionId?: string } | undefined;
     if (!overData) return;
 
-    const targetArea: FieldArea = overData.kind === 'context' ? 'Contexto' : 'Principal';
+    const targetArea: TelaFieldArea = overData.kind === 'context' ? 'Contexto' : 'Principal';
     const targetSectionId = overData.kind === 'section' ? overData.sectionId : undefined;
 
     if (activeData.kind === 'palette' && activeData.fieldId) {
@@ -550,7 +589,7 @@ export function FormulariosTelas() {
     }
   };
 
-  const saveScreen = () => {
+  const saveScreen = async () => {
     const nextErrors: Record<string, string> = {};
     if (!form.nome.trim()) nextErrors.nome = 'Nome da tela é obrigatório.';
     if (!form.funcionalidade.trim()) nextErrors.funcionalidade = 'Funcionalidade é obrigatória.';
@@ -559,25 +598,32 @@ export function FormulariosTelas() {
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length) return;
 
-    if (editingId) {
-      const updated: ScreenRecord = { ...form, id: editingId, atualizadoEm: 'Agora' };
-      setScreens((current) => current.map((screen) => screen.id === editingId ? updated : screen));
-      setSelectedScreen(updated);
-    } else {
-      const nextScreen: ScreenRecord = {
-        ...form,
-        id: `TEL-${String(screens.length + 1).padStart(4, '0')}`,
-        atualizadoEm: 'Agora',
-      };
-      setScreens((current) => [nextScreen, ...current]);
-      setSelectedScreen(nextScreen);
+    if (!clienteId) {
+      showAppToast('Acesse o contexto de um cliente antes de cadastrar.', 'warning');
+      return;
     }
 
-    setForm(cloneScreen(emptyScreen));
-    setEditingId(null);
-    setActiveTabId('principal');
-    setExpandedFieldId(null);
-    setIsFormOpen(false);
+    const input = screenToTelaInput(form);
+    setSalvando(true);
+    try {
+      if (editingId) {
+        await updateTela(editingId, clienteId, input);
+        showAppToast('Tela atualizada.', 'success');
+      } else {
+        await createTela(clienteId, input);
+        showAppToast('Tela criada.', 'success');
+      }
+      await carregar();
+      setForm(cloneScreen(emptyScreen));
+      setEditingId(null);
+      setActiveTabId('principal');
+      setExpandedFieldId(null);
+      setIsFormOpen(false);
+    } catch (error) {
+      showAppToast(error instanceof Error ? error.message : 'Não foi possível salvar a tela.', 'error');
+    } finally {
+      setSalvando(false);
+    }
   };
 
   const deleteScreen = async (id: string) => {
@@ -590,20 +636,24 @@ export function FormulariosTelas() {
     });
     if (!confirmed) return;
 
-    const excluidoEm = new Date().toISOString();
-    setScreens((current) => current.map((screen) => screen.id === id ? { ...screen, excluidoEm } : screen));
-    showAppToast('Tela excluída.', 'info');
+    try {
+      await softDeleteTela(id);
+      await carregar();
+      showAppToast('Tela excluída.', 'info');
 
-    void logAudit({
-      usuarioNome: session?.user.displayName || 'Desconhecido',
-      usuarioEmail: session?.user.email || '',
-      modulo: 'formularios_telas',
-      funcionalidade: 'exclusao_tela',
-      operacao: 'delete',
-      registroId: id,
-      dadosAntes: item,
-      observacao: `Tela "${item?.nome || id}" excluída (soft delete).`,
-    });
+      void logAudit({
+        usuarioNome: session?.user.displayName || 'Desconhecido',
+        usuarioEmail: session?.user.email || '',
+        modulo: 'formularios_telas',
+        funcionalidade: 'exclusao_tela',
+        operacao: 'delete',
+        registroId: id,
+        dadosAntes: item,
+        observacao: `Tela "${item?.nome || id}" excluída (soft delete).`,
+      });
+    } catch (error) {
+      showAppToast(error instanceof Error ? error.message : 'Não foi possível excluir a tela.', 'error');
+    }
   };
 
   const previewScreen = isFormOpen ? form : selectedScreen;
@@ -622,7 +672,7 @@ export function FormulariosTelas() {
       <section className="card cadastro-functional-card no-side-detail">
         <div className="section-title-row">
           <h3>Cadastro de telas</h3>
-          <span className="small-muted">{filtered.length} de {screensAtivas.length} registros</span>
+          <span className="small-muted">{loading ? '...' : `${filtered.length} de ${screensAtivas.length} registros`}</span>
         </div>
 
         <div className="smart-filter-bar cadastro-filter-bar">
@@ -656,7 +706,7 @@ export function FormulariosTelas() {
             <tbody>
               {filtered.map((item) => (
                 <tr key={item.id} className="clickable-row" onClick={() => setSelectedScreen(item)}>
-                  <td><strong>{item.nome}</strong><div className="table-subtitle">{item.id}</div></td>
+                  <td><strong>{item.nome}</strong>{item.atualizadoEm && <div className="table-subtitle">Atualizado em {formatDate(item.atualizadoEm)}</div>}</td>
                   <td className="description-cell">{item.descricao || '-'}</td>
                   <td>{item.funcionalidade}</td>
                   <td>{item.comportamento}</td>
@@ -667,11 +717,14 @@ export function FormulariosTelas() {
                       <button title="Pré-visualizar" onClick={() => { setSelectedScreen(item); setActiveTabId(item.tabs[0]?.id || 'principal'); setIsPreviewOpen(true); }}><Eye size={16} /></button>
                       <button title="Editar tela" onClick={() => openEditScreen(item)}><Edit3 size={16} /></button>
                       <button title="Copiar tela" onClick={() => openCopyScreen(item)}><Copy size={16} /></button>
-                      <button title="Excluir tela" onClick={() => deleteScreen(item.id)}><Trash2 size={16} /></button>
+                      <button title="Excluir tela" onClick={() => void deleteScreen(item.id)}><Trash2 size={16} /></button>
                     </div>
                   </td>
                 </tr>
               ))}
+              {!loading && filtered.length === 0 && (
+                <tr><td colSpan={7} className="empty-note">Nenhuma tela cadastrada ainda.</td></tr>
+              )}
             </tbody>
           </table>
         </div>
@@ -702,13 +755,13 @@ export function FormulariosTelas() {
                     </label>
                     <label>
                       <FieldLabel info="Define se a tela abre direto ou aparece como atalho.">Exibição</FieldLabel>
-                      <select value={form.comportamento} onChange={(event) => updateForm('comportamento', event.target.value as DisplayBehavior)}>
+                      <select value={form.comportamento} onChange={(event) => updateForm('comportamento', event.target.value as TelaComportamento)}>
                         {displayBehaviors.map((item) => <option key={item} value={item}>{item}</option>)}
                       </select>
                     </label>
                     <label>
                       <FieldLabel required info="Define se a tela pode ser usada na operação.">Status</FieldLabel>
-                      <select value={form.status} onChange={(event) => updateForm('status', event.target.value as ScreenStatus)}>
+                      <select value={form.status} onChange={(event) => updateForm('status', event.target.value as TelaStatus)}>
                         {statuses.map((item) => <option key={item} value={item}>{item}</option>)}
                       </select>
                     </label>
@@ -734,7 +787,7 @@ export function FormulariosTelas() {
 
                     <div className="tab-toolbar-inline">
                       <label>Visual
-                        <select value={activeTab.modo} onChange={(event) => updateTab(activeTab.id, { modo: event.target.value as TabMode })}>
+                        <select value={activeTab.modo} onChange={(event) => updateTab(activeTab.id, { modo: event.target.value as TelaTabModo })}>
                           <option>Campos</option>
                           <option>Lista</option>
                         </select>
@@ -840,7 +893,7 @@ export function FormulariosTelas() {
             <div className="cadastro-modal-footer">
               <button onClick={() => setIsFormOpen(false)}>Cancelar</button>
               <button className="secondary-btn" onClick={() => setIsPreviewOpen(true)}><Eye size={16} /> Pré-visualizar</button>
-              <button className="primary" onClick={saveScreen}>Salvar tela</button>
+              <button className="primary" disabled={salvando} onClick={() => void saveScreen()}>{salvando ? 'Salvando...' : 'Salvar tela'}</button>
             </div>
           </div>
         </div>
@@ -895,3 +948,5 @@ export function FormulariosTelas() {
     </>
   );
 }
+
+export default FormulariosTelas;

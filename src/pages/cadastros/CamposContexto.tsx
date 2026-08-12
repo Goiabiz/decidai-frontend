@@ -8,35 +8,9 @@ import { showAppToast } from '../../lib/appToast';
 import { useSession } from '../../contexts/SessionContext';
 import { logAudit } from '../../services/auditLog';
 import { listV35ApiDictionary, type V35ApiDictionaryField, type V35LoadState } from '../../services/v35Supabase';
+import { createCampoContexto, listCamposContexto, softDeleteCampoContexto, updateCampoContexto, type CampoContextoInput, type CampoContextoRecord, type CampoOrigem } from '../../services/camposContexto';
 
-type FieldOrigin = 'Manual' | 'Sistema' | 'Fórmula' | 'Integração/API';
-
-type FieldRecord = {
-  id: string;
-  nome: string;
-  descricao: string;
-  tipo: string;
-  origem: FieldOrigin;
-  status: 'Ativo' | 'Inativo';
-  integracao?: string;
-  endpoint?: string;
-  campoExterno?: string;
-  sensivel?: boolean;
-  usarTela?: boolean;
-  usarAlerta?: boolean;
-  usarRelatorio?: boolean;
-  usarAgente?: boolean;
-  excluidoEm?: string;
-};
-
-const initialFields: FieldRecord[] = [
-  { id: 'CAM-0001', nome: 'Telefone do responsável', descricao: 'Telefone principal para contato com o responsável.', tipo: 'Telefone', origem: 'Manual', status: 'Ativo', usarTela: true, usarAlerta: false, usarRelatorio: true, usarAgente: true },
-  { id: 'CAM-0002', nome: 'Descrição da orientação', descricao: 'Campo para texto formatado com orientação, observação ou instrução.', tipo: 'Parágrafo / Rich text', origem: 'Manual', status: 'Ativo', usarTela: true, usarAlerta: true, usarRelatorio: true, usarAgente: true },
-  { id: 'CAM-0003', nome: 'Estoque atual', descricao: 'Campo vindo de API externa para demonstrar dicionário de dados.', tipo: 'Número', origem: 'Integração/API', status: 'Ativo', integracao: 'Bling', endpoint: 'Produtos', campoExterno: 'saldo_estoque', sensivel: false, usarTela: true, usarAlerta: true, usarRelatorio: true, usarAgente: true },
-];
-
-const emptyField: FieldRecord = {
-  id: '',
+const emptyField: CampoContextoInput = {
   nome: '',
   descricao: '',
   tipo: 'Texto curto',
@@ -54,7 +28,7 @@ const emptyField: FieldRecord = {
 
 const fieldTypes = ['Texto curto', 'Parágrafo / Rich text', 'Número', 'Moeda', 'Percentual', 'Data', 'Data e hora', 'E-mail', 'Telefone', 'Lista seleção única', 'Lista seleção múltipla', 'Lista em cascata', 'Checkbox', 'Sim/Não', 'Fórmula', 'JSON', 'Anexo'];
 
-function originIcon(origin: FieldOrigin) {
+function originIcon(origin: CampoOrigem) {
   if (origin === 'Integração/API') return Database;
   if (origin === 'Fórmula') return FunctionSquare;
   if (origin === 'Sistema') return FileJson;
@@ -63,8 +37,12 @@ function originIcon(origin: FieldOrigin) {
 
 export function CamposContexto() {
   const { session } = useSession();
-  const [items, setItems] = useState(initialFields);
-  const [form, setForm] = useState(emptyField);
+  const clienteId = session?.activeClientId ?? null;
+
+  const [items, setItems] = useState<CampoContextoRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [salvando, setSalvando] = useState(false);
+  const [form, setForm] = useState<CampoContextoInput>(emptyField);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
@@ -80,17 +58,25 @@ export function CamposContexto() {
     });
   }, []);
 
-  const itemsAtivos = useMemo(() => items.filter((item) => !item.excluidoEm), [items]);
+  const carregar = async () => {
+    if (!clienteId) { setLoading(false); return; }
+    setLoading(true);
+    const result = await listCamposContexto(clienteId);
+    setItems(result.items);
+    setLoading(false);
+  };
+
+  useEffect(() => { void carregar(); }, [clienteId]);
 
   const filtered = useMemo(() => {
     const normalized = normalizeFilterText(query);
-    return itemsAtivos.filter((item) => {
+    return items.filter((item) => {
       const text = normalizeFilterText(Object.values(item).join(' '));
       return (!normalized || text.includes(normalized)) && (!origin || item.origem === origin);
     });
-  }, [itemsAtivos, query, origin]);
+  }, [items, query, origin]);
 
-  const update = <K extends keyof FieldRecord>(key: K, value: FieldRecord[K]) => setForm((current) => ({ ...current, [key]: value }));
+  const update = <K extends keyof CampoContextoInput>(key: K, value: CampoContextoInput[K]) => setForm((current) => ({ ...current, [key]: value }));
 
   const filteredApiFields = useMemo(() => {
     const normalized = normalizeFilterText(apiQuery);
@@ -121,60 +107,82 @@ export function CamposContexto() {
     setOpen(true);
   };
 
-  const edit = (item: FieldRecord) => {
-    setForm(item);
-    setEditingId(item.id);
+  const edit = (item: CampoContextoRecord) => {
+    const { id, ...rest } = item;
+    setForm(rest);
+    setEditingId(id);
     setOpen(true);
   };
 
-  const duplicate = (item: FieldRecord) => {
-    const next = { ...item, id: `CAM-${String(items.length + 1).padStart(4, '0')}`, nome: `${item.nome} cópia` };
-    setItems((current) => [next, ...current]);
-    showAppToast('Campo duplicado.', 'success');
+  const duplicate = async (item: CampoContextoRecord) => {
+    if (!clienteId) return;
+    const { id, ...rest } = item;
+    try {
+      await createCampoContexto(clienteId, { ...rest, nome: `${item.nome} cópia` });
+      await carregar();
+      showAppToast('Campo duplicado.', 'success');
+    } catch (error) {
+      showAppToast(error instanceof Error ? error.message : 'Não foi possível duplicar o campo.', 'error');
+    }
   };
 
-  const remove = (item: FieldRecord) => {
+  const remove = (item: CampoContextoRecord) => {
     void showAppConfirm({
       title: 'Excluir campo',
       description: `Excluir o campo "${item.nome}"? Essa ação não deve ser usada se o campo já estiver vinculado a uma tela em produção. O registro fica oculto, não é apagado de verdade.`,
       confirmLabel: 'Excluir campo',
       tone: 'danger',
-      onConfirm: () => {
-        const excluidoEm = new Date().toISOString();
-        setItems((current) => current.map((field) => field.id === item.id ? { ...field, excluidoEm } : field));
-        showAppToast('Campo excluído.', 'info');
+      onConfirm: async () => {
+        try {
+          await softDeleteCampoContexto(item.id);
+          await carregar();
+          showAppToast('Campo excluído.', 'info');
 
-        void logAudit({
-          usuarioNome: session?.user.displayName || 'Desconhecido',
-          usuarioEmail: session?.user.email || '',
-          modulo: 'campos_contexto',
-          funcionalidade: 'exclusao_campo',
-          operacao: 'delete',
-          registroId: item.id,
-          dadosAntes: item,
-          observacao: `Campo "${item.nome}" excluído (soft delete).`,
-        });
+          void logAudit({
+            usuarioNome: session?.user.displayName || 'Desconhecido',
+            usuarioEmail: session?.user.email || '',
+            modulo: 'campos_contexto',
+            funcionalidade: 'exclusao_campo',
+            operacao: 'delete',
+            registroId: item.id,
+            dadosAntes: item,
+            observacao: `Campo "${item.nome}" excluído (soft delete).`,
+          });
+        } catch (error) {
+          showAppToast(error instanceof Error ? error.message : 'Não foi possível excluir o campo.', 'error');
+        }
       },
     });
   };
 
-  const save = () => {
+  const save = async () => {
     if (!form.nome.trim()) {
       showAppToast('Informe o nome do campo.', 'warning');
       return;
     }
-
-    if (editingId) {
-      setItems((current) => current.map((item) => item.id === editingId ? { ...form, id: editingId } : item));
-      showAppToast('Campo atualizado.', 'success');
-    } else {
-      setItems((current) => [{ ...form, id: `CAM-${String(current.length + 1).padStart(4, '0')}` }, ...current]);
-      showAppToast('Campo criado.', 'success');
+    if (!clienteId) {
+      showAppToast('Acesse o contexto de um cliente antes de cadastrar.', 'warning');
+      return;
     }
 
-    setOpen(false);
-    setEditingId(null);
-    setForm(emptyField);
+    setSalvando(true);
+    try {
+      if (editingId) {
+        await updateCampoContexto(editingId, form);
+        showAppToast('Campo atualizado.', 'success');
+      } else {
+        await createCampoContexto(clienteId, form);
+        showAppToast('Campo criado.', 'success');
+      }
+      await carregar();
+      setOpen(false);
+      setEditingId(null);
+      setForm(emptyField);
+    } catch (error) {
+      showAppToast(error instanceof Error ? error.message : 'Não foi possível salvar o campo.', 'error');
+    } finally {
+      setSalvando(false);
+    }
   };
 
   return (
@@ -187,7 +195,7 @@ export function CamposContexto() {
             <h3>Cadastro de campos</h3>
             <p className="section-description">Campos podem ser manuais, do sistema, calculados ou vindos de integração/API.</p>
           </div>
-          <span className="small-muted">{filtered.length} de {itemsAtivos.length} registros</span>
+          <span className="small-muted">{loading ? '...' : `${filtered.length} de ${items.length} registros`}</span>
         </div>
 
         <div className="field-filter-grid">
@@ -222,7 +230,7 @@ export function CamposContexto() {
 
                 return (
                   <tr key={item.id}>
-                    <td><strong>{item.nome}</strong><span className="table-subtitle">{item.id}</span></td>
+                    <td><strong>{item.nome}</strong></td>
                     <td>{item.descricao}</td>
                     <td><Badge tone="blue">{item.tipo}</Badge></td>
                     <td><span className="origin-pill"><Icon size={14} /> {item.origem}</span>{item.origem === 'Integração/API' && <small className="table-subtitle">{item.integracao} / {item.endpoint} / {item.campoExterno}</small>}</td>
@@ -230,13 +238,16 @@ export function CamposContexto() {
                     <td>
                       <div className="row-action-group">
                         <button title="Editar" onClick={() => edit(item)}><Edit3 size={16} /></button>
-                        <button title="Duplicar" onClick={() => duplicate(item)}><Copy size={16} /></button>
+                        <button title="Duplicar" onClick={() => void duplicate(item)}><Copy size={16} /></button>
                         <button title="Excluir" onClick={() => remove(item)}><Trash2 size={16} /></button>
                       </div>
                     </td>
                   </tr>
                 );
               })}
+              {!loading && filtered.length === 0 && (
+                <tr><td colSpan={6} className="empty-note">Nenhum campo cadastrado ainda.</td></tr>
+              )}
             </tbody>
           </table>
         </div>
@@ -257,13 +268,13 @@ export function CamposContexto() {
                   <label><span>Nome *</span><input value={form.nome} onChange={(event) => update('nome', event.target.value)} placeholder="Ex.: Status do pedido" /></label>
                   <label><span>Tipo</span><select value={form.tipo} onChange={(event) => update('tipo', event.target.value)}>{fieldTypes.map((item) => <option key={item}>{item}</option>)}</select></label>
                   <label className="span-2"><span>Descrição</span><input value={form.descricao} onChange={(event) => update('descricao', event.target.value)} placeholder="Explique o objetivo do campo." /></label>
-                  <label><span>Origem do dado</span><select value={form.origem} onChange={(event) => update('origem', event.target.value as FieldOrigin)}>
+                  <label><span>Origem do dado</span><select value={form.origem} onChange={(event) => update('origem', event.target.value as CampoOrigem)}>
                     <option>Manual</option>
                     <option>Sistema</option>
                     <option>Fórmula</option>
                     <option>Integração/API</option>
                   </select></label>
-                  <label><span>Status</span><select value={form.status} onChange={(event) => update('status', event.target.value as FieldRecord['status'])}><option>Ativo</option><option>Inativo</option></select></label>
+                  <label><span>Status</span><select value={form.status} onChange={(event) => update('status', event.target.value as CampoContextoInput['status'])}><option>Ativo</option><option>Inativo</option></select></label>
                 </div>
               </section>
 
@@ -299,7 +310,7 @@ export function CamposContexto() {
 
             <div className="cadastro-modal-footer">
               <button onClick={() => setOpen(false)}>Cancelar</button>
-              <button className="primary" onClick={save}>Salvar campo</button>
+              <button className="primary" disabled={salvando} onClick={() => void save()}>{salvando ? 'Salvando...' : 'Salvar campo'}</button>
             </div>
           </div>
         </div>
