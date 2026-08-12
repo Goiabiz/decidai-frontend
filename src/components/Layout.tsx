@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   BookOpen,
+  Building2,
   ChartNoAxesCombined,
   ChevronDown,
   CircleHelp,
@@ -66,6 +67,7 @@ const navGroups: NavGroup[] = [
     children: [
       { key: 'base', label: 'Base de Conhecimento', icon: <BookOpen size={18} /> },
       { key: 'cad-usuarios', label: 'Usuários', icon: <Users size={18} /> },
+      { key: 'cad-unidades', label: 'Unidades', icon: <Building2 size={18} /> },
     ],
   },
   {
