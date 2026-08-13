@@ -156,7 +156,7 @@ export function App() {
     'cad-unidades': <UnidadesCentrosCusto />,
     'cad-campos': <CamposContexto />,
     'cad-formularios': <FormulariosTelas />,
-    base: <BaseConhecimento onSelectDetail={handleSelectDetail} onOpenDetail={setExpandedDetail} />,
+    base: <BaseConhecimento />,
     atendimento: <CentralAtendimento onSelectDetail={handleSelectDetail} onOpenDetail={setExpandedDetail} />,
     'atendimento-fila': <FilaChamados />,
     alertas: <Alertas />,
