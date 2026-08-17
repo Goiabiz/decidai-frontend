@@ -49,6 +49,31 @@ export async function signOut() {
   await supabase.auth.signOut();
 }
 
+/**
+ * Dispara o e-mail de recuperação (link tipo `recovery`, consumido em /confirmar-acesso).
+ * `returnPath` é pra onde a pessoa volta depois de definir a senha nova -- o app principal
+ * usa `/` (padrão), o Portal do Cliente passa o próprio path (`/portal/:clienteId`), já que
+ * é a mesma conta Supabase Auth pros dois, só telas diferentes.
+ */
+export async function requestPasswordReset(email: string, returnPath = '/') {
+  const supabase = requireClient();
+  // `type=recovery` vai explícito na nossa própria query string -- o link real do Supabase
+  // (template padrão) só entrega a sessão no fragmento da URL (#access_token=...), que o
+  // supabase-js pode já ter consumido (e removido da URL) antes deste componente montar.
+  // Não dá pra confiar em ler isso do hash; a query que a gente mesmo controla é o sinal
+  // confiável de que este é, de fato, um retorno de link de recuperação.
+  const redirectTo = `${window.location.origin}/confirmar-acesso?type=recovery&next=${encodeURIComponent(returnPath)}`;
+  const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo });
+  if (error) throw error;
+}
+
+/** Define a nova senha -- só funciona com a sessão temporária criada pelo link de recuperação (via verifyOtp ou auto-detecção, ver ConfirmarAcesso.tsx). */
+export async function updatePassword(newPassword: string) {
+  const supabase = requireClient();
+  const { error } = await supabase.auth.updateUser({ password: newPassword });
+  if (error) throw error;
+}
+
 export function onAuthStateChange(callback: (authUserId: string | null) => void) {
   const supabase = requireClient();
   const { data } = supabase.auth.onAuthStateChange((_event, session) => {

@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { ArrowRight, Bot, Eye, EyeOff, Lock, Mail, Puzzle, ShieldCheck, Sparkles } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Bot, CheckCircle2, Eye, EyeOff, Lock, Mail, Puzzle, ShieldCheck, Sparkles } from 'lucide-react';
 import { useSession } from '../contexts/SessionContext';
 import { getBrandingConfig } from '../lib/branding';
 import { showAppToast } from '../lib/appToast';
+import { requestPasswordReset } from '../services/auth';
 import markArrowLight from '../assets/brand/mark-arrow-light.svg';
 import markArrowDark from '../assets/brand/mark-arrow-dark.svg';
 
@@ -70,6 +71,12 @@ export function Login() {
   const [submitting, setSubmitting] = useState(false);
   const companyName = getBrandingConfig().companyName || 'DecidAI';
 
+  const [mode, setMode] = useState<'login' | 'forgot'>('login');
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [forgotError, setForgotError] = useState('');
+  const [forgotSubmitting, setForgotSubmitting] = useState(false);
+  const [forgotSent, setForgotSent] = useState(false);
+
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     setError('');
@@ -80,6 +87,32 @@ export function Login() {
       setError(err instanceof Error ? err.message : 'Não foi possível entrar. Verifique usuário e senha.');
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const openForgotPassword = () => {
+    setForgotEmail(email.trim());
+    setForgotError('');
+    setForgotSent(false);
+    setMode('forgot');
+  };
+
+  const backToLogin = () => {
+    setMode('login');
+    setForgotError('');
+  };
+
+  const handleForgotSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setForgotError('');
+    setForgotSubmitting(true);
+    try {
+      await requestPasswordReset(forgotEmail.trim());
+      setForgotSent(true);
+    } catch (err) {
+      setForgotError(err instanceof Error ? err.message : 'Não foi possível enviar o link de recuperação.');
+    } finally {
+      setForgotSubmitting(false);
     }
   };
 
@@ -138,6 +171,50 @@ export function Login() {
 
         <div className="login-form-side">
           <div className="login-form-center">
+          {mode === 'forgot' ? (
+            <form className="login-form-inner" onSubmit={handleForgotSubmit}>
+              <button type="button" className="login-back-link" onClick={backToLogin}>
+                <ArrowLeft size={14} /> Voltar para o login
+              </button>
+              <h2>Recuperar senha</h2>
+              <p className="login-sub">
+                {forgotSent
+                  ? 'Se esse e-mail tiver uma conta na DecidAI, enviamos um link de recuperação para ele.'
+                  : 'Informe seu e-mail. Vamos enviar um link para você escolher uma nova senha.'}
+              </p>
+
+              {!forgotSent ? (
+                <>
+                  <label className="login-field">
+                    <span>E-mail</span>
+                    <div className="login-input-icon">
+                      <Mail size={16} />
+                      <input
+                        type="email"
+                        value={forgotEmail}
+                        onChange={(event) => setForgotEmail(event.target.value)}
+                        placeholder="voce@empresa.com"
+                        autoComplete="email"
+                        required
+                        autoFocus
+                      />
+                    </div>
+                  </label>
+
+                  {forgotError && <p className="login-error">{forgotError}</p>}
+
+                  <button className="primary-small login-submit" type="submit" disabled={forgotSubmitting}>
+                    {forgotSubmitting ? 'Enviando...' : 'Enviar link de recuperação'} <ArrowRight size={16} />
+                  </button>
+                </>
+              ) : (
+                <div className="login-forgot-sent">
+                  <CheckCircle2 size={18} />
+                  <span>Confira sua caixa de entrada (e o spam).</span>
+                </div>
+              )}
+            </form>
+          ) : (
           <form className="login-form-inner" onSubmit={handleSubmit}>
             <h2>Conecte-se à {brandedName}</h2>
             <p className="login-sub">Agentes, integrações e decisões inteligentes para sua operação.</p>
@@ -184,7 +261,7 @@ export function Login() {
             {error && <p className="login-error">{error}</p>}
 
             <div className="login-forgot login-forgot-right">
-              <a href="#" onClick={(event) => { event.preventDefault(); notReady('Recuperação de senha'); }}>
+              <a href="#" onClick={(event) => { event.preventDefault(); openForgotPassword(); }}>
                 Esqueceu sua senha?
               </a>
             </div>
@@ -217,6 +294,7 @@ export function Login() {
               </a>
             </div>
           </form>
+          )}
           </div>
 
           <div className="login-legal">

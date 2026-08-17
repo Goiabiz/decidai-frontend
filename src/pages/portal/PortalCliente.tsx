@@ -12,9 +12,10 @@ import {
   type AtendimentoMensagem,
 } from '../../services/atendimentos';
 import { getCurrentPortalUser, portalSignIn, portalSignOut, portalSignUp, type PortalUser } from '../../services/portalAuth';
+import { requestPasswordReset } from '../../services/auth';
 import { getPortalConfiguracao, type PortalConfiguracao } from '../../services/portalConfig';
 
-type View = 'carregando' | 'login' | 'cadastro' | 'confirmar-email' | 'dashboard' | 'novo' | 'detalhe';
+type View = 'carregando' | 'login' | 'cadastro' | 'esqueci-senha' | 'confirmar-email' | 'dashboard' | 'novo' | 'detalhe';
 
 function getClienteIdFromPath(): string {
   const parts = window.location.pathname.split('/').filter(Boolean); // ['portal', ':clienteId']
@@ -54,6 +55,10 @@ export function PortalCliente() {
   const [loginForm, setLoginForm] = useState(emptyLoginForm);
   const [cadastroForm, setCadastroForm] = useState(emptyCadastroForm);
   const [enviandoAuth, setEnviandoAuth] = useState(false);
+
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [forgotSubmitting, setForgotSubmitting] = useState(false);
+  const [forgotSent, setForgotSent] = useState(false);
 
   const [chamados, setChamados] = useState<Atendimento[]>([]);
   const [carregandoChamados, setCarregandoChamados] = useState(false);
@@ -111,6 +116,25 @@ export function PortalCliente() {
       showAppToast(error instanceof Error ? error.message : 'Não foi possível entrar.', 'error');
     } finally {
       setEnviandoAuth(false);
+    }
+  };
+
+  const abrirEsqueciSenha = () => {
+    setForgotEmail(loginForm.email.trim());
+    setForgotSent(false);
+    setView('esqueci-senha');
+  };
+
+  const enviarRecuperacaoSenha = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setForgotSubmitting(true);
+    try {
+      await requestPasswordReset(forgotEmail.trim(), window.location.pathname);
+      setForgotSent(true);
+    } catch (error) {
+      showAppToast(error instanceof Error ? error.message : 'Não foi possível enviar o link de recuperação.', 'error');
+    } finally {
+      setForgotSubmitting(false);
     }
   };
 
@@ -286,6 +310,9 @@ export function PortalCliente() {
                   <span><Lock size={14} /> Senha</span>
                   <input type="password" value={loginForm.senha} onChange={(event) => setLoginForm((c) => ({ ...c, senha: event.target.value }))} placeholder="Sua senha" required />
                 </label>
+                <div className="portal-forgot-link">
+                  <button type="button" onClick={abrirEsqueciSenha}>Esqueceu sua senha?</button>
+                </div>
                 <button type="submit" className="portal-submit" disabled={enviandoAuth}>
                   {enviandoAuth ? 'Entrando...' : 'Entrar'}
                 </button>
@@ -320,6 +347,30 @@ export function PortalCliente() {
               </form>
             )}
           </>
+        )}
+
+        {view === 'esqueci-senha' && !forgotSent && (
+          <form className="portal-card portal-form" onSubmit={enviarRecuperacaoSenha}>
+            <button type="button" className="portal-link-btn portal-back-link" onClick={() => setView('login')}>← Voltar para o login</button>
+            <h1>Recuperar senha</h1>
+            <p className="portal-sub">Informe seu e-mail. Vamos enviar um link para você escolher uma nova senha.</p>
+            <label className="portal-field">
+              <span><Mail size={14} /> E-mail</span>
+              <input type="email" value={forgotEmail} onChange={(event) => setForgotEmail(event.target.value)} placeholder="voce@email.com" required autoFocus />
+            </label>
+            <button type="submit" className="portal-submit" disabled={forgotSubmitting}>
+              {forgotSubmitting ? 'Enviando...' : 'Enviar link de recuperação'}
+            </button>
+          </form>
+        )}
+
+        {view === 'esqueci-senha' && forgotSent && (
+          <div className="portal-card portal-confirm">
+            <div className="portal-confirm-icon"><Mail size={32} /></div>
+            <h1>Verifique seu e-mail</h1>
+            <p className="portal-sub">Se {forgotEmail} tiver uma conta neste portal, enviamos um link de recuperação para ele.</p>
+            <button type="button" className="portal-link-btn" onClick={() => { setView('login'); setAuthTab('login'); }}>Voltar para o login</button>
+          </div>
         )}
 
         {view === 'confirmar-email' && (

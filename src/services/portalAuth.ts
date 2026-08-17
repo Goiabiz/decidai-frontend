@@ -52,7 +52,12 @@ export async function portalSignUp(input: PortalSignUpInput): Promise<PortalAuth
   const email = input.email.trim().toLowerCase();
 
   if (client) {
-    const { data, error } = await client.auth.signUp({ email, password: input.senha });
+    // Sem emailRedirectTo, o Supabase manda o link de volta pra raiz do site (Login), não pro
+    // /confirmar-acesso -- a confirmação nunca passaria pela tela certa. type=signup explícito
+    // na query pelo mesmo motivo do requestPasswordReset: não dá pra confiar no fragmento da
+    // URL, que o supabase-js pode consumir antes do componente montar.
+    const emailRedirectTo = `${window.location.origin}/confirmar-acesso?type=signup&next=${encodeURIComponent(`/portal/${input.clienteId}`)}`;
+    const { data, error } = await client.auth.signUp({ email, password: input.senha, options: { emailRedirectTo } });
     if (!error && data.user) {
       if (!data.session) {
         return { user: null, source: 'supabase', pendingEmailConfirmation: true };

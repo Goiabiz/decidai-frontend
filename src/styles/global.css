@@ -10479,6 +10479,41 @@ td small {
   text-decoration: none;
 }
 
+.login-back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: none;
+  background: none;
+  padding: 0;
+  margin-bottom: 4px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #5b6f66;
+  cursor: pointer;
+}
+
+.login-back-link:hover {
+  color: #10241d;
+}
+
+.login-forgot-sent {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: #e4efe9;
+  color: #0c3d2e;
+  font-size: 13.5px;
+  font-weight: 600;
+}
+
+.login-forgot-sent svg {
+  flex-shrink: 0;
+  color: #0c3d2e;
+}
+
 .login-divider {
   display: flex;
   align-items: center;
@@ -10668,6 +10703,15 @@ td small {
   line-height: 1.6;
   color: #5b6f66;
   margin: 0 0 20px;
+}
+
+.confirm-access-password-form {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  text-align: left;
+  margin-top: 4px;
 }
 
 .confirm-access-btn {
@@ -11085,6 +11129,25 @@ td small {
   outline: 2px solid rgba(0, 120, 77, .28);
   outline-offset: 1px;
   background: var(--surface);
+}
+
+.portal-forgot-link {
+  text-align: right;
+  margin-top: 6px;
+}
+
+.portal-forgot-link button {
+  border: 0;
+  background: none;
+  padding: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--portal-destaque, var(--green-700));
+  cursor: pointer;
+}
+
+.portal-forgot-link button:hover {
+  text-decoration: underline;
 }
 
 .portal-submit {
