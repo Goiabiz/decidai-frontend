@@ -7,9 +7,10 @@ type HelpPanelProps = {
   onClose: () => void;
   page: PageKey;
   pageTitle: string;
+  onOpenCentralAjuda: () => void;
 };
 
-export function HelpPanel({ open, onClose, page, pageTitle }: HelpPanelProps) {
+export function HelpPanel({ open, onClose, page, pageTitle, onOpenCentralAjuda }: HelpPanelProps) {
   if (!open) return null;
 
   const entry = getHelpEntry(page);
@@ -42,6 +43,7 @@ export function HelpPanel({ open, onClose, page, pageTitle }: HelpPanelProps) {
         </section>
 
         <footer>
+          <button className="help-panel-central-link" onClick={onOpenCentralAjuda}>Ver Central de Ajuda completa →</button>
           <span>Precisa de mais? Use o assistente flutuante para perguntar sobre esta tela.</span>
         </footer>
       </aside>

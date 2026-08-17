@@ -213,6 +213,13 @@ export const helpContent: Record<PageKey, HelpEntry> = {
       'Prefira esta tela quando precisar exportar o log de auditoria para fora do sistema.',
     ],
   },
+  ajuda: {
+    summary: 'Tópicos, guias passo a passo e um assistente de autoajuda guiada pra encontrar a resposta certa rápido.',
+    tips: [
+      'A busca no topo filtra por título, resumo e conteúdo dos guias ao mesmo tempo.',
+      'A "Autoajuda guiada" pergunta o que você quer fazer e já leva direto pro guia certo, sem precisar navegar por tópico.',
+    ],
+  },
 };
 
 export function getHelpEntry(page: PageKey): HelpEntry {

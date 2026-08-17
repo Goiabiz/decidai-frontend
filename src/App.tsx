@@ -33,6 +33,7 @@ import { ServicosFilas } from './pages/central-atendimento/ServicosFilas';
 import { UnidadesCentrosCusto } from './pages/cadastros/UnidadesCentrosCusto';
 import { Usuarios } from './pages/cadastros/Usuarios';
 import { MinhaConta } from './pages/MinhaConta';
+import { CentralAjuda } from './pages/CentralAjuda';
 import { Login } from './pages/Login';
 import { PortalCliente } from './pages/portal/PortalCliente';
 import { PartnerSubmission } from './pages/PartnerSubmission';
@@ -69,7 +70,8 @@ export type PageKey =
   | 'rel-alertas'
   | 'rel-tarefas'
   | 'rel-integracoes'
-  | 'rel-auditoria';
+  | 'rel-auditoria'
+  | 'ajuda';
 
 const rightPanelByPage: Record<PageKey, React.ComponentProps<typeof RightPanel>['variant']> = {
   dashboard: 'dashboard',
@@ -101,6 +103,7 @@ const rightPanelByPage: Record<PageKey, React.ComponentProps<typeof RightPanel>[
   'rel-tarefas': 'acao',
   'rel-integracoes': 'config',
   'rel-auditoria': 'config',
+  ajuda: 'config',
 };
 
 export type PageProps = {
@@ -182,6 +185,7 @@ export function App() {
     'rel-tarefas': <RelatorioTarefas />,
     'rel-integracoes': <RelatorioIntegracoes />,
     'rel-auditoria': <RelatorioAuditoria />,
+    ajuda: <CentralAjuda />,
   };
 
   return (

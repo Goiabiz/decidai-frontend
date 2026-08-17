@@ -125,6 +125,13 @@ const navGroups: NavGroup[] = [
       { key: 'rel-tarefas', label: 'Tarefas', icon: <ClipboardList size={18} /> },
     ],
   },
+  {
+    key: 'ajuda-grupo',
+    label: 'Central de Ajuda',
+    icon: <CircleHelp size={22} />,
+    defaultPage: 'ajuda',
+    children: [{ key: 'ajuda', label: 'Tópicos e guias' }],
+  },
 ];
 
 function getActiveGroupKey(activePage: PageKey) {
@@ -405,7 +412,13 @@ export function Layout({ activePage, onNavigate, children, rightPanel }: { activ
         </div>
       </main>
 
-      <HelpPanel open={helpOpen} onClose={() => setHelpOpen(false)} page={activePage} pageTitle={getPageLabel(activePage)} />
+      <HelpPanel
+        open={helpOpen}
+        onClose={() => setHelpOpen(false)}
+        page={activePage}
+        pageTitle={getPageLabel(activePage)}
+        onOpenCentralAjuda={() => { setHelpOpen(false); onNavigate('ajuda'); }}
+      />
     </div>
   );
 }
