@@ -11,6 +11,7 @@ import {
   FileBarChart2,
   Headphones,
   Home,
+  KeyRound,
   LayoutTemplate,
   LifeBuoy,
   ListChecks,
@@ -97,6 +98,7 @@ const navGroups: NavGroup[] = [
     children: [
       { key: 'param-admin', label: 'Administração', icon: <Cog size={18} /> },
       { key: 'param-agentes', label: 'Agentes', icon: <UserCog size={18} /> },
+      { key: 'param-conectores', label: 'Credenciais de Conectores', icon: <KeyRound size={18} /> },
       { key: 'param-canais', label: 'Canais de Atendimento', icon: <Workflow size={18} /> },
       { key: 'param-portal', label: 'Portal do Cliente', icon: <LifeBuoy size={18} /> },
       { key: 'cad-campos', label: 'Campos', icon: <SlidersHorizontal size={18} /> },

@@ -121,6 +121,13 @@ export const helpContent: Record<PageKey, HelpEntry> = {
       'Conectores permitidos vêm do catálogo de Integrações; um agente só pode usar o que o plano libera.',
     ],
   },
+  'param-conectores': {
+    summary: 'Credenciais que os agentes usam pra acessar Jira, Confluence, GitHub e outros conectores em nome do seu tenant.',
+    tips: [
+      'Depois de salva, a credencial nunca é mostrada de novo — só o status "configurado". Pra trocar, basta cadastrar uma nova.',
+      'Sem credencial própria configurada, o agente usa a credencial de plataforma (quando existir) — configurar aqui garante que o acesso é só do seu tenant.',
+    ],
+  },
   'param-canais': {
     summary: 'Canais de atendimento (WhatsApp, e-mail, widget etc.) e qual integração técnica cada um usa por trás.',
     tips: [

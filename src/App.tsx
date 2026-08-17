@@ -16,6 +16,7 @@ import { Creditos } from './pages/parametrizacao/Creditos';
 import { Configuracoes } from './pages/Configuracoes';
 import { Integracoes } from './pages/Integracoes';
 import { Agentes } from './pages/parametrizacao/Agentes';
+import { ConectoresCredenciais } from './pages/parametrizacao/ConectoresCredenciais';
 import { Canais } from './pages/parametrizacao/Canais';
 import { CamposContexto } from './pages/cadastros/CamposContexto';
 import { FormulariosTelas } from './pages/cadastros/FormulariosTelas';
@@ -55,6 +56,7 @@ export type PageKey =
   | 'param-admin'
   | 'param-integracoes'
   | 'param-agentes'
+  | 'param-conectores'
   | 'param-canais'
   | 'param-portal'
   | 'param-marketplace'
@@ -85,6 +87,7 @@ const rightPanelByPage: Record<PageKey, React.ComponentProps<typeof RightPanel>[
   'param-admin': 'config',
   'param-integracoes': 'config',
   'param-agentes': 'config',
+  'param-conectores': 'config',
   'param-canais': 'config',
   'param-portal': 'config',
   'param-marketplace': 'config',
@@ -165,6 +168,7 @@ export function App() {
     'param-admin': <Configuracoes onNavigate={handleNavigate} />,
     'param-integracoes': <Integracoes />,
     'param-agentes': <Agentes />,
+    'param-conectores': <ConectoresCredenciais />,
     'param-canais': <Canais />,
     'param-portal': <PortalConfiguracao />,
     'param-marketplace': <Marketplace />,
