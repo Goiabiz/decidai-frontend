@@ -8,6 +8,7 @@ import {
   ClipboardList,
   Coins,
   Cog,
+  Contact,
   FileBarChart2,
   Headphones,
   Home,
@@ -22,6 +23,7 @@ import {
   ShieldAlert,
   SlidersHorizontal,
   Store,
+  Target,
   UserCog,
   UserPlus,
   Users,
@@ -90,6 +92,16 @@ const navGroups: NavGroup[] = [
     icon: <Zap size={22} />,
     defaultPage: 'flows',
     children: [{ key: 'flows', label: 'Flows', icon: <Zap size={18} /> }],
+  },
+  {
+    key: 'crm',
+    label: 'CRM',
+    icon: <Contact size={22} />,
+    defaultPage: 'crm-contatos',
+    children: [
+      { key: 'crm-contatos', label: 'Contatos', icon: <Contact size={18} /> },
+      { key: 'crm-pipeline', label: 'Pipeline', icon: <Target size={18} /> },
+    ],
   },
   {
     key: 'roadmap',

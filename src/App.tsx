@@ -31,6 +31,8 @@ import { RelatorioPersonalizado } from './pages/relatorios/RelatorioPersonalizad
 import { SegurancaAuditoria } from './pages/parametrizacao/SegurancaAuditoria';
 import { ServicosFilas } from './pages/central-atendimento/ServicosFilas';
 import { Flows } from './pages/Flows';
+import { CrmContatos } from './pages/crm/Contatos';
+import { CrmPipeline } from './pages/crm/Pipeline';
 import { UnidadesCentrosCusto } from './pages/cadastros/UnidadesCentrosCusto';
 import { Usuarios } from './pages/cadastros/Usuarios';
 import { MinhaConta } from './pages/MinhaConta';
@@ -55,6 +57,8 @@ export type PageKey =
   | 'alertas'
   | 'atendimento-servicos'
   | 'flows'
+  | 'crm-contatos'
+  | 'crm-pipeline'
   | 'analise'
   | 'param-admin'
   | 'param-integracoes'
@@ -88,6 +92,8 @@ const rightPanelByPage: Record<PageKey, React.ComponentProps<typeof RightPanel>[
   alertas: 'alerta',
   'atendimento-servicos': 'config',
   flows: 'config',
+  'crm-contatos': 'config',
+  'crm-pipeline': 'config',
   analise: 'acao',
   'param-admin': 'config',
   'param-integracoes': 'config',
@@ -171,6 +177,8 @@ export function App() {
     alertas: <Alertas />,
     'atendimento-servicos': <ServicosFilas onSelectDetail={handleSelectDetail} onOpenDetail={setExpandedDetail} />,
     flows: <Flows />,
+    'crm-contatos': <CrmContatos />,
+    'crm-pipeline': <CrmPipeline />,
     analise: <AnaliseAcoes />,
     'param-admin': <Configuracoes onNavigate={handleNavigate} />,
     'param-integracoes': <Integracoes />,

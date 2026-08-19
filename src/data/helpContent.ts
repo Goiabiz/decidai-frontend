@@ -103,6 +103,22 @@ export const helpContent: Record<PageKey, HelpEntry> = {
       'Disparo agendado roda sozinho, no intervalo definido pela expressão cron — o disparo manual só roda quando alguém clica em "Rodar agora".',
     ],
   },
+  'crm-contatos': {
+    summary: 'Contatos e empresas do CRM, com o perfil 360: casos do pipeline e atendimentos de cada contato num só lugar.',
+    tips: [
+      'Vincular um contato a uma empresa é opcional — útil quando várias pessoas da mesma organização aparecem em casos diferentes.',
+      'O perfil 360 (painel à direita) só mostra atendimentos que já têm o contato vinculado — atendimentos antigos, criados antes deste vínculo existir, não aparecem sozinhos.',
+      'A aba "Empresas" é um cadastro simples — o vínculo de fato acontece ao escolher a empresa no formulário de um contato.',
+    ],
+  },
+  'crm-pipeline': {
+    summary: 'Casos em andamento, organizados por estágio configurável — arraste um card para mudar de estágio.',
+    tips: [
+      'Mover um card para um estágio marcado como "Ganho" ou "Perdido" fecha o caso automaticamente — mover de volta para um estágio intermediário reabre.',
+      'Os estágios padrão (Novo, Qualificando, Proposta, Ganho, Perdido) são criados sozinhos na primeira vez que o ambiente usa o Pipeline.',
+      'Um caso sempre pertence a um contato — cadastre o contato em "Contatos" antes de criar o caso, se ainda não existir.',
+    ],
+  },
   analise: {
     summary: 'Lista de tarefas com status, prioridade, responsável e prazo — o "a fazer" operacional do cliente.',
     tips: [
