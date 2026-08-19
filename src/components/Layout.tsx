@@ -26,6 +26,7 @@ import {
   UserPlus,
   Users,
   Workflow,
+  Zap,
 } from 'lucide-react';
 import type { PageKey } from '../App';
 import { loadWorkspacePreferences } from '../lib/preferences';
@@ -82,6 +83,13 @@ const navGroups: NavGroup[] = [
       { key: 'atendimento-fila', label: 'Fila de Chamados', icon: <ListChecks size={18} /> },
       { key: 'atendimento-servicos', label: 'Serviços', icon: <Workflow size={18} /> },
     ],
+  },
+  {
+    key: 'flows-grupo',
+    label: 'Flows',
+    icon: <Zap size={22} />,
+    defaultPage: 'flows',
+    children: [{ key: 'flows', label: 'Flows', icon: <Zap size={18} /> }],
   },
   {
     key: 'roadmap',

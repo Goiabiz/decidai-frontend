@@ -30,6 +30,7 @@ import RelatorioTarefas from './pages/relatorios/RelatorioTarefas';
 import { RelatorioPersonalizado } from './pages/relatorios/RelatorioPersonalizado';
 import { SegurancaAuditoria } from './pages/parametrizacao/SegurancaAuditoria';
 import { ServicosFilas } from './pages/central-atendimento/ServicosFilas';
+import { Flows } from './pages/Flows';
 import { UnidadesCentrosCusto } from './pages/cadastros/UnidadesCentrosCusto';
 import { Usuarios } from './pages/cadastros/Usuarios';
 import { MinhaConta } from './pages/MinhaConta';
@@ -53,6 +54,7 @@ export type PageKey =
   | 'atendimento-fila'
   | 'alertas'
   | 'atendimento-servicos'
+  | 'flows'
   | 'analise'
   | 'param-admin'
   | 'param-integracoes'
@@ -85,6 +87,7 @@ const rightPanelByPage: Record<PageKey, React.ComponentProps<typeof RightPanel>[
   'atendimento-fila': 'atendimento',
   alertas: 'alerta',
   'atendimento-servicos': 'config',
+  flows: 'config',
   analise: 'acao',
   'param-admin': 'config',
   'param-integracoes': 'config',
@@ -167,6 +170,7 @@ export function App() {
     'atendimento-fila': <FilaChamados />,
     alertas: <Alertas />,
     'atendimento-servicos': <ServicosFilas onSelectDetail={handleSelectDetail} onOpenDetail={setExpandedDetail} />,
+    flows: <Flows />,
     analise: <AnaliseAcoes />,
     'param-admin': <Configuracoes onNavigate={handleNavigate} />,
     'param-integracoes': <Integracoes />,

@@ -94,6 +94,15 @@ export const helpContent: Record<PageKey, HelpEntry> = {
       'Grupo de filas permite transferência de atendimento entre as filas do mesmo grupo.',
     ],
   },
+  flows: {
+    summary: 'Motor de automação: sequências de passos que o agente segue, com disparo manual ou agendado (cron).',
+    tips: [
+      'Passo "Instrução" faz o agente responder/decidir de verdade — passo "Ação" tem efeito real e sempre para esperando confirmação humana, qualquer que seja o risco.',
+      'Os passos rodam sempre em ordem, de cima para baixo — use as setas em cada passo do canvas para reordenar, não é possível ramificar ainda.',
+      'Uma execução parada em "Aguardando confirmação" só continua depois que alguém clica em "Confirmar ação" na lista de execuções do flow.',
+      'Disparo agendado roda sozinho, no intervalo definido pela expressão cron — o disparo manual só roda quando alguém clica em "Rodar agora".',
+    ],
+  },
   analise: {
     summary: 'Lista de tarefas com status, prioridade, responsável e prazo — o "a fazer" operacional do cliente.',
     tips: [
