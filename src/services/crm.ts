@@ -41,6 +41,7 @@ export type CrmEstagio = {
   ordem: number;
   cor: string | null;
   terminal: CrmEstagioTerminal | null;
+  probabilidade: number | null;
 };
 
 export type CrmCasoStatus = 'aberto' | 'ganho' | 'perdido';
@@ -58,6 +59,7 @@ export type CrmCaso = {
   responsavelNome: string | null;
   status: CrmCasoStatus;
   observacao: string | null;
+  proximoFollowupEm: string | null;
   criadoEm: string;
 };
 
@@ -69,6 +71,23 @@ export type CrmCasoInput = {
   valor?: number | null;
   responsavelId?: string | null;
   observacao?: string;
+};
+
+export type CrmAtividadeTipo = 'ligacao' | 'email' | 'reuniao' | 'nota';
+
+export type CrmAtividade = {
+  id: string;
+  casoId: string;
+  tipo: CrmAtividadeTipo;
+  descricao: string;
+  responsavelNome: string | null;
+  realizadaEm: string;
+};
+
+export type CrmAtividadeInput = {
+  casoId: string;
+  tipo: CrmAtividadeTipo;
+  descricao: string;
 };
 
 export type CrmAtendimentoResumo = {
@@ -86,12 +105,12 @@ export type CrmContato360 = {
   atendimentos: CrmAtendimentoResumo[];
 };
 
-const ESTAGIOS_PADRAO: Array<{ nome: string; ordem: number; terminal: CrmEstagioTerminal | null }> = [
-  { nome: 'Novo', ordem: 1, terminal: null },
-  { nome: 'Qualificando', ordem: 2, terminal: null },
-  { nome: 'Proposta', ordem: 3, terminal: null },
-  { nome: 'Ganho', ordem: 4, terminal: 'ganho' },
-  { nome: 'Perdido', ordem: 5, terminal: 'perdido' },
+const ESTAGIOS_PADRAO: Array<{ nome: string; ordem: number; terminal: CrmEstagioTerminal | null; probabilidade: number }> = [
+  { nome: 'Novo', ordem: 1, terminal: null, probabilidade: 10 },
+  { nome: 'Qualificando', ordem: 2, terminal: null, probabilidade: 30 },
+  { nome: 'Proposta', ordem: 3, terminal: null, probabilidade: 60 },
+  { nome: 'Ganho', ordem: 4, terminal: 'ganho', probabilidade: 100 },
+  { nome: 'Perdido', ordem: 5, terminal: 'perdido', probabilidade: 0 },
 ];
 
 function requireClient() {
@@ -252,11 +271,13 @@ export async function getContato360(contatoId: string): Promise<CrmContato360> {
 // Estágios do pipeline
 // =========================================================================
 
+const ESTAGIO_SELECT = 'id, nome, ordem, cor, terminal, probabilidade';
+
 export async function listEstagios(clienteId: string): Promise<CrmEstagio[]> {
   const client = requireClient();
   const { data, error } = await client
     .from('crm_pipeline_estagios')
-    .select('id, nome, ordem, cor, terminal')
+    .select(ESTAGIO_SELECT)
     .eq('cliente_id', clienteId)
     .eq('ativo', true)
     .order('ordem');
@@ -273,16 +294,23 @@ export async function ensureEstagiosPadrao(clienteId: string): Promise<CrmEstagi
   const { data, error } = await client
     .from('crm_pipeline_estagios')
     .insert(ESTAGIOS_PADRAO.map((estagio) => ({ cliente_id: clienteId, ...estagio })))
-    .select('id, nome, ordem, cor, terminal');
+    .select(ESTAGIO_SELECT);
   if (error) throw error;
   return ((data ?? []) as CrmEstagio[]).sort((a, b) => a.ordem - b.ordem);
+}
+
+/** Forecast v1.1 -- peso (0-100) usado no cálculo ponderado do pipeline (ver Pipeline.tsx). */
+export async function updateEstagioProbabilidade(estagioId: string, probabilidade: number | null): Promise<void> {
+  const client = requireClient();
+  const { error } = await client.from('crm_pipeline_estagios').update({ probabilidade }).eq('id', estagioId);
+  if (error) throw error;
 }
 
 // =========================================================================
 // Casos (pipeline)
 // =========================================================================
 
-const CASO_SELECT = 'id, titulo, contato_id, empresa_id, estagio_id, valor, responsavel_usuario_cliente_id, status, observacao, criado_em, '
+const CASO_SELECT = 'id, titulo, contato_id, empresa_id, estagio_id, valor, responsavel_usuario_cliente_id, status, observacao, proximo_followup_em, criado_em, '
   + 'contato:crm_contatos(nome), empresa:crm_empresas(nome), responsavel:usuarios_cliente(nome)';
 
 function mapCaso(row: Record<string, unknown>): CrmCaso {
@@ -302,6 +330,7 @@ function mapCaso(row: Record<string, unknown>): CrmCaso {
     responsavelNome: responsavel?.nome ?? null,
     status: row.status as CrmCasoStatus,
     observacao: (row.observacao as string) || null,
+    proximoFollowupEm: (row.proximo_followup_em as string) || null,
     criadoEm: row.criado_em as string,
   };
 }
@@ -352,4 +381,57 @@ export async function moveCasoEstagio(casoId: string, estagioId: string, estagio
   }
   const { error } = await client.from('crm_casos').update(patch).eq('id', casoId);
   if (error) throw error;
+}
+
+/** Follow-up v1.1 -- não dispara nada sozinho, só marca a data pra UI mostrar atrasado/próximo. */
+export async function updateCasoFollowup(casoId: string, proximoFollowupEm: string | null): Promise<void> {
+  const client = requireClient();
+  const { error } = await client.from('crm_casos').update({ proximo_followup_em: proximoFollowupEm }).eq('id', casoId);
+  if (error) throw error;
+}
+
+// =========================================================================
+// Atividades (log de touchpoints do caso)
+// =========================================================================
+
+const ATIVIDADE_SELECT = 'id, caso_id, tipo, descricao, realizada_em, responsavel:usuarios_cliente(nome)';
+
+function mapAtividade(row: Record<string, unknown>): CrmAtividade {
+  const responsavel = firstOf(row.responsavel as { nome?: string } | { nome?: string }[] | null);
+  return {
+    id: row.id as string,
+    casoId: row.caso_id as string,
+    tipo: row.tipo as CrmAtividadeTipo,
+    descricao: row.descricao as string,
+    responsavelNome: responsavel?.nome ?? null,
+    realizadaEm: row.realizada_em as string,
+  };
+}
+
+export async function listAtividades(casoId: string): Promise<CrmAtividade[]> {
+  const client = requireClient();
+  const { data, error } = await client
+    .from('crm_atividades')
+    .select(ATIVIDADE_SELECT)
+    .eq('caso_id', casoId)
+    .order('realizada_em', { ascending: false });
+  if (error) throw error;
+  return (data ?? []).map((row) => mapAtividade(row as unknown as Record<string, unknown>));
+}
+
+export async function createAtividade(clienteId: string, usuarioClienteId: string | null, input: CrmAtividadeInput): Promise<CrmAtividade> {
+  const client = requireClient();
+  const { data, error } = await client
+    .from('crm_atividades')
+    .insert({
+      cliente_id: clienteId,
+      caso_id: input.casoId,
+      tipo: input.tipo,
+      descricao: input.descricao,
+      usuario_cliente_id: usuarioClienteId,
+    })
+    .select(ATIVIDADE_SELECT)
+    .single();
+  if (error) throw error;
+  return mapAtividade(data as unknown as Record<string, unknown>);
 }
