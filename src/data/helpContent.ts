@@ -103,6 +103,14 @@ export const helpContent: Record<PageKey, HelpEntry> = {
       'Disparo agendado roda sozinho, no intervalo definido pela expressão cron — o disparo manual só roda quando alguém clica em "Rodar agora".',
     ],
   },
+  'market-reputacao': {
+    summary: 'Sinais de reputação (avaliações, NPS, CSAT) agregados de fontes externas -- v1 cobre só Google Business Profile, leitura-só.',
+    tips: [
+      'Cadastre o identificador do local (formato "accounts/.../locations/...") em "Nova fonte" antes de sincronizar.',
+      '"Sincronizar agora" busca avaliações reais direto do Google -- não escreve nem responde nada em nome do tenant.',
+      'Desativar uma fonte para de sincronizá-la, mas não apaga o histórico de avaliações já coletadas.',
+    ],
+  },
   'crm-contatos': {
     summary: 'Contatos e empresas do CRM, com o perfil 360: casos do pipeline e atendimentos de cada contato num só lugar.',
     tips: [

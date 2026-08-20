@@ -22,6 +22,7 @@ import {
   Search,
   ShieldAlert,
   SlidersHorizontal,
+  Star,
   Store,
   Target,
   UserCog,
@@ -92,6 +93,13 @@ const navGroups: NavGroup[] = [
     icon: <Zap size={22} />,
     defaultPage: 'flows',
     children: [{ key: 'flows', label: 'Flows', icon: <Zap size={18} /> }],
+  },
+  {
+    key: 'market',
+    label: 'Market',
+    icon: <Star size={22} />,
+    defaultPage: 'market-reputacao',
+    children: [{ key: 'market-reputacao', label: 'Reputação', icon: <Star size={18} /> }],
   },
   {
     key: 'crm',
