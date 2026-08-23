@@ -204,6 +204,7 @@ export const helpContent: Record<PageKey, HelpEntry> = {
       'Uso de modelos sem preço cadastrado ainda não é descontado do saldo (aparece como custo zero até o preço ser confirmado).',
       '"Fechar período e gerar fatura" e "Marcar como paga" só aparecem pra suporte/administrador da operadora — soma o consumo real do período com a mensalidade do plano.',
       'Mensalidade e preço de excedente aparecem como "não confirmado" até alguém cadastrar o valor comercial real do plano — nada é inventado.',
+      '"Pagar agora (Pix)" gera uma cobrança real via C6 Bank — cole o código no app do seu banco. A confirmação de pagamento é automática assim que o banco avisar.',
     ],
   },
   'rel-personalizado': {

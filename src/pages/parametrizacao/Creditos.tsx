@@ -8,6 +8,7 @@ import { useSession, usePermission } from '../../contexts/SessionContext';
 import { getCreditsBalance, listCreditsLedger, type CreditsLedgerEntry, type CreditsLedgerTipo } from '../../services/creditos';
 import {
   closeBillingPeriod,
+  createGatewayCharge,
   getPlanPricing,
   listInvoiceItems,
   listInvoices,
@@ -78,6 +79,8 @@ export function Creditos() {
   const [selectedInvoice, setSelectedInvoice] = useState<{ id: string; items: BillingInvoiceItem[] } | null>(null);
   const [fechando, setFechando] = useState(false);
   const [periodo, setPeriodo] = useState(currentMonthRange());
+  const [cobrando, setCobrando] = useState<string | null>(null);
+  const [pixAtivo, setPixAtivo] = useState<{ invoiceId: string; qrCode: string } | null>(null);
 
   const loadFaturamento = () => {
     if (!clienteId) return;
@@ -128,6 +131,22 @@ export function Creditos() {
     if ('error' in result) return showAppToast(result.error, 'warning');
     showAppToast('Fatura marcada como paga.', 'success');
     loadFaturamento();
+  };
+
+  const handlePayNow = async (invoice: BillingInvoice) => {
+    if (invoice.gatewayQrCode) {
+      setPixAtivo({ invoiceId: invoice.id, qrCode: invoice.gatewayQrCode });
+      return;
+    }
+    setCobrando(invoice.id);
+    try {
+      const result = await createGatewayCharge(invoice.id, clienteId);
+      if ('error' in result) return showAppToast(result.error, 'warning');
+      setPixAtivo({ invoiceId: invoice.id, qrCode: result.qrCode });
+      loadFaturamento();
+    } finally {
+      setCobrando(null);
+    }
   };
 
   const totals = useMemo(() => {
@@ -240,7 +259,12 @@ export function Creditos() {
                   <td className="table-subtitle">{formatDate(invoice.dueDate)}</td>
                   <td>{formatBrl(invoice.totalAmountBrl)}</td>
                   <td><Badge tone={INVOICE_STATUS_TONE[invoice.status]}>{INVOICE_STATUS_LABELS[invoice.status]}</Badge></td>
-                  <td onClick={(event) => event.stopPropagation()}>
+                  <td onClick={(event) => event.stopPropagation()} style={{ display: 'flex', gap: 6 }}>
+                    {invoice.status === 'open' && invoice.totalAmountBrl > 0 && (
+                      <button className="secondary-btn" onClick={() => handlePayNow(invoice)} disabled={cobrando === invoice.id}>
+                        {cobrando === invoice.id ? 'Gerando Pix...' : invoice.gatewayQrCode ? 'Ver Pix' : 'Pagar agora (Pix)'}
+                      </button>
+                    )}
                     {podeEditarFaturas && invoice.status === 'open' && (
                       <button className="secondary-btn" onClick={() => handleMarkPaid(invoice.id)}>Marcar como paga</button>
                     )}
@@ -251,6 +275,17 @@ export function Creditos() {
           </table>
           {invoices.length === 0 && <p className="empty-note">Nenhuma fatura gerada ainda para este ambiente.</p>}
         </div>
+
+        {pixAtivo && (
+          <div className="flow-run-detail">
+            <h4>Pix copia-e-cola</h4>
+            <p className="section-description" style={{ marginBottom: 8 }}>
+              Cole este código no app do seu banco pra pagar. A confirmação atualiza esta tela automaticamente assim que o C6 Bank avisar (pode levar alguns instantes).
+            </p>
+            <textarea readOnly value={pixAtivo.qrCode} rows={4} style={{ width: '100%', fontFamily: 'var(--mono, monospace)', fontSize: 12 }} onClick={(event) => (event.target as HTMLTextAreaElement).select()} />
+            <button className="secondary-btn" style={{ marginTop: 8 }} onClick={() => setPixAtivo(null)}>Fechar</button>
+          </div>
+        )}
 
         {selectedInvoice && (
           <div className="flow-run-detail">

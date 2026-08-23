@@ -22,6 +22,8 @@ export type BillingInvoice = {
   status: InvoiceStatus;
   dueDate: string;
   paidAt: string | null;
+  gatewayProvider: string | null;
+  gatewayQrCode: string | null;
 };
 
 export type BillingInvoiceItem = {
@@ -59,6 +61,8 @@ function mapInvoice(row: Record<string, unknown>): BillingInvoice {
     status: row.status as InvoiceStatus,
     dueDate: row.due_date as string,
     paidAt: (row.paid_at as string) || null,
+    gatewayProvider: (row.gateway_provider as string) || null,
+    gatewayQrCode: (row.gateway_qr_code as string) || null,
   };
 }
 
@@ -66,7 +70,7 @@ export async function listInvoices(clienteId: string): Promise<BillingInvoice[]>
   const client = requireClient();
   const { data, error } = await client
     .from('billing_invoices')
-    .select('id, plan_code, period_start, period_end, plan_fixed_amount_brl, usage_raw_cost_usd, usage_included_usd, usage_overage_usd, usage_billed_amount_brl, total_amount_brl, status, due_date, paid_at')
+    .select('id, plan_code, period_start, period_end, plan_fixed_amount_brl, usage_raw_cost_usd, usage_included_usd, usage_overage_usd, usage_billed_amount_brl, total_amount_brl, status, due_date, paid_at, gateway_provider, gateway_qr_code')
     .eq('cliente_id', clienteId)
     .order('period_start', { ascending: false });
   if (error) throw error;
@@ -131,4 +135,40 @@ export async function markInvoicePaid(invoiceId: string): Promise<{ ok: true } |
   const { error } = await client.rpc('fn_mark_invoice_paid', { p_invoice_id: invoiceId });
   if (error) return { error: error.message };
   return { ok: true };
+}
+
+type BillingAdminOk<T> = { ok: true } & T;
+type BillingAdminErr = { ok: false; error?: string; message?: string };
+type BillingAdminResult<T> = BillingAdminOk<T> | BillingAdminErr;
+
+async function extractBillingFunctionErrorMessage(error: { message: string; context?: unknown }): Promise<string> {
+  const context = error.context;
+  if (context && typeof (context as Response).clone === 'function') {
+    try {
+      const body = await (context as Response).clone().json();
+      if (body && typeof body === 'object' && typeof (body as { error?: unknown }).error === 'string') {
+        return (body as { error: string }).error;
+      }
+    } catch {
+      // corpo não é JSON válido -- cai no fallback abaixo
+    }
+  }
+  return error.message;
+}
+
+export async function createGatewayCharge(invoiceId: string, clienteId?: string | null): Promise<
+  { chargeId: string; qrCode: string; expiresAt: string } | { error: string }
+> {
+  const client = requireClient();
+  try {
+    const { data, error } = await client.functions.invoke('billing-admin', {
+      body: { action: 'createGatewayCharge', invoiceId, clienteId: clienteId || null },
+    });
+    if (error) return { error: await extractBillingFunctionErrorMessage(error) };
+    const payload = data as BillingAdminResult<{ chargeId: string; qrCode: string; expiresAt: string }>;
+    if (!payload || payload.ok !== true) return { error: (payload as BillingAdminErr)?.message || (payload as BillingAdminErr)?.error || 'Resposta vazia.' };
+    return { chargeId: payload.chargeId, qrCode: payload.qrCode, expiresAt: payload.expiresAt };
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : 'Falha ao chamar billing-admin.' };
+  }
 }
