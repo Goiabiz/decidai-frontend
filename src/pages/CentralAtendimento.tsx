@@ -23,7 +23,7 @@ export type CentralAtendimentoProps = {
 };
 
 const statusList: AtendimentoStatus[] = ['Novo', 'Em andamento', 'Aguardando resposta', 'Concluído', 'Cancelado'];
-const canais = ['E-mail', 'WhatsApp', 'Widget', 'API', 'Manual', 'Telegram'];
+const canais = ['E-mail', 'WhatsApp', 'Widget', 'API', 'Manual', 'Telegram', 'Instagram', 'Messenger', 'SMS'];
 
 function buildDetail(atendimento: Atendimento): PanelDetail {
   const categoria: StatusCategory = categorizeStatusLabel(atendimento.status);
