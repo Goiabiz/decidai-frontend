@@ -1,13 +1,33 @@
 import { universoSupabase } from '../lib/supabase';
 
-// DecidAI Market v1 -- Reputation Intelligence (Plano Mestre v4 §6.5). Leitura/config de
-// fontes é direto contra o Supabase (RLS normal, mesmo padrão de services/crm.ts) -- só a
-// sincronização real com o Google Business Profile passa pela Edge Function market-admin
-// (precisa do runtime do agente, onde mora a credencial OAuth).
+// DecidAI Market -- Reputation Intelligence (Plano Mestre v4 §6.5). Leitura/config de fontes
+// é direto contra o Supabase (RLS normal, mesmo padrão de services/crm.ts) -- só a
+// sincronização real passa pela Edge Function market-admin (precisa do runtime do agente,
+// onde moram as credenciais). v1 (Frente F) cobria só Google Business Profile; v2 (Frente C)
+// fecha o pilar com Trustpilot/Track.co (Tracksale)/Reclame Aqui.
+
+export type MarketReputationSource = 'google_business_profile' | 'trustpilot' | 'tracksale' | 'reclame_aqui';
+
+export const MARKET_REPUTATION_SOURCE_LABELS: Record<MarketReputationSource, string> = {
+  google_business_profile: 'Google Business Profile',
+  trustpilot: 'Trustpilot',
+  tracksale: 'Track.co / Tracksale',
+  reclame_aqui: 'Reclame Aqui',
+};
+
+// Google Business Profile e Trustpilot exigem um identificador real por fonte (local/Business
+// Unit ID) -- a API é escopada por ele. Track.co/Tracksale e Reclame Aqui não têm parâmetro de
+// escopo (1 credencial = 1 conta inteira); o campo vira só um rótulo livre.
+export const MARKET_REPUTATION_SOURCE_NEEDS_REAL_REF: Record<MarketReputationSource, boolean> = {
+  google_business_profile: true,
+  trustpilot: true,
+  tracksale: false,
+  reclame_aqui: false,
+};
 
 export type MarketSource = {
   id: string;
-  source: 'google_business_profile';
+  source: MarketReputationSource;
   externalRef: string;
   label: string;
   ativo: boolean;
@@ -15,11 +35,13 @@ export type MarketSource = {
   lastSyncError: string | null;
 };
 
-export type MarketSourceInput = { externalRef: string; label: string };
+export type MarketSourceInput = { source: MarketReputationSource; externalRef: string; label: string };
 
 export type MarketSignal = {
   id: string;
   sourceId: string;
+  source: MarketReputationSource;
+  signalType: 'review' | 'nps' | 'csat' | 'complaint';
   authorName: string | null;
   rating: number | null;
   comment: string | null;
@@ -63,7 +85,7 @@ export async function createReputationSource(clienteId: string, input: MarketSou
     .from('market_reputation_sources')
     .insert({
       cliente_id: clienteId,
-      source: 'google_business_profile',
+      source: input.source,
       external_ref: input.externalRef,
       label: input.label,
     })
@@ -82,12 +104,14 @@ export async function setReputationSourceAtivo(id: string, ativo: boolean): Prom
   if (error) throw error;
 }
 
-const SIGNAL_SELECT = 'id, source_id, author_name, rating, comment, reply_comment, occurred_at';
+const SIGNAL_SELECT = 'id, source_id, source, signal_type, author_name, rating, comment, reply_comment, occurred_at';
 
 function mapSignal(row: Record<string, unknown>): MarketSignal {
   return {
     id: row.id as string,
     sourceId: row.source_id as string,
+    source: row.source as MarketReputationSource,
+    signalType: row.signal_type as MarketSignal['signalType'],
     authorName: (row.author_name as string) || null,
     rating: (row.rating as number) ?? null,
     comment: (row.comment as string) || null,
@@ -144,6 +168,25 @@ export async function syncGbpReviewsNow(clienteId?: string | null): Promise<
   try {
     const { data, error } = await client.functions.invoke('market-admin', {
       body: { action: 'syncGbp', clienteId: clienteId || null },
+    });
+    if (error) return { error: await extractFunctionErrorMessage(error) };
+    const payload = data as MarketAdminResult<{ sourcesSynced: number; signalsUpserted: number; errors: string[] }>;
+    if (!payload || payload.ok !== true) return { error: (payload as MarketAdminErr)?.error || 'Resposta vazia.' };
+    return { sourcesSynced: payload.sourcesSynced, signalsUpserted: payload.signalsUpserted, errors: payload.errors };
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : 'Falha ao chamar market-admin.' };
+  }
+}
+
+export type ReputationSyncableSource = Exclude<MarketReputationSource, 'google_business_profile'>;
+
+export async function syncReputationSourceNow(clienteId: string | null | undefined, source: ReputationSyncableSource): Promise<
+  { sourcesSynced: number; signalsUpserted: number; errors: string[] } | { error: string }
+> {
+  const client = requireClient();
+  try {
+    const { data, error } = await client.functions.invoke('market-admin', {
+      body: { action: 'syncReputationSource', source, clienteId: clienteId || null },
     });
     if (error) return { error: await extractFunctionErrorMessage(error) };
     const payload = data as MarketAdminResult<{ sourcesSynced: number; signalsUpserted: number; errors: string[] }>;
