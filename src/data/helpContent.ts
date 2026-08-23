@@ -197,11 +197,13 @@ export const helpContent: Record<PageKey, HelpEntry> = {
     ],
   },
   'param-creditos': {
-    summary: 'Saldo de créditos e histórico de consumo de IA deste ambiente.',
+    summary: 'Saldo de créditos, histórico de consumo de IA e faturas deste ambiente.',
     tips: [
       'Cada débito é gerado automaticamente a partir de uma chamada real de IA (tokens reais, não estimados) — você não lança isso manualmente.',
       'Só administradores do ambiente veem esta tela.',
       'Uso de modelos sem preço cadastrado ainda não é descontado do saldo (aparece como custo zero até o preço ser confirmado).',
+      '"Fechar período e gerar fatura" e "Marcar como paga" só aparecem pra suporte/administrador da operadora — soma o consumo real do período com a mensalidade do plano.',
+      'Mensalidade e preço de excedente aparecem como "não confirmado" até alguém cadastrar o valor comercial real do plano — nada é inventado.',
     ],
   },
   'rel-personalizado': {

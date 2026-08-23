@@ -3,8 +3,19 @@ import { Wallet } from 'lucide-react';
 import { PageHeader } from '../../components/PageHeader';
 import { Badge } from '../../components/Badge';
 import { ExportAction } from '../../components/ExportAction';
+import { showAppToast } from '../../lib/appToast';
 import { useSession, usePermission } from '../../contexts/SessionContext';
 import { getCreditsBalance, listCreditsLedger, type CreditsLedgerEntry, type CreditsLedgerTipo } from '../../services/creditos';
+import {
+  closeBillingPeriod,
+  getPlanPricing,
+  listInvoiceItems,
+  listInvoices,
+  markInvoicePaid,
+  type BillingInvoice,
+  type BillingInvoiceItem,
+  type PlanPricing,
+} from '../../services/billing';
 
 const TIPO_LABELS: Record<CreditsLedgerTipo, string> = {
   debito_uso: 'Uso de IA',
@@ -30,14 +41,53 @@ function formatDateTime(iso: string) {
   return date.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
+function formatDate(iso: string) {
+  const date = new Date(`${iso}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return iso;
+  return date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+}
+
+function formatBrl(value: number) {
+  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
+}
+
+const INVOICE_STATUS_LABELS: Record<BillingInvoice['status'], string> = { open: 'Em aberto', paid: 'Paga', void: 'Cancelada' };
+const INVOICE_STATUS_TONE: Record<BillingInvoice['status'], string> = { open: 'orange', paid: 'green', void: 'gray' };
+
+function currentMonthRange(): { start: string; end: string } {
+  const now = new Date();
+  const start = new Date(now.getFullYear(), now.getMonth(), 1);
+  const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+  const toIso = (d: Date) => d.toISOString().slice(0, 10);
+  return { start: toIso(start), end: toIso(end) };
+}
+
 export function Creditos() {
   const { session } = useSession();
   const podeVer = usePermission('creditos.acessar.visualizar');
   const clienteId = session?.activeClientId ?? null;
 
+  const podeEditarFaturas = usePermission('creditos.acessar.editar');
+
   const [balance, setBalance] = useState(0);
   const [ledger, setLedger] = useState<CreditsLedgerEntry[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const [plano, setPlano] = useState<PlanPricing | null>(null);
+  const [invoices, setInvoices] = useState<BillingInvoice[]>([]);
+  const [selectedInvoice, setSelectedInvoice] = useState<{ id: string; items: BillingInvoiceItem[] } | null>(null);
+  const [fechando, setFechando] = useState(false);
+  const [periodo, setPeriodo] = useState(currentMonthRange());
+
+  const loadFaturamento = () => {
+    if (!clienteId) return;
+    Promise.all([getPlanPricing(clienteId), listInvoices(clienteId)])
+      .then(([planoResult, invoicesResult]) => {
+        setPlano(planoResult);
+        setInvoices(invoicesResult);
+      })
+      .catch((error) => showAppToast(error instanceof Error ? error.message : 'Falha ao carregar faturamento.', 'warning'));
+  };
 
   useEffect(() => {
     if (!podeVer || !clienteId) { setLoading(false); return; }
@@ -48,7 +98,37 @@ export function Creditos() {
         setLedger(ledgerResult.items);
       })
       .finally(() => setLoading(false));
+    loadFaturamento();
   }, [podeVer, clienteId]);
+
+  const openInvoice = async (invoiceId: string) => {
+    try {
+      const items = await listInvoiceItems(invoiceId);
+      setSelectedInvoice({ id: invoiceId, items });
+    } catch (error) {
+      showAppToast(error instanceof Error ? error.message : 'Falha ao carregar itens da fatura.', 'warning');
+    }
+  };
+
+  const handleCloseBillingPeriod = async () => {
+    if (!clienteId) return;
+    setFechando(true);
+    try {
+      const result = await closeBillingPeriod(clienteId, periodo.start, periodo.end);
+      if ('error' in result) return showAppToast(result.error, 'warning');
+      showAppToast('Fatura do período gerada.', 'success');
+      loadFaturamento();
+    } finally {
+      setFechando(false);
+    }
+  };
+
+  const handleMarkPaid = async (invoiceId: string) => {
+    const result = await markInvoicePaid(invoiceId);
+    if ('error' in result) return showAppToast(result.error, 'warning');
+    showAppToast('Fatura marcada como paga.', 'success');
+    loadFaturamento();
+  };
 
   const totals = useMemo(() => {
     const debitos = ledger.filter((item) => item.tipo === 'debito_uso').reduce((sum, item) => sum + item.valor, 0);
@@ -106,6 +186,83 @@ export function Creditos() {
           <p className="section-description" style={{ marginTop: 8 }}>
             {formatUsd(totals.creditos)} em créditos lançados · {formatUsd(totals.debitos)} consumidos em uso de IA.
           </p>
+        )}
+      </section>
+
+      <section className="card audit-clean-card" style={{ marginBottom: 16 }}>
+        <div className="section-title-row">
+          <div>
+            <h3>Plano e faturamento</h3>
+            <p className="section-description">
+              {plano ? (
+                <>
+                  Plano <strong>{plano.name}</strong> — mensalidade {plano.monthlyPriceBrl !== null ? formatBrl(plano.monthlyPriceBrl) : 'não confirmada'}, franquia de uso de IA {formatUsd(plano.includedCreditsUsd)}, excedente {plano.overagePricePerUsdBrl !== null ? `${formatBrl(plano.overagePricePerUsdBrl)} por US$1 consumido além da franquia` : 'não confirmado'}.
+                </>
+              ) : (
+                'Este ambiente não tem plano associado.'
+              )}
+            </p>
+          </div>
+          <Badge tone="blue">{invoices.length} fatura(s)</Badge>
+        </div>
+
+        {podeEditarFaturas && (
+          <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', marginBottom: 14, flexWrap: 'wrap' }}>
+            <label style={{ fontSize: 12.5 }}>
+              <span style={{ display: 'block', marginBottom: 4 }}>Início do período</span>
+              <input type="date" value={periodo.start} onChange={(event) => setPeriodo((c) => ({ ...c, start: event.target.value }))} />
+            </label>
+            <label style={{ fontSize: 12.5 }}>
+              <span style={{ display: 'block', marginBottom: 4 }}>Fim do período</span>
+              <input type="date" value={periodo.end} onChange={(event) => setPeriodo((c) => ({ ...c, end: event.target.value }))} />
+            </label>
+            <button className="secondary-btn" onClick={handleCloseBillingPeriod} disabled={fechando}>
+              {fechando ? 'Gerando...' : 'Fechar período e gerar fatura'}
+            </button>
+          </div>
+        )}
+
+        <div className="simple-table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Período</th>
+                <th>Vencimento</th>
+                <th>Total</th>
+                <th>Status</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {invoices.map((invoice) => (
+                <tr key={invoice.id} className="clickable-row" onClick={() => openInvoice(invoice.id)}>
+                  <td>{formatDate(invoice.periodStart)} – {formatDate(invoice.periodEnd)}</td>
+                  <td className="table-subtitle">{formatDate(invoice.dueDate)}</td>
+                  <td>{formatBrl(invoice.totalAmountBrl)}</td>
+                  <td><Badge tone={INVOICE_STATUS_TONE[invoice.status]}>{INVOICE_STATUS_LABELS[invoice.status]}</Badge></td>
+                  <td onClick={(event) => event.stopPropagation()}>
+                    {podeEditarFaturas && invoice.status === 'open' && (
+                      <button className="secondary-btn" onClick={() => handleMarkPaid(invoice.id)}>Marcar como paga</button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {invoices.length === 0 && <p className="empty-note">Nenhuma fatura gerada ainda para este ambiente.</p>}
+        </div>
+
+        {selectedInvoice && (
+          <div className="flow-run-detail">
+            <h4>Itens da fatura</h4>
+            {selectedInvoice.items.length === 0 && <p className="empty-note">Sem itens (fatura zerada).</p>}
+            {selectedInvoice.items.map((item) => (
+              <div key={item.id} className="flow-run-step-row">
+                <span>{item.description}</span>
+                <strong>{formatBrl(item.amountBrl)}</strong>
+              </div>
+            ))}
+          </div>
         )}
       </section>
 

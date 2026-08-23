@@ -1,0 +1,134 @@
+import { universoSupabase } from '../lib/supabase';
+
+// DecidAI Core / Billing v1 (Plano Mestre v4 §29-36) -- Frente F. Fatura como documento real
+// (Pricing + Billing Engine), sem gateway de pagamento ainda. Chamadas diretas via
+// supabase.rpc(), mesmo padrão já usado em services/auth.ts (fn_claim_pending_usuario_cliente)
+// -- as funções fn_close_billing_period/fn_mark_invoice_paid já se auto-protegem (staff-only,
+// checado dentro da função via fn_current_usuario_sistema()), não precisa de Edge Function.
+
+export type InvoiceStatus = 'open' | 'paid' | 'void';
+
+export type BillingInvoice = {
+  id: string;
+  planCode: string;
+  periodStart: string;
+  periodEnd: string;
+  planFixedAmountBrl: number;
+  usageRawCostUsd: number;
+  usageIncludedUsd: number;
+  usageOverageUsd: number;
+  usageBilledAmountBrl: number;
+  totalAmountBrl: number;
+  status: InvoiceStatus;
+  dueDate: string;
+  paidAt: string | null;
+};
+
+export type BillingInvoiceItem = {
+  id: string;
+  kind: 'plan_fee' | 'usage_overage';
+  description: string;
+  amountBrl: number;
+};
+
+export type PlanPricing = {
+  code: string;
+  name: string;
+  monthlyPriceBrl: number | null;
+  includedCreditsUsd: number;
+  overagePricePerUsdBrl: number | null;
+};
+
+function requireClient() {
+  if (!universoSupabase) throw new Error('Supabase não configurado neste ambiente.');
+  return universoSupabase;
+}
+
+function mapInvoice(row: Record<string, unknown>): BillingInvoice {
+  return {
+    id: row.id as string,
+    planCode: row.plan_code as string,
+    periodStart: row.period_start as string,
+    periodEnd: row.period_end as string,
+    planFixedAmountBrl: Number(row.plan_fixed_amount_brl),
+    usageRawCostUsd: Number(row.usage_raw_cost_usd),
+    usageIncludedUsd: Number(row.usage_included_usd),
+    usageOverageUsd: Number(row.usage_overage_usd),
+    usageBilledAmountBrl: Number(row.usage_billed_amount_brl),
+    totalAmountBrl: Number(row.total_amount_brl),
+    status: row.status as InvoiceStatus,
+    dueDate: row.due_date as string,
+    paidAt: (row.paid_at as string) || null,
+  };
+}
+
+export async function listInvoices(clienteId: string): Promise<BillingInvoice[]> {
+  const client = requireClient();
+  const { data, error } = await client
+    .from('billing_invoices')
+    .select('id, plan_code, period_start, period_end, plan_fixed_amount_brl, usage_raw_cost_usd, usage_included_usd, usage_overage_usd, usage_billed_amount_brl, total_amount_brl, status, due_date, paid_at')
+    .eq('cliente_id', clienteId)
+    .order('period_start', { ascending: false });
+  if (error) throw error;
+  return (data ?? []).map(mapInvoice);
+}
+
+export async function listInvoiceItems(invoiceId: string): Promise<BillingInvoiceItem[]> {
+  const client = requireClient();
+  const { data, error } = await client
+    .from('billing_invoice_items')
+    .select('id, kind, description, amount_brl')
+    .eq('invoice_id', invoiceId);
+  if (error) throw error;
+  return (data ?? []).map((row) => ({
+    id: row.id as string,
+    kind: row.kind as BillingInvoiceItem['kind'],
+    description: row.description as string,
+    amountBrl: Number(row.amount_brl),
+  }));
+}
+
+export async function getPlanPricing(clienteId: string): Promise<PlanPricing | null> {
+  const client = requireClient();
+  const { data: cliente, error: clienteError } = await client
+    .from('platform_clients')
+    .select('plano_id')
+    .eq('id', clienteId)
+    .maybeSingle();
+  if (clienteError) throw clienteError;
+  if (!cliente?.plano_id) return null;
+
+  const { data: plano, error: planoError } = await client
+    .from('platform_plans')
+    .select('code, name, monthly_price_brl, included_credits_usd, overage_price_per_usd_brl')
+    .eq('id', cliente.plano_id)
+    .maybeSingle();
+  if (planoError) throw planoError;
+  if (!plano) return null;
+
+  return {
+    code: plano.code,
+    name: plano.name,
+    monthlyPriceBrl: plano.monthly_price_brl === null ? null : Number(plano.monthly_price_brl),
+    includedCreditsUsd: Number(plano.included_credits_usd),
+    overagePricePerUsdBrl: plano.overage_price_per_usd_brl === null ? null : Number(plano.overage_price_per_usd_brl),
+  };
+}
+
+export async function closeBillingPeriod(clienteId: string, periodStart: string, periodEnd: string): Promise<{ id: string } | { error: string }> {
+  const client = requireClient();
+  const { data, error } = await client.rpc('fn_close_billing_period', {
+    p_cliente_id: clienteId,
+    p_period_start: periodStart,
+    p_period_end: periodEnd,
+  });
+  if (error) return { error: error.message };
+  return { id: data as string };
+}
+
+export async function markInvoicePaid(invoiceId: string): Promise<{ ok: true } | { error: string }> {
+  const client = requireClient();
+  const { error } = await client.rpc('fn_mark_invoice_paid', { p_invoice_id: invoiceId });
+  if (error) return { error: error.message };
+  return { ok: true };
+}
