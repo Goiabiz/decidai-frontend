@@ -2,6 +2,30 @@ import { universoSupabase } from '../lib/supabase';
 
 export type KnowledgeSourceType = 'agente_extraido' | 'manual' | 'documento';
 
+// Onda J (Knowledge Lifecycle, emenda Imya, migration 107). Grafo real:
+// CANDIDATE -> PRIVATE -> PENDING_APPROVAL -> VALIDATED -> SHARED -> SUPERSEDED -> ARCHIVED.
+// SHARED não é oferecido nesta tela -- promover pra lá exige decisão de produto sobre
+// cross-customer learning ainda não tomada (Edge Function recusa esse alvo). SUPERSEDED
+// não é alcançável por ação manual -- não existe versionamento de entrada ainda.
+export type KnowledgeLifecycleState =
+  | 'CANDIDATE' | 'PRIVATE' | 'PENDING_APPROVAL' | 'VALIDATED' | 'SHARED' | 'SUPERSEDED' | 'ARCHIVED';
+
+export const KNOWLEDGE_LIFECYCLE_NEXT: Partial<Record<KnowledgeLifecycleState, { state: KnowledgeLifecycleState; label: string }>> = {
+  CANDIDATE: { state: 'PRIVATE', label: 'Manter' },
+  PRIVATE: { state: 'PENDING_APPROVAL', label: 'Enviar pra aprovação' },
+  PENDING_APPROVAL: { state: 'VALIDATED', label: 'Aprovar' },
+};
+
+export const KNOWLEDGE_LIFECYCLE_LABELS: Record<KnowledgeLifecycleState, string> = {
+  CANDIDATE: 'Candidato (não revisado)',
+  PRIVATE: 'Privado',
+  PENDING_APPROVAL: 'Aguardando aprovação',
+  VALIDATED: 'Validado',
+  SHARED: 'Compartilhado',
+  SUPERSEDED: 'Substituído',
+  ARCHIVED: 'Arquivado',
+};
+
 export type KnowledgeEntryRecord = {
   id: string;
   title: string;
@@ -10,6 +34,7 @@ export type KnowledgeEntryRecord = {
   tags: string[];
   category: string | null;
   createdByUserId: string | null;
+  lifecycleState: KnowledgeLifecycleState;
   createdAt: string;
 };
 
@@ -83,5 +108,10 @@ export async function updateKnowledgeEntry(id: string, input: { title: string; c
 
 export async function deleteKnowledgeEntry(id: string, clienteId?: string | null): Promise<void> {
   const result = await callKnowledgeAdmin({ action: 'delete', id, clienteId: clienteId || null });
+  if (!isKnowledgeAdminOk(result)) throw new Error(result.error);
+}
+
+export async function transitionKnowledgeEntry(id: string, newState: KnowledgeLifecycleState, clienteId?: string | null): Promise<void> {
+  const result = await callKnowledgeAdmin({ action: 'transition', id, newState, clienteId: clienteId || null });
   if (!isKnowledgeAdminOk(result)) throw new Error(result.error);
 }

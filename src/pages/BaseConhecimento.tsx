@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Bot, Edit3, FileText, Info, Search, Trash2, X } from 'lucide-react';
+import { Archive, ArrowRightCircle, Bot, Edit3, FileText, Info, Search, Trash2, X } from 'lucide-react';
 import { Badge } from '../components/Badge';
 import { PageHeader } from '../components/PageHeader';
 import { normalizeFilterText } from '../components/SmartFilters';
@@ -7,7 +7,17 @@ import { confirmApp } from '../lib/appConfirm';
 import { showAppToast } from '../lib/appToast';
 import { useSession } from '../contexts/SessionContext';
 import { logAudit } from '../services/auditLog';
-import { deleteKnowledgeEntry, listKnowledgeEntries, updateKnowledgeEntry, type KnowledgeEntryRecord, type KnowledgeSourceType } from '../services/baseConhecimento';
+import {
+  deleteKnowledgeEntry,
+  listKnowledgeEntries,
+  transitionKnowledgeEntry,
+  updateKnowledgeEntry,
+  KNOWLEDGE_LIFECYCLE_LABELS,
+  KNOWLEDGE_LIFECYCLE_NEXT,
+  type KnowledgeEntryRecord,
+  type KnowledgeLifecycleState,
+  type KnowledgeSourceType,
+} from '../services/baseConhecimento';
 
 const categorias = ['Comercial', 'Integração', 'Operacional', 'Produto', 'Regra de negócio', 'Regulatório', 'Suporte'];
 
@@ -15,6 +25,19 @@ const sourceLabel: Record<KnowledgeSourceType, string> = {
   agente_extraido: 'Extraído pelo agente',
   manual: 'Cadastro manual',
   documento: 'Documento',
+};
+
+// Onda J (Knowledge Lifecycle). Só entradas VALIDATED/SHARED entram na busca semântica
+// que o agente usa pra responder -- o resto fica visível aqui pra curadoria, mas ainda
+// não é citado como fato pelo agente.
+const lifecycleTone: Record<KnowledgeLifecycleState, string> = {
+  CANDIDATE: 'yellow',
+  PRIVATE: 'gray',
+  PENDING_APPROVAL: 'orange',
+  VALIDATED: 'green',
+  SHARED: 'purple',
+  SUPERSEDED: 'gray',
+  ARCHIVED: 'gray',
 };
 
 function formatDateTime(iso: string) {
@@ -83,6 +106,61 @@ export function BaseConhecimento() {
       showAppToast(error instanceof Error ? error.message : 'Não foi possível salvar.', 'error');
     } finally {
       setSalvando(false);
+    }
+  };
+
+  const advance = async (item: KnowledgeEntryRecord) => {
+    const next = KNOWLEDGE_LIFECYCLE_NEXT[item.lifecycleState];
+    if (!next) return;
+
+    try {
+      await transitionKnowledgeEntry(item.id, next.state, clienteId);
+      await carregar();
+      showAppToast(`Estado atualizado para "${KNOWLEDGE_LIFECYCLE_LABELS[next.state]}".`, 'success');
+
+      void logAudit({
+        usuarioNome: session?.user.displayName || 'Desconhecido',
+        usuarioEmail: session?.user.email || '',
+        modulo: 'base_conhecimento',
+        funcionalidade: 'transicao_estado_conhecimento',
+        operacao: 'update',
+        registroId: item.id,
+        dadosAntes: { lifecycleState: item.lifecycleState },
+        dadosDepois: { lifecycleState: next.state },
+        observacao: `"${item.title}" avançou de ${KNOWLEDGE_LIFECYCLE_LABELS[item.lifecycleState]} pra ${KNOWLEDGE_LIFECYCLE_LABELS[next.state]}.`,
+      });
+    } catch (error) {
+      showAppToast(error instanceof Error ? error.message : 'Não foi possível atualizar o estado.', 'error');
+    }
+  };
+
+  const archive = async (item: KnowledgeEntryRecord) => {
+    const confirmed = await confirmApp({
+      title: 'Arquivar conhecimento',
+      description: `Arquivar "${item.title}"? O agente para de citar isso como resposta. Não existe ação de desarquivar por aqui ainda -- o registro continua nesta lista, só marcado como arquivado.`,
+      confirmLabel: 'Arquivar',
+      tone: 'warning',
+    });
+    if (!confirmed) return;
+
+    try {
+      await transitionKnowledgeEntry(item.id, 'ARCHIVED', clienteId);
+      await carregar();
+      showAppToast('Conhecimento arquivado.', 'info');
+
+      void logAudit({
+        usuarioNome: session?.user.displayName || 'Desconhecido',
+        usuarioEmail: session?.user.email || '',
+        modulo: 'base_conhecimento',
+        funcionalidade: 'transicao_estado_conhecimento',
+        operacao: 'update',
+        registroId: item.id,
+        dadosAntes: { lifecycleState: item.lifecycleState },
+        dadosDepois: { lifecycleState: 'ARCHIVED' },
+        observacao: `"${item.title}" arquivado.`,
+      });
+    } catch (error) {
+      showAppToast(error instanceof Error ? error.message : 'Não foi possível arquivar.', 'error');
     }
   };
 
@@ -156,12 +234,15 @@ export function BaseConhecimento() {
                 <th>Conhecimento</th>
                 <th>Categoria</th>
                 <th>Origem</th>
+                <th>Estado</th>
                 <th>Publicado em</th>
                 <th>Ações</th>
               </tr>
             </thead>
             <tbody>
-              {filtered.map((item) => (
+              {filtered.map((item) => {
+                const next = KNOWLEDGE_LIFECYCLE_NEXT[item.lifecycleState];
+                return (
                 <tr key={item.id}>
                   <td>
                     <strong>{item.title}</strong>
@@ -170,17 +251,21 @@ export function BaseConhecimento() {
                   </td>
                   <td>{item.category ? <Badge tone="blue">{item.category}</Badge> : '-'}</td>
                   <td><span className="origin-pill"><FileText size={14} /> {sourceLabel[item.sourceType] || item.sourceType}</span></td>
+                  <td><Badge tone={lifecycleTone[item.lifecycleState]}>{KNOWLEDGE_LIFECYCLE_LABELS[item.lifecycleState]}</Badge></td>
                   <td>{formatDateTime(item.createdAt)}</td>
                   <td>
                     <div className="row-action-group">
+                      {next && <button title={next.label} onClick={() => void advance(item)}><ArrowRightCircle size={16} /></button>}
+                      {item.lifecycleState !== 'ARCHIVED' && <button title="Arquivar" onClick={() => void archive(item)}><Archive size={16} /></button>}
                       <button title="Editar" onClick={() => openEdit(item)}><Edit3 size={16} /></button>
                       <button title="Excluir" onClick={() => void remove(item)}><Trash2 size={16} /></button>
                     </div>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
               {!loading && filtered.length === 0 && !loadError && (
-                <tr><td colSpan={5} className="empty-note">Nenhum conhecimento publicado ainda.</td></tr>
+                <tr><td colSpan={6} className="empty-note">Nenhum conhecimento publicado ainda.</td></tr>
               )}
             </tbody>
           </table>
