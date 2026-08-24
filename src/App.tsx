@@ -20,6 +20,7 @@ import { ConectoresCredenciais } from './pages/parametrizacao/ConectoresCredenci
 import { Canais } from './pages/parametrizacao/Canais';
 import { CamposContexto } from './pages/cadastros/CamposContexto';
 import { FormulariosTelas } from './pages/cadastros/FormulariosTelas';
+import { EnterpriseKnowledgeIntranet } from './pages/intranet/EnterpriseKnowledgeIntranet';
 import { Preferencias } from './pages/parametrizacao/Preferencias';
 import RelatorioAuditoria from './pages/relatorios/RelatorioAuditoria';
 import RelatorioAtendimentos from './pages/relatorios/RelatorioAtendimentos';
@@ -32,6 +33,7 @@ import { SegurancaAuditoria } from './pages/parametrizacao/SegurancaAuditoria';
 import { ServicosFilas } from './pages/central-atendimento/ServicosFilas';
 import { Flows } from './pages/Flows';
 import { Reputacao } from './pages/Reputacao';
+import { EngajamentoSocial } from './pages/EngajamentoSocial';
 import { CrmContatos } from './pages/crm/Contatos';
 import { CrmPipeline } from './pages/crm/Pipeline';
 import { UnidadesCentrosCusto } from './pages/cadastros/UnidadesCentrosCusto';
@@ -42,6 +44,7 @@ import { Login } from './pages/Login';
 import { PortalCliente } from './pages/portal/PortalCliente';
 import { PartnerSubmission } from './pages/PartnerSubmission';
 import { ConfirmarAcesso } from './pages/ConfirmarAcesso';
+import { GithubAppCallback } from './pages/GithubAppCallback';
 import { useSession } from './contexts/SessionContext';
 import { applyWorkspacePreferences, loadWorkspacePreferences } from './lib/preferences';
 
@@ -59,6 +62,7 @@ export type PageKey =
   | 'atendimento-servicos'
   | 'flows'
   | 'market-reputacao'
+  | 'market-social'
   | 'crm-contatos'
   | 'crm-pipeline'
   | 'analise'
@@ -79,6 +83,7 @@ export type PageKey =
   | 'rel-tarefas'
   | 'rel-integracoes'
   | 'rel-auditoria'
+  | 'intranet-conhecimento'
   | 'ajuda';
 
 const rightPanelByPage: Record<PageKey, React.ComponentProps<typeof RightPanel>['variant']> = {
@@ -95,6 +100,7 @@ const rightPanelByPage: Record<PageKey, React.ComponentProps<typeof RightPanel>[
   'atendimento-servicos': 'config',
   flows: 'config',
   'market-reputacao': 'config',
+  'market-social': 'config',
   'crm-contatos': 'config',
   'crm-pipeline': 'config',
   analise: 'acao',
@@ -115,6 +121,7 @@ const rightPanelByPage: Record<PageKey, React.ComponentProps<typeof RightPanel>[
   'rel-tarefas': 'acao',
   'rel-integracoes': 'config',
   'rel-auditoria': 'config',
+  'intranet-conhecimento': 'documento',
   ajuda: 'config',
 };
 
@@ -152,6 +159,10 @@ export function App() {
     return <ConfirmarAcesso />;
   }
 
+  if (window.location.pathname.startsWith('/parametrizacao/conectores/github/callback')) {
+    return <GithubAppCallback />;
+  }
+
   if (loading) {
     return <div className="app-loading">Carregando...</div>;
   }
@@ -181,6 +192,7 @@ export function App() {
     'atendimento-servicos': <ServicosFilas onSelectDetail={handleSelectDetail} onOpenDetail={setExpandedDetail} />,
     flows: <Flows />,
     'market-reputacao': <Reputacao />,
+    'market-social': <EngajamentoSocial />,
     'crm-contatos': <CrmContatos />,
     'crm-pipeline': <CrmPipeline />,
     analise: <AnaliseAcoes />,
@@ -201,6 +213,7 @@ export function App() {
     'rel-tarefas': <RelatorioTarefas />,
     'rel-integracoes': <RelatorioIntegracoes />,
     'rel-auditoria': <RelatorioAuditoria />,
+    'intranet-conhecimento': <EnterpriseKnowledgeIntranet />,
     ajuda: <CentralAjuda />,
   };
 

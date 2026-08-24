@@ -104,11 +104,19 @@ export const helpContent: Record<PageKey, HelpEntry> = {
     ],
   },
   'market-reputacao': {
-    summary: 'Sinais de reputação (avaliações, NPS, CSAT) agregados de fontes externas -- v1 cobre só Google Business Profile, leitura-só.',
+    summary: 'Sinais de reputação (avaliações, NPS, reclamações) agregados de 4 fontes externas -- Google Business Profile, Trustpilot, Track.co e Reclame Aqui, todas leitura-só.',
     tips: [
-      'Cadastre o identificador do local (formato "accounts/.../locations/...") em "Nova fonte" antes de sincronizar.',
-      '"Sincronizar agora" busca avaliações reais direto do Google -- não escreve nem responde nada em nome do tenant.',
-      'Desativar uma fonte para de sincronizá-la, mas não apaga o histórico de avaliações já coletadas.',
+      'Google Business Profile e Trustpilot exigem o identificador real do local/conta em "Nova fonte" -- Track.co e Reclame Aqui não têm esse parâmetro, só o nome que você escolher.',
+      '"Sincronizar agora" busca sinais reais direto de cada fonte -- não escreve nem responde nada em nome do tenant.',
+      'Desativar uma fonte para de sincronizá-la, mas não apaga o histórico de sinais já coletados.',
+    ],
+  },
+  'market-social': {
+    summary: 'Engajamento e alcance das redes sociais (Instagram, Facebook, LinkedIn, TikTok, YouTube) agregados num só lugar -- posts, curtidas, comentários e seguidores ao longo do tempo.',
+    tips: [
+      'Cadastre a conta/página/canal em "Nova fonte" -- cada rede pede um identificador diferente (ex.: ID da conta no Instagram, ID do canal no YouTube).',
+      'v1 traz métricas agregadas (contagem de curtidas/comentários/views), não o texto de comentários ou mensagens -- isso fica pra uma próxima fatia.',
+      '"Sincronizar agora" busca posts recentes e um retrato atual de seguidores/inscritos de cada fonte ativa.',
     ],
   },
   'crm-contatos': {
@@ -247,6 +255,15 @@ export const helpContent: Record<PageKey, HelpEntry> = {
     summary: 'Versão em relatório exportável da trilha de auditoria (mesma fonte de Parametrização → Auditoria).',
     tips: [
       'Prefira esta tela quando precisar exportar o log de auditoria para fora do sistema.',
+    ],
+  },
+  'intranet-conhecimento': {
+    title: 'Central de Conhecimento Interna',
+    summary: 'Enterprise Knowledge Intranet — Markets/Industry/Process/Pain Library e Playbooks de uso interno da operadora (Produto, DEV, Suporte, Comercial, Marketing).',
+    tips: [
+      'Visível só para staff da operadora (suporte/administração) — clientes nunca veem esta tela nem seu conteúdo.',
+      'Criação de conteúdo continua exclusiva do agente via Tool Gateway (mesma regra da Base de Conhecimento do cliente) — aqui você edita, classifica e organiza o que já foi publicado.',
+      'O campo "Visibilidade" controla quem pode ver cada entrada: "Só interno" nunca aparece para nenhum cliente, mesmo indiretamente pela busca do agente.',
     ],
   },
   ajuda: {

@@ -14,12 +14,14 @@ import {
   Home,
   KeyRound,
   LayoutTemplate,
+  LibraryBig,
   LifeBuoy,
   ListChecks,
   PanelLeftClose,
   PanelLeftOpen,
   Plug,
   Search,
+  Share2,
   ShieldAlert,
   SlidersHorizontal,
   Star,
@@ -53,6 +55,7 @@ type NavGroup = {
   label: string;
   icon: React.ReactNode;
   defaultPage?: PageKey;
+  staffOnly?: boolean;
   children: NavChild[];
 };
 
@@ -99,7 +102,10 @@ const navGroups: NavGroup[] = [
     label: 'Market',
     icon: <Star size={22} />,
     defaultPage: 'market-reputacao',
-    children: [{ key: 'market-reputacao', label: 'Reputação', icon: <Star size={18} /> }],
+    children: [
+      { key: 'market-reputacao', label: 'Reputação', icon: <Star size={18} /> },
+      { key: 'market-social', label: 'Engajamento Social', icon: <Share2 size={18} /> },
+    ],
   },
   {
     key: 'crm',
@@ -152,6 +158,14 @@ const navGroups: NavGroup[] = [
       { key: 'rel-integracoes', label: 'Integrações', icon: <Plug size={18} /> },
       { key: 'rel-tarefas', label: 'Tarefas', icon: <ClipboardList size={18} /> },
     ],
+  },
+  {
+    key: 'intranet',
+    label: 'Intranet DecidAI',
+    icon: <LibraryBig size={22} />,
+    defaultPage: 'intranet-conhecimento',
+    staffOnly: true,
+    children: [{ key: 'intranet-conhecimento', label: 'Central de Conhecimento Interna', icon: <LibraryBig size={18} /> }],
   },
   {
     key: 'ajuda-grupo',
@@ -295,7 +309,7 @@ export function Layout({ activePage, onNavigate, children, rightPanel }: { activ
         />
 
         <nav className="sidebar-nav">
-          {navGroups.map((group) => {
+          {navGroups.filter((group) => !group.staffOnly || isSupport).map((group) => {
             const isActiveGroup = activeGroupKey === group.key;
             const isOpen = isSidebarExpanded && (openGroups[group.key] || isActiveGroup);
             const singleChild = group.children.length === 1;
