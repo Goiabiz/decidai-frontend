@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Binoculars,
   BookOpen,
   Building2,
   ChartNoAxesCombined,
@@ -11,12 +12,14 @@ import {
   Contact,
   FileBarChart2,
   Headphones,
+  Boxes,
   Home,
   KeyRound,
   LayoutTemplate,
   LibraryBig,
   LifeBuoy,
   ListChecks,
+  Megaphone,
   PanelLeftClose,
   PanelLeftOpen,
   Plug,
@@ -76,6 +79,7 @@ const navGroups: NavGroup[] = [
       { key: 'base', label: 'Base de Conhecimento', icon: <BookOpen size={18} /> },
       { key: 'cad-usuarios', label: 'Usuários', icon: <Users size={18} /> },
       { key: 'cad-unidades', label: 'Unidades', icon: <Building2 size={18} /> },
+      { key: 'objetos-dinamicos', label: 'Objetos Dinâmicos', icon: <Boxes size={18} /> },
     ],
   },
   {
@@ -105,6 +109,8 @@ const navGroups: NavGroup[] = [
     children: [
       { key: 'market-reputacao', label: 'Reputação', icon: <Star size={18} /> },
       { key: 'market-social', label: 'Engajamento Social', icon: <Share2 size={18} /> },
+      { key: 'market-campanhas', label: 'Campanhas', icon: <Megaphone size={18} /> },
+      { key: 'market-concorrentes', label: 'Concorrentes', icon: <Binoculars size={18} /> },
     ],
   },
   {

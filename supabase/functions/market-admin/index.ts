@@ -2,8 +2,11 @@ import { handleOptions, jsonResponse } from '../_shared/agent-cors.ts';
 import { createServiceClient, readAuthUser } from '../_shared/agent-supabase.ts';
 
 // DecidAI Market (Plano Mestre v4 §6.5). Pilares: Reputation Intelligence (v1 Frente F,
-// Google Business Profile; v2 Frente C, +Trustpilot/Track.co/Reclame Aqui) e Social
-// Intelligence (v1 Frente C: Instagram/Facebook/LinkedIn/TikTok/YouTube). Todos os conectores
+// Google Business Profile; v2 Frente C, +Trustpilot/Track.co/Reclame Aqui), Social
+// Intelligence (v1 Frente C: Instagram/Facebook/LinkedIn/TikTok/YouTube), Campaign
+// Intelligence (v1 Frente C: Meta Ads/Google Ads/LinkedIn Ads) e Competitive Intelligence
+// (v1 Frente C: Monitor de URL + resumo por IA, único pilar sem conector -- Browser Service).
+// Todos os conectores
 // já existiam no Tool Gateway (Bloco 3, 20/08) antes de passarem pelo produto Market. Leitura
 // de sinais/fontes é feita direto pelo frontend contra o Supabase (RLS normal, mesmo padrão de
 // services/crm.ts) -- esta função só existe pras ações sensíveis: disparar sincronização real,
@@ -100,9 +103,21 @@ Deno.serve(async (request) => {
       return await relaySyncToRuntime('/market/social/sync', { clienteId, source });
     }
 
+    if (action === 'syncCampaignSource') {
+      const source = body.source;
+      if (!['meta_ads', 'google_ads', 'linkedin_ads'].includes(source)) {
+        return jsonResponse({ ok: false, error: `source inválido: "${source}". Use "meta_ads", "google_ads" ou "linkedin_ads".` }, 400);
+      }
+      return await relaySyncToRuntime('/market/campaign/sync', { clienteId, source });
+    }
+
+    if (action === 'syncCompetitiveSources') {
+      return await relaySyncToRuntime('/market/competitive/sync', { clienteId });
+    }
+
     return jsonResponse({
       ok: false,
-      error: `action desconhecida: "${action}". Use "syncGbp", "syncReputationSource" ou "syncSocialSource".`,
+      error: `action desconhecida: "${action}". Use "syncGbp", "syncReputationSource", "syncSocialSource", "syncCampaignSource" ou "syncCompetitiveSources".`,
     }, 400);
   } catch (error) {
     return jsonResponse({

@@ -21,6 +21,7 @@ import { Canais } from './pages/parametrizacao/Canais';
 import { CamposContexto } from './pages/cadastros/CamposContexto';
 import { FormulariosTelas } from './pages/cadastros/FormulariosTelas';
 import { EnterpriseKnowledgeIntranet } from './pages/intranet/EnterpriseKnowledgeIntranet';
+import { ObjetosDinamicos } from './pages/ObjetosDinamicos';
 import { Preferencias } from './pages/parametrizacao/Preferencias';
 import RelatorioAuditoria from './pages/relatorios/RelatorioAuditoria';
 import RelatorioAtendimentos from './pages/relatorios/RelatorioAtendimentos';
@@ -34,6 +35,8 @@ import { ServicosFilas } from './pages/central-atendimento/ServicosFilas';
 import { Flows } from './pages/Flows';
 import { Reputacao } from './pages/Reputacao';
 import { EngajamentoSocial } from './pages/EngajamentoSocial';
+import { CampanhasMarketing } from './pages/CampanhasMarketing';
+import { Concorrentes } from './pages/Concorrentes';
 import { CrmContatos } from './pages/crm/Contatos';
 import { CrmPipeline } from './pages/crm/Pipeline';
 import { UnidadesCentrosCusto } from './pages/cadastros/UnidadesCentrosCusto';
@@ -63,6 +66,8 @@ export type PageKey =
   | 'flows'
   | 'market-reputacao'
   | 'market-social'
+  | 'market-campanhas'
+  | 'market-concorrentes'
   | 'crm-contatos'
   | 'crm-pipeline'
   | 'analise'
@@ -84,6 +89,7 @@ export type PageKey =
   | 'rel-integracoes'
   | 'rel-auditoria'
   | 'intranet-conhecimento'
+  | 'objetos-dinamicos'
   | 'ajuda';
 
 const rightPanelByPage: Record<PageKey, React.ComponentProps<typeof RightPanel>['variant']> = {
@@ -101,6 +107,8 @@ const rightPanelByPage: Record<PageKey, React.ComponentProps<typeof RightPanel>[
   flows: 'config',
   'market-reputacao': 'config',
   'market-social': 'config',
+  'market-campanhas': 'config',
+  'market-concorrentes': 'config',
   'crm-contatos': 'config',
   'crm-pipeline': 'config',
   analise: 'acao',
@@ -122,6 +130,7 @@ const rightPanelByPage: Record<PageKey, React.ComponentProps<typeof RightPanel>[
   'rel-integracoes': 'config',
   'rel-auditoria': 'config',
   'intranet-conhecimento': 'documento',
+  'objetos-dinamicos': 'config',
   ajuda: 'config',
 };
 
@@ -193,6 +202,8 @@ export function App() {
     flows: <Flows />,
     'market-reputacao': <Reputacao />,
     'market-social': <EngajamentoSocial />,
+    'market-campanhas': <CampanhasMarketing />,
+    'market-concorrentes': <Concorrentes />,
     'crm-contatos': <CrmContatos />,
     'crm-pipeline': <CrmPipeline />,
     analise: <AnaliseAcoes />,
@@ -214,6 +225,7 @@ export function App() {
     'rel-integracoes': <RelatorioIntegracoes />,
     'rel-auditoria': <RelatorioAuditoria />,
     'intranet-conhecimento': <EnterpriseKnowledgeIntranet />,
+    'objetos-dinamicos': <ObjetosDinamicos />,
     ajuda: <CentralAjuda />,
   };
 

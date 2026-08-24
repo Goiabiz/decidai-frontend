@@ -119,6 +119,22 @@ export const helpContent: Record<PageKey, HelpEntry> = {
       '"Sincronizar agora" busca posts recentes e um retrato atual de seguidores/inscritos de cada fonte ativa.',
     ],
   },
+  'market-campanhas': {
+    summary: 'Performance de campanhas de anúncio (Meta Ads, Google Ads, LinkedIn Ads) agregada num só lugar -- impressões, cliques e gasto, leitura-só.',
+    tips: [
+      'Só o Google Ads pede um identificador real (Customer ID da conta) em "Nova fonte" -- Meta Ads e LinkedIn Ads já resolvem a conta pela credencial cadastrada, só o nome basta.',
+      'LinkedIn Ads hoje só traz campanha e status, sem métrica de impressão/clique/gasto -- o conector ainda não tem essa função; aparece "—" na tabela até isso ser construído.',
+      '"Sincronizar agora" busca a lista de campanhas e a performance mais recente de cada fonte ativa -- não cria, edita nem pausa campanha nenhuma.',
+    ],
+  },
+  'market-concorrentes': {
+    summary: 'Monitoramento de página pública de concorrente (site, página de preço) com resumo do que mudou gerado por IA a cada sincronização.',
+    tips: [
+      'Cadastre a URL pública da página que você quer acompanhar -- sem login, só leitura de texto (Browser Service).',
+      'A 1ª sincronização de uma fonte nova só registra o retrato inicial -- o resumo de mudança só aparece a partir da 2ª leitura em diante, quando há algo pra comparar.',
+      'O resumo é gerado por IA comparando o texto atual com o anterior -- pode levar alguns segundos a mais que os outros pilares do Market.',
+    ],
+  },
   'crm-contatos': {
     summary: 'Contatos e empresas do CRM, com o perfil 360: casos do pipeline e atendimentos de cada contato num só lugar.',
     tips: [
@@ -264,6 +280,15 @@ export const helpContent: Record<PageKey, HelpEntry> = {
       'Visível só para staff da operadora (suporte/administração) — clientes nunca veem esta tela nem seu conteúdo.',
       'Criação de conteúdo continua exclusiva do agente via Tool Gateway (mesma regra da Base de Conhecimento do cliente) — aqui você edita, classifica e organiza o que já foi publicado.',
       'O campo "Visibilidade" controla quem pode ver cada entrada: "Só interno" nunca aparece para nenhum cliente, mesmo indiretamente pela busca do agente.',
+    ],
+  },
+  'objetos-dinamicos': {
+    title: 'Objetos Dinâmicos',
+    summary: 'Adaptive Application Engine — estruturas de dados que a Imya cria em conversa (ex.: "Lote de Aves"), aqui você vê e usa o que já foi definido.',
+    tips: [
+      'Criar um objeto novo, adicionar campo ou publicar continua sendo feito conversando com a Imya — esta tela não cria estrutura, só usa o que já existe.',
+      'Um objeto passa por rascunho → sandbox (teste) → publicado antes de aceitar registro real; enquanto não estiver "Publicado", não dá pra criar registro por aqui.',
+      'Clique num objeto da lista para ver seus registros e criar/editar/excluir um novo.',
     ],
   },
   ajuda: {
