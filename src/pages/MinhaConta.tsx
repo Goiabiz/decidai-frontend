@@ -2,8 +2,9 @@ import { useEffect, useState } from 'react';
 import { CreditCard, PackagePlus, ShieldCheck, UserCog, Users, Wallet, Workflow, X } from 'lucide-react';
 import { PageHeader } from '../components/PageHeader';
 import { showAppToast } from '../lib/appToast';
-import { useSession } from '../contexts/SessionContext';
-import { getAccountOverview, listPlans, updateClientPlan, type AccountOverview, type PlanDetails } from '../services/account';
+import { useSession, usePermission } from '../contexts/SessionContext';
+import { getAccountOverview, listPlans, type AccountOverview, type PlanDetails } from '../services/account';
+import { requestPlanChange } from '../services/billing';
 import { mfaConfirmEnrollment, mfaEnroll, mfaGetVerifiedFactor, mfaUnenroll } from '../services/auth';
 
 function formatNumber(value: number) {
@@ -39,7 +40,9 @@ export function MinhaConta() {
   const [mfaBusy, setMfaBusy] = useState(false);
 
   const clientId = session?.activeClientId ?? null;
-  const canChangePlan = session?.user.tipoAcesso === 'admin_operadora' || session?.user.tipoAcesso === 'suporte';
+  // creditos.plano.alterar (migration 123) libera pro staff da operadora E pro admin_cliente do
+  // próprio ambiente -- antes era só staff (tipoAcesso), sem fluxo de self-service nenhum.
+  const canChangePlan = usePermission('creditos.plano.alterar');
 
   useEffect(() => {
     mfaGetVerifiedFactor()
@@ -134,12 +137,14 @@ export function MinhaConta() {
     if (!clientId) return;
     setSaving(true);
     try {
-      await updateClientPlan(clientId, planoId);
-      showAppToast('Plano atualizado.', 'success');
+      const result = await requestPlanChange(clientId, planoId);
+      if ('error' in result) {
+        showAppToast(result.error, 'error');
+        return;
+      }
+      showAppToast('Plano atualizado. Os novos limites já valem a partir de agora; a próxima fatura divide o valor proporcionalmente entre os planos usados no período.', 'success');
       setChangingPlan(false);
       await load();
-    } catch (error) {
-      showAppToast(error instanceof Error ? error.message : 'Não foi possível alterar o plano.', 'error');
     } finally {
       setSaving(false);
     }

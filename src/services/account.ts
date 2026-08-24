@@ -105,9 +105,3 @@ export async function getAccountOverview(clientId: string): Promise<AccountOverv
     mensagensConsumidas: (usageResult.data as { messages_used?: number } | null)?.messages_used ?? 0,
   };
 }
-
-export async function updateClientPlan(clientId: string, planoId: string) {
-  const supabase = requireClient();
-  const { error } = await supabase.from('platform_clients').update({ plano_id: planoId }).eq('id', clientId);
-  if (error) throw error;
-}

@@ -55,6 +55,15 @@ function formatBrl(value: number) {
 const INVOICE_STATUS_LABELS: Record<BillingInvoice['status'], string> = { open: 'Em aberto', paid: 'Paga', void: 'Cancelada' };
 const INVOICE_STATUS_TONE: Record<BillingInvoice['status'], string> = { open: 'orange', paid: 'green', void: 'gray' };
 
+// Dunning v1 (§35, migration 123) -- só informativo nesta v1, "suspenso" não bloqueia nada de
+// verdade ainda (decisão separada, confirmada com o usuário em 23/08).
+const DUNNING_STAGE_LABELS: Record<BillingInvoice['dunningStage'], string> = {
+  none: '', vencido: 'Vencida', retry: 'Tentando cobrar', negociacao: 'Precisa de contato', suspenso: 'Atraso crítico',
+};
+const DUNNING_STAGE_TONE: Record<BillingInvoice['dunningStage'], string> = {
+  none: 'gray', vencido: 'orange', retry: 'orange', negociacao: 'red', suspenso: 'red',
+};
+
 function currentMonthRange(): { start: string; end: string } {
   const now = new Date();
   const start = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -225,6 +234,12 @@ export function Creditos() {
           <Badge tone="blue">{invoices.length} fatura(s)</Badge>
         </div>
 
+        {invoices.some((invoice) => invoice.dunningStage !== 'none') && (
+          <p className="section-description" style={{ color: 'var(--red-600, #b91c1c)', marginBottom: 12 }}>
+            Este ambiente tem fatura em atraso. {podeEditarFaturas ? 'Confira abaixo e gere uma cobrança Pix, se ainda não tiver uma.' : 'Fale com o administrador da sua conta.'}
+          </p>
+        )}
+
         {podeEditarFaturas && (
           <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', marginBottom: 14, flexWrap: 'wrap' }}>
             <label style={{ fontSize: 12.5 }}>
@@ -258,7 +273,10 @@ export function Creditos() {
                   <td>{formatDate(invoice.periodStart)} – {formatDate(invoice.periodEnd)}</td>
                   <td className="table-subtitle">{formatDate(invoice.dueDate)}</td>
                   <td>{formatBrl(invoice.totalAmountBrl)}</td>
-                  <td><Badge tone={INVOICE_STATUS_TONE[invoice.status]}>{INVOICE_STATUS_LABELS[invoice.status]}</Badge></td>
+                  <td style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                    <Badge tone={INVOICE_STATUS_TONE[invoice.status]}>{INVOICE_STATUS_LABELS[invoice.status]}</Badge>
+                    {invoice.dunningStage !== 'none' && <Badge tone={DUNNING_STAGE_TONE[invoice.dunningStage]}>{DUNNING_STAGE_LABELS[invoice.dunningStage]}</Badge>}
+                  </td>
                   <td onClick={(event) => event.stopPropagation()} style={{ display: 'flex', gap: 6 }}>
                     {invoice.status === 'open' && invoice.totalAmountBrl > 0 && (
                       <button className="secondary-btn" onClick={() => handlePayNow(invoice)} disabled={cobrando === invoice.id}>

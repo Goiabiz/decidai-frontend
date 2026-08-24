@@ -8,6 +8,8 @@ import { universoSupabase } from '../lib/supabase';
 
 export type InvoiceStatus = 'open' | 'paid' | 'void';
 
+export type DunningStage = 'none' | 'vencido' | 'retry' | 'negociacao' | 'suspenso';
+
 export type BillingInvoice = {
   id: string;
   planCode: string;
@@ -24,6 +26,8 @@ export type BillingInvoice = {
   paidAt: string | null;
   gatewayProvider: string | null;
   gatewayQrCode: string | null;
+  dunningStage: DunningStage;
+  dunningAttempts: number;
 };
 
 export type BillingInvoiceItem = {
@@ -63,6 +67,8 @@ function mapInvoice(row: Record<string, unknown>): BillingInvoice {
     paidAt: (row.paid_at as string) || null,
     gatewayProvider: (row.gateway_provider as string) || null,
     gatewayQrCode: (row.gateway_qr_code as string) || null,
+    dunningStage: (row.dunning_stage as DunningStage) || 'none',
+    dunningAttempts: Number(row.dunning_attempts ?? 0),
   };
 }
 
@@ -70,7 +76,7 @@ export async function listInvoices(clienteId: string): Promise<BillingInvoice[]>
   const client = requireClient();
   const { data, error } = await client
     .from('billing_invoices')
-    .select('id, plan_code, period_start, period_end, plan_fixed_amount_brl, usage_raw_cost_usd, usage_included_usd, usage_overage_usd, usage_billed_amount_brl, total_amount_brl, status, due_date, paid_at, gateway_provider, gateway_qr_code')
+    .select('id, plan_code, period_start, period_end, plan_fixed_amount_brl, usage_raw_cost_usd, usage_included_usd, usage_overage_usd, usage_billed_amount_brl, total_amount_brl, status, due_date, paid_at, gateway_provider, gateway_qr_code, dunning_stage, dunning_attempts')
     .eq('cliente_id', clienteId)
     .order('period_start', { ascending: false });
   if (error) throw error;
@@ -117,6 +123,17 @@ export async function getPlanPricing(clienteId: string): Promise<PlanPricing | n
     includedCreditsUsd: Number(plano.included_credits_usd),
     overagePricePerUsdBrl: plano.overage_price_per_usd_brl === null ? null : Number(plano.overage_price_per_usd_brl),
   };
+}
+
+// Troca de plano (§36, migration 123) -- via função SECURITY DEFINER, não update direto: ela
+// checa autorização real (staff OU admin do próprio cliente) e bloqueia downgrade que estouraria
+// limite já em uso. Chamável tanto pelo staff (impersonando um cliente) quanto pelo próprio
+// admin_cliente logado -- mesma função pros dois casos.
+export async function requestPlanChange(clienteId: string, planoId: string): Promise<{ ok: true } | { error: string }> {
+  const client = requireClient();
+  const { error } = await client.rpc('fn_request_plan_change', { p_cliente_id: clienteId, p_new_plano_id: planoId });
+  if (error) return { error: error.message };
+  return { ok: true };
 }
 
 export async function closeBillingPeriod(clienteId: string, periodStart: string, periodEnd: string): Promise<{ id: string } | { error: string }> {
