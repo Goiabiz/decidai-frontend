@@ -3,11 +3,29 @@ import { Pencil, Plus, RefreshCcw, Search, X } from 'lucide-react';
 import { showAppToast } from '../../lib/appToast';
 import { filterChannelProviders, listV35IntegrationCatalog, type V35IntegrationCatalogItem, type V35LoadState } from '../../services/v35Supabase';
 import { useSession } from '../../contexts/SessionContext';
-import { createChannel, listChannelTypes, listChannels, updateChannel, type ChannelRecord, type ChannelType } from '../../services/canaisAgentes';
+import {
+  canalPrecisaDeRoteamento,
+  createChannel,
+  listChannelTypes,
+  listChannels,
+  updateChannel,
+  UNIFIED_INBOX_CANAIS,
+  type ChannelRecord,
+  type ChannelType,
+  type UnifiedInboxCanal,
+} from '../../services/canaisAgentes';
 
 export type CanaisProps = { onSelectDetail?: (detail: any) => void; onOpenDetail?: (detail: any) => void };
 
-const emptyChannel: ChannelRecord = { id: '', nome: '', tipo: 'Mensageria', providerCode: '', providerName: '', fila: 'Atendimento digital', sla: '4h', status: 'Em configuração' };
+const emptyChannel: ChannelRecord = { id: '', nome: '', tipo: 'Mensageria', providerCode: '', providerName: '', fila: 'Atendimento digital', sla: '4h', status: 'Em configuração', canalInbox: '', roteamentoExterno: '' };
+
+const ROTEAMENTO_HELP: Record<UnifiedInboxCanal, string> = {
+  WhatsApp: 'Phone Number ID do WhatsApp Business Cloud API (painel da Meta).',
+  Telegram: 'Telegram não precisa de ID de roteamento — o webhook do bot já identifica o tenant pela própria URL.',
+  Instagram: 'IG Business Account ID (Meta for Developers, app da Instagram Messaging API).',
+  Messenger: 'Page ID da página do Facebook conectada (Meta for Developers).',
+  SMS: 'Número Twilio que recebe as mensagens (formato E.164, ex.: +5511999999999).',
+};
 
 export function Canais(_props: CanaisProps) {
   const { session } = useSession();
@@ -159,9 +177,14 @@ export function Canais(_props: CanaisProps) {
               {[
                 ['Integração usada', selected.providerName],
                 ['Provedor técnico', selected.providerCode],
-                ['Agente padrão', 'SUSi'],
+                ['Agente padrão', 'Agente IA'],
                 ['Fila / SLA', `${selected.fila} • ${selected.sla}`],
                 ['Transbordo humano', 'Após tentativas sem resolução ou solicitação do usuário.'],
+                ...(selected.canalInbox
+                  ? [['Unified Inbox', canalPrecisaDeRoteamento(selected.canalInbox)
+                      ? (selected.roteamentoExterno ? `${selected.canalInbox} — roteamento configurado` : `${selected.canalInbox} — falta configurar o ID de roteamento`)
+                      : `${selected.canalInbox} — sem roteamento necessário`]]
+                  : []),
               ].map(([title, body]) => <div className="v3464-side-box" key={title}><strong>{title}</strong><p>{body}</p></div>)}
             </>
           ) : (
@@ -183,6 +206,23 @@ export function Canais(_props: CanaisProps) {
               <label>Fila<input value={form.fila} onChange={(event) => update('fila', event.target.value)} placeholder="Ex.: Atendimento digital" /></label>
               <label>SLA<input value={form.sla} onChange={(event) => update('sla', event.target.value)} placeholder="Ex.: 4h" /></label>
               <label>Status<select value={form.status} onChange={(event) => update('status', event.target.value)}><option>Ativo</option><option>Em configuração</option><option>Inativo</option></select></label>
+              <label>
+                Canal do Unified Inbox
+                <select value={form.canalInbox} onChange={(event) => update('canalInbox', event.target.value as ChannelRecord['canalInbox'])}>
+                  <option value="">Nenhum (canal manual, sem ingestão automática)</option>
+                  {UNIFIED_INBOX_CANAIS.map((canal) => <option key={canal} value={canal}>{canal}</option>)}
+                </select>
+              </label>
+              {form.canalInbox && (
+                <label>
+                  {canalPrecisaDeRoteamento(form.canalInbox) ? 'ID de roteamento externo' : 'Roteamento'}
+                  {canalPrecisaDeRoteamento(form.canalInbox) ? (
+                    <input value={form.roteamentoExterno} onChange={(event) => update('roteamentoExterno', event.target.value)} placeholder={ROTEAMENTO_HELP[form.canalInbox]} />
+                  ) : (
+                    <p className="v36-muted" style={{ margin: '4px 0 0' }}>{ROTEAMENTO_HELP[form.canalInbox]}</p>
+                  )}
+                </label>
+              )}
             </div>
             <footer><button className="v3464-secondary-btn" onClick={() => setModal(false)}>Cancelar</button><button className="v3464-primary-btn" disabled={salvando} onClick={() => void save()}>{salvando ? 'Salvando...' : 'Salvar canal'}</button></footer>
           </section>

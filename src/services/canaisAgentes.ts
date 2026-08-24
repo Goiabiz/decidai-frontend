@@ -1,5 +1,19 @@
 import { universoSupabase } from '../lib/supabase';
 
+/** Canal do Unified Inbox que esta linha representa, se for o caso -- não confundir com `tipo`
+ * (categoria ampla de platform_channels: Mensageria/Canal próprio/etc). Vazio/undefined =
+ * canal manual/genérico, sem ingestão automática. */
+export type UnifiedInboxCanal = 'WhatsApp' | 'Telegram' | 'Instagram' | 'Messenger' | 'SMS';
+
+export const UNIFIED_INBOX_CANAIS: UnifiedInboxCanal[] = ['WhatsApp', 'Telegram', 'Instagram', 'Messenger', 'SMS'];
+
+/** Telegram não precisa de ID de roteamento -- cada bot tem webhook próprio, já identifica o
+ * tenant pela URL. Os outros 3 usam webhook centralizado da plataforma (Meta/Twilio) e
+ * precisam de um ID que vem no payload pra saber de qual tenant é a mensagem. */
+export function canalPrecisaDeRoteamento(canal: UnifiedInboxCanal | ''): boolean {
+  return canal === 'WhatsApp' || canal === 'Instagram' || canal === 'Messenger' || canal === 'SMS';
+}
+
 export type ChannelRecord = {
   id: string;
   nome: string;
@@ -9,6 +23,8 @@ export type ChannelRecord = {
   fila: string;
   sla: string;
   status: string;
+  canalInbox: UnifiedInboxCanal | '';
+  roteamentoExterno: string;
 };
 
 export type AgentRecord = {
@@ -81,10 +97,21 @@ export async function listChannelTypes(): Promise<{ items: ChannelType[]; source
 // Canais (client_channels)
 // ---------------------------------------------------------------------------
 
-type ChannelConfiguration = { tipo: string; providerCode: string; providerName: string; fila: string; sla: string };
+type ChannelConfiguration = {
+  tipo: string; providerCode: string; providerName: string; fila: string; sla: string;
+  /** Presente só quando canalInbox === 'WhatsApp' -- nome de campo fixado pelo webhook
+   * WhatsApp já existente (fn_resolve_tenant_by_whatsapp_phone_number_id), não mexer. */
+  whatsappPhoneNumberId?: string;
+  /** Presente pros outros 3 canais do Unified Inbox (Telegram/Instagram/Messenger/SMS) --
+   * lido por fn_resolve_tenant_by_channel_external_id. Telegram não usa externalRoutingId
+   * (webhook próprio por bot), só grava `canal` pra exibição/consistência. */
+  canal?: UnifiedInboxCanal;
+  externalRoutingId?: string;
+};
 
 function mapChannelRow(row: { id: string; display_name: string | null; status: string; configuration: unknown; platform_channels?: { name: string } | null }): ChannelRecord {
   const config = (row.configuration || {}) as Partial<ChannelConfiguration>;
+  const canalInbox = config.canal || (config.whatsappPhoneNumberId ? 'WhatsApp' : '');
   return {
     id: row.id,
     nome: row.display_name || '',
@@ -94,6 +121,8 @@ function mapChannelRow(row: { id: string; display_name: string | null; status: s
     fila: config.fila || '',
     sla: config.sla || '',
     status: row.status,
+    canalInbox: canalInbox as UnifiedInboxCanal | '',
+    roteamentoExterno: config.whatsappPhoneNumberId || config.externalRoutingId || '',
   };
 }
 
@@ -113,11 +142,24 @@ export async function listChannels(clienteId: string): Promise<{ items: ChannelR
   return { items: store.channels, source: 'local' };
 }
 
-type ChannelInput = { nome: string; tipo: string; providerCode: string; providerName: string; fila: string; sla: string; status: string };
+type ChannelInput = {
+  nome: string; tipo: string; providerCode: string; providerName: string; fila: string; sla: string; status: string;
+  canalInbox: UnifiedInboxCanal | '';
+  roteamentoExterno: string;
+};
 
 async function resolveChannelTypeId(client: NonNullable<ReturnType<typeof getClient>>, tipoNome: string): Promise<string | null> {
   const { data } = await client.from('platform_channels').select('id').eq('name', tipoNome).maybeSingle();
   return data?.id || null;
+}
+
+function buildInboxConfig(canalInbox: UnifiedInboxCanal | '', roteamentoExterno: string): Pick<ChannelConfiguration, 'whatsappPhoneNumberId' | 'canal' | 'externalRoutingId'> {
+  if (canalInbox === 'WhatsApp') return { whatsappPhoneNumberId: roteamentoExterno.trim() || undefined };
+  if (canalInbox === 'Telegram') return { canal: 'Telegram' };
+  if (canalInbox === 'Instagram' || canalInbox === 'Messenger' || canalInbox === 'SMS') {
+    return { canal: canalInbox, externalRoutingId: roteamentoExterno.trim() || undefined };
+  }
+  return {};
 }
 
 export async function createChannel(clienteId: string, input: ChannelInput): Promise<{ item: ChannelRecord; source: CanaisAgentesLoadState }> {
@@ -125,7 +167,10 @@ export async function createChannel(clienteId: string, input: ChannelInput): Pro
   if (client) {
     const channelId = await resolveChannelTypeId(client, input.tipo);
     if (channelId) {
-      const configuration: ChannelConfiguration = { tipo: input.tipo, providerCode: input.providerCode, providerName: input.providerName, fila: input.fila, sla: input.sla };
+      const configuration: ChannelConfiguration = {
+        tipo: input.tipo, providerCode: input.providerCode, providerName: input.providerName, fila: input.fila, sla: input.sla,
+        ...buildInboxConfig(input.canalInbox, input.roteamentoExterno),
+      };
       const { data, error } = await client
         .from('client_channels')
         .insert({ cliente_id: clienteId, channel_id: channelId, display_name: input.nome, status: input.status, configuration })
@@ -148,7 +193,10 @@ export async function updateChannel(clienteId: string, id: string, input: Channe
   if (client && !id.startsWith('canal-local-')) {
     const channelId = await resolveChannelTypeId(client, input.tipo);
     if (channelId) {
-      const configuration: ChannelConfiguration = { tipo: input.tipo, providerCode: input.providerCode, providerName: input.providerName, fila: input.fila, sla: input.sla };
+      const configuration: ChannelConfiguration = {
+        tipo: input.tipo, providerCode: input.providerCode, providerName: input.providerName, fila: input.fila, sla: input.sla,
+        ...buildInboxConfig(input.canalInbox, input.roteamentoExterno),
+      };
       const { data, error } = await client
         .from('client_channels')
         .update({ channel_id: channelId, display_name: input.nome, status: input.status, configuration })
