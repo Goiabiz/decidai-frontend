@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { CheckCircle2, KeyRound, Trash2, X } from 'lucide-react';
+import { CheckCircle2, GitBranch, KeyRound, Trash2, X } from 'lucide-react';
 import { PageHeader } from '../../components/PageHeader';
 import { confirmApp } from '../../lib/appConfirm';
 import { showAppToast } from '../../lib/appToast';
@@ -11,6 +11,13 @@ import {
   type ConnectorProviderCode,
   type TenantCredentialStatus,
 } from '../../services/tenantCredentials';
+import { listGithubInstallations, unlinkGithubInstallation, type GithubAppInstallation } from '../../services/githubApp';
+
+// App "DecidAI" na org github.com/DecidAI-io (contrato: database/00_controle/
+// brief-github-app-conexao-17-08.md). Instalar não é OAuth -- é um redirect simples pra essa
+// URL fixa; o GitHub volta com installation_id na query pra /parametrizacao/conectores/
+// github/callback, que faz o vínculo de verdade (ver GithubAppCallback.tsx).
+const GITHUB_APP_INSTALL_URL = 'https://github.com/apps/decidai-io/installations/new';
 
 type FieldDef = { key: string; label: string; type?: 'text' | 'password'; placeholder?: string };
 
@@ -31,8 +38,8 @@ type ConnectorDef = {
 const CONNECTORS: ConnectorDef[] = [
   {
     code: 'github',
-    name: 'GitHub',
-    description: 'Personal Access Token com escopo Contents (read-only) + Metadata (read-only).',
+    name: 'GitHub -- Personal Access Token (avançado)',
+    description: 'Alternativa manual, só se não for possível instalar o GitHub App acima. Escopo Contents (read-only) + Metadata (read-only).',
     fields: [{ key: '__raw', label: 'Personal Access Token', type: 'password', placeholder: 'ghp_...' }],
   },
   {
@@ -88,6 +95,9 @@ export function ConectoresCredenciais() {
   const [editing, setEditing] = useState<ConnectorDef | null>(null);
   const [form, setForm] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
+  const [githubInstallations, setGithubInstallations] = useState<GithubAppInstallation[]>([]);
+  const [githubLoading, setGithubLoading] = useState(true);
+  const [githubRemoving, setGithubRemoving] = useState<string | null>(null);
 
   const carregar = async () => {
     setLoading(true);
@@ -97,9 +107,38 @@ export function ConectoresCredenciais() {
     setLoading(false);
   };
 
-  useEffect(() => { void carregar(); }, [clienteId]);
+  const carregarGithubApp = async () => {
+    setGithubLoading(true);
+    const result = await listGithubInstallations(clienteId);
+    setGithubInstallations(result.installations);
+    setGithubLoading(false);
+  };
+
+  useEffect(() => { void carregar(); void carregarGithubApp(); }, [clienteId]);
 
   const statusFor = (code: string) => status.find((item) => item.providerCode === code);
+  const githubConnector = CONNECTORS.find((connector) => connector.code === 'github')!;
+
+  const desconectarGithubApp = async (installation: GithubAppInstallation) => {
+    const confirmed = await confirmApp({
+      title: 'Desconectar GitHub',
+      description: `Remover o acesso à conta ${installation.accountLogin}? O agente deixa de conseguir ler os repositórios dessa instalação.`,
+      confirmLabel: 'Desconectar',
+      tone: 'danger',
+    });
+    if (!confirmed) return;
+
+    setGithubRemoving(installation.installationId);
+    try {
+      await unlinkGithubInstallation(installation.installationId, clienteId);
+      await carregarGithubApp();
+      showAppToast('GitHub App desconectado.', 'info');
+    } catch (error) {
+      showAppToast(error instanceof Error ? error.message : 'Não foi possível desconectar.', 'error');
+    } finally {
+      setGithubRemoving(null);
+    }
+  };
 
   const openEdit = (connector: ConnectorDef) => {
     setEditing(connector);
@@ -171,8 +210,61 @@ export function ConectoresCredenciais() {
           </div>
         )}
 
+        <div className="item" style={{ display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 12, alignItems: 'center', marginBottom: 8 }}>
+          <span className={`tag ${githubInstallations.length > 0 ? 'done' : 'no'}`}>
+            {githubInstallations.length > 0 ? <><CheckCircle2 size={12} style={{ verticalAlign: 'text-bottom' }} /> Conectado</> : 'Não conectado'}
+          </span>
+          <div>
+            <strong><GitBranch size={14} style={{ verticalAlign: 'text-bottom', marginRight: 4 }} />GitHub App (recomendado)</strong>
+            <p>
+              {githubLoading
+                ? 'Carregando...'
+                : githubInstallations.length > 0
+                  ? 'Conta(s) autorizada(s) abaixo, direto pelo GitHub -- sem token pra colar.'
+                  : 'Conecte o App oficial da DecidAI -- sem colar token, você escolhe a conta e os repositórios direto no GitHub.'}
+            </p>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <a className="secondary-btn" href={GITHUB_APP_INSTALL_URL}>
+              {githubInstallations.length > 0 ? 'Adicionar outra conta' : 'Conectar GitHub'}
+            </a>
+          </div>
+        </div>
+
+        {githubInstallations.length > 0 && (
+          <div className="items" style={{ display: 'grid', gap: 8, marginBottom: 8, marginLeft: 24 }}>
+            {githubInstallations.map((installation) => (
+              <div key={installation.installationId} className="item" style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 12, alignItems: 'center' }}>
+                <span className="small-muted">
+                  {installation.accountLogin} ({installation.accountType === 'Organization' ? 'organização' : 'usuário'}) --{' '}
+                  {installation.repositorySelection === 'all' ? 'todos os repositórios' : 'repositórios selecionados'}
+                </span>
+                <div className="row-action-group">
+                  <button
+                    title="Desconectar"
+                    disabled={githubRemoving === installation.installationId}
+                    onClick={() => void desconectarGithubApp(installation)}
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div style={{ textAlign: 'right', marginBottom: 8 }}>
+          <button
+            className="small-muted"
+            style={{ background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}
+            onClick={() => openEdit(githubConnector)}
+          >
+            {statusFor('github') ? 'Atualizar PAT manual (avançado)' : 'ou configurar com PAT manual (avançado)'}
+          </button>
+        </div>
+
         <div className="items" style={{ display: 'grid', gap: 8 }}>
-          {CONNECTORS.map((connector) => {
+          {CONNECTORS.filter((connector) => connector.code !== 'github').map((connector) => {
             const configured = statusFor(connector.code);
             return (
               <div key={connector.code} className="item" style={{ display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 12, alignItems: 'center' }}>
