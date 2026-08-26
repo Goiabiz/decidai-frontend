@@ -59,7 +59,7 @@
 
 .v363-filter-grid {
   display: grid;
-  grid-template-columns: minmax(260px, 2fr) repeat(5, minmax(150px, 1fr));
+  grid-template-columns: minmax(260px, 2fr) repeat(auto-fit, minmax(150px, 1fr));
   gap: 12px;
   margin-bottom: 14px;
 }
@@ -305,6 +305,50 @@
   grid-column: 1 / -1;
 }
 
+.v363-filter-clauses {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.v363-filter-clause-row {
+  display: grid;
+  grid-template-columns: minmax(140px, 1fr) minmax(120px, .7fr) minmax(140px, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+}
+
+.v363-filter-clause-row select,
+.v363-filter-clause-row input {
+  min-height: 44px;
+  border: 1px solid var(--slate-200);
+  border-radius: 12px;
+  padding: 0 12px;
+  background: var(--surface);
+  color: var(--slate-950);
+  font: inherit;
+  width: 100%;
+}
+
+.v363-filter-clause-remove {
+  border: 1px solid var(--slate-200);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--red-500);
+  min-height: 44px;
+  min-width: 44px;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+
+@media (max-width: 900px) {
+  .v363-filter-clause-row {
+    grid-template-columns: 1fr;
+  }
+}
+
 .v363-assistant {
   position: fixed;
   right: 22px;
@@ -452,7 +496,8 @@
 
 .v363-assistant-panel header button,
 .v363-assistant-plus,
-.v363-assistant-send {
+.v363-assistant-send,
+.v363-assistant-mic {
   border: 0;
   border-radius: 10px;
   background: var(--surface-soft, #f2f6fb);
@@ -462,6 +507,31 @@
   display: inline-grid;
   place-items: center;
   cursor: pointer;
+}
+
+/* Escuta contínua (VAD, Onda L): listening = mic aberto aguardando fala; recording = captando
+   o turno atual; speaking = assistente respondendo (clicar/falar por cima interrompe). */
+.v363-assistant-mic.listening {
+  background: #3b82f6;
+  color: #fff;
+  animation: v363-assistant-mic-pulse 1.8s ease-in-out infinite;
+}
+
+.v363-assistant-mic.recording {
+  background: #d64545;
+  color: #fff;
+  animation: v363-assistant-mic-pulse 1.2s ease-in-out infinite;
+}
+
+.v363-assistant-mic.speaking {
+  background: #16a34a;
+  color: #fff;
+  animation: v363-assistant-mic-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes v363-assistant-mic-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
 }
 
 .v363-assistant-body {

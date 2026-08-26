@@ -1,6 +1,6 @@
-# Radar SUS Frontend MVP
+# DecidAI Frontend
 
-Frontend inicial da POC vendável do Radar SUS.
+Frontend da plataforma DecidAI (nasceu como POC vendável do Radar SUS, primeiro tenant ConectaSUS).
 
 ## Status desta versão
 
