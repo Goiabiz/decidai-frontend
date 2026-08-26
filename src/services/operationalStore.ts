@@ -98,7 +98,7 @@ export const addHistory = (title: string, action: string, description: string) =
   persistAuditLog({
     usuarioNome: USER,
     modulo: 'Workspace',
-    operacao: 'susi_action',
+    operacao: 'agent_action',
     origem: 'histórico operacional local',
     registroId: history[0].id,
     dadosDepois: history[0],

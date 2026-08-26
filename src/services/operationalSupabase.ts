@@ -1,7 +1,7 @@
 import { pocSupabase } from '../lib/supabase';
 import type { GeneratedRoadmapItem, OperationalHistory, OperationalPatch } from './operationalStore';
 
-export type AuditOperation = 'insert' | 'update' | 'delete' | 'login' | 'export' | 'print' | 'external_link' | 'susi_action';
+export type AuditOperation = 'insert' | 'update' | 'delete' | 'login' | 'export' | 'print' | 'external_link' | 'agent_action';
 
 export type AuditPayload = {
   usuarioNome: string;

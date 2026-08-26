@@ -2,7 +2,7 @@ import { universoSupabase } from '../lib/supabase';
 
 export type AuditOperacao =
   | 'insert' | 'update' | 'delete' | 'login' | 'export' | 'print'
-  | 'external_link' | 'susi_action' | 'acesso_suporte_iniciado' | 'acesso_suporte_encerrado';
+  | 'external_link' | 'agent_action' | 'acesso_suporte_iniciado' | 'acesso_suporte_encerrado';
 
 export type LogAuditInput = {
   usuarioNome: string;

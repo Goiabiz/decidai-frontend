@@ -55,12 +55,12 @@ const configGroups: Array<{ title: string; description: string; icon: typeof Bui
   },
 ];
 
-const responsaveis = ['Moises Mattos', 'SUSi', 'Equipe de Atendimento', 'Equipe de Operação', 'Equipe de Produto'];
+const responsaveis = ['Moises Mattos', 'Agente IA', 'Equipe de Atendimento', 'Equipe de Operação', 'Equipe de Produto'];
 const canais = ['Atendimento geral', 'Alertas', 'Tarefas', 'Conhecimento', 'Integrações'];
 
 function ResponsaveisPadraoModal({ onClose }: { onClose: () => void }) {
   const [responsavelGeral, setResponsavelGeral] = useState('Moises Mattos');
-  const [responsavelAlertas, setResponsavelAlertas] = useState('SUSi');
+  const [responsavelAlertas, setResponsavelAlertas] = useState('Agente IA');
   const [canalPadrao, setCanalPadrao] = useState('Atendimento geral');
   const [saved, setSaved] = useState(false);
 
