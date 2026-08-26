@@ -1,7 +1,11 @@
 import { handleOptions, jsonResponse } from "../_shared/cors.ts";
-import { createAdminClient, getUserIdFromRequest } from "../_shared/supabaseAdmin.ts";
+import { createAdminClient } from "../_shared/supabaseAdmin.ts";
+import { readVerifiedAuthUser } from "../_shared/auth.ts";
 import { appendQuery, applyPathParams, buildAuthHeaders, fetchWithTimeout, flattenJsonFields, joinUrl, normalizeBaseUrl, safeBodyPreview } from "../_shared/http.ts";
 
+// Mesmo achado/correção de api-guided-test-connection (auditoria de segurança, 19/08/2026):
+// `endpoint_id` nunca era checado contra o tenant de quem chamava -- aqui era ainda mais
+// sério, porque a function também SOBRESCREVIA api_guided_response_fields do endpoint alheio.
 Deno.serve(async (req) => {
   const options = handleOptions(req);
   if (options) return options;
@@ -10,14 +14,25 @@ Deno.serve(async (req) => {
   const started = Date.now();
 
   try {
+    const user = await readVerifiedAuthUser(req);
+    if (!user) return jsonResponse({ ok: false, error: "Não autenticado." }, 401);
+
     const body = await req.json();
     if (!body.endpoint_id) return jsonResponse({ ok: false, error: "endpoint_id obrigatório." }, 400);
 
-    const { data: endpoint, error: eErr } = await supabase.from("api_guided_endpoints").select("*, api_guided_connections(*)").eq("id", body.endpoint_id).single();
+    const { data: clienteId, error: resolveError } = await supabase.rpc(
+      "fn_resolve_platform_client_id_by_auth_user",
+      { p_auth_user_id: user.id, p_requested_cliente_id: body.cliente_id ?? null },
+    );
+    if (resolveError) return jsonResponse({ ok: false, error: resolveError.message }, 500);
+    if (!clienteId) return jsonResponse({ ok: false, error: "Usuário sem tenant associado (platform_client_id)." }, 403);
+
+    const { data: endpoint, error: eErr } = await supabase.from("api_guided_endpoints").select("*, api_guided_connections!inner(*)").eq("id", body.endpoint_id).eq("api_guided_connections.cliente_id", clienteId).maybeSingle();
     if (eErr) throw eErr;
+    if (!endpoint) return jsonResponse({ ok: false, error: "Endpoint não encontrado ou não pertence a este tenant." }, 404);
     const connection = endpoint.api_guided_connections;
 
-    const { data: credentials, error: credErr } = await supabase.from("api_guided_credentials").select("credential_type, secret_ciphertext").eq("connection_id", connection.id).eq("status", "configured");
+    const { data: credentials, error: credErr } = await supabase.from("api_guided_credentials").select("credential_type, secret_ciphertext").eq("connection_id", connection.id).eq("status", "active");
     if (credErr) throw credErr;
 
     const path = applyPathParams(endpoint.path_template, body.path_params || {});
@@ -53,7 +68,7 @@ Deno.serve(async (req) => {
       ambiente_id: connection.ambiente_id,
       connection_id: connection.id,
       endpoint_id: body.endpoint_id,
-      user_id: getUserIdFromRequest(req),
+      user_id: user.id,
       source: "edge_function",
       action: "discover_fields",
       request_summary: { url, method },
