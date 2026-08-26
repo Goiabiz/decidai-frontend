@@ -5,7 +5,9 @@ import { Badge } from '../../components/Badge';
 import { ExportAction } from '../../components/ExportAction';
 import { normalizeFilterText } from '../../components/SmartFilters';
 import { useSession } from '../../contexts/SessionContext';
-import { listAuditLogs, type AuditLogRecord, type AuditOperacao } from '../../services/auditLog';
+import { listAuditLogs, type AuditLogRecord } from '../../services/auditLog';
+import { OPERACAO_LABELS, OPERACAO_TONE } from '../../lib/auditLabels';
+import { useReportExport } from '../relatorios/useReportExport';
 
 function formatDateTime(iso: string) {
   const date = new Date(iso);
@@ -13,34 +15,9 @@ function formatDateTime(iso: string) {
   return date.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
-const OPERACAO_LABELS: Record<AuditOperacao, string> = {
-  insert: 'Criação',
-  update: 'Edição',
-  delete: 'Exclusão',
-  login: 'Login',
-  export: 'Exportação',
-  print: 'Impressão',
-  external_link: 'Link externo',
-  susi_action: 'Ação de agente',
-  acesso_suporte_iniciado: 'Acesso de suporte iniciado',
-  acesso_suporte_encerrado: 'Acesso de suporte encerrado',
-};
-
-const OPERACAO_TONE: Record<AuditOperacao, string> = {
-  insert: 'green',
-  update: 'blue',
-  delete: 'red',
-  login: 'gray',
-  export: 'purple',
-  print: 'purple',
-  external_link: 'blue',
-  susi_action: 'orange',
-  acesso_suporte_iniciado: 'yellow',
-  acesso_suporte_encerrado: 'yellow',
-};
-
 export function SegurancaAuditoria() {
   const { isSupport } = useSession();
+  const exportReport = useReportExport();
   const [logs, setLogs] = useState<AuditLogRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
@@ -81,6 +58,29 @@ export function SegurancaAuditoria() {
   const periodoAtivo = Boolean(periodoInicio || periodoFim);
   const filtrosAtivos = Boolean(modulo);
 
+  const handleExport = async (format: 'xlsx' | 'pdf') => {
+    await exportReport({
+      format,
+      filename: 'auditoria',
+      title: 'Auditoria',
+      funcionalidade: 'auditoria_consulta',
+      columns: [
+        { key: 'data', label: 'Data' },
+        { key: 'usuario', label: 'Usuário/Agente' },
+        { key: 'modulo', label: 'Módulo' },
+        { key: 'funcionalidade', label: 'Ação' },
+        { key: 'operacao', label: 'Operação' },
+      ],
+      rows: filtered.map((item) => ({
+        data: formatDateTime(item.data),
+        usuario: item.usuario,
+        modulo: item.modulo,
+        funcionalidade: item.funcionalidade !== '-' ? item.funcionalidade : item.observacao,
+        operacao: OPERACAO_LABELS[item.operacao] || item.operacao,
+      })),
+    });
+  };
+
   if (!isSupport) {
     return (
       <>
@@ -99,7 +99,7 @@ export function SegurancaAuditoria() {
     <>
       <PageHeader
         title="Auditoria"
-        action={<ExportAction filename="auditoria" title="Exportar consulta de auditoria" />}
+        action={<ExportAction filename="auditoria" title="Exportar consulta de auditoria" onExport={handleExport} />}
       />
 
       <section className="card audit-clean-card">

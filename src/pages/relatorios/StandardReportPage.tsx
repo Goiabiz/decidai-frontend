@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
-import { CalendarDays, Filter, Search, SlidersHorizontal } from 'lucide-react';
+import { CalendarDays, Search } from 'lucide-react';
 import { ExportAction } from '../../components/ExportAction';
+import { useReportExport } from './useReportExport';
 
 export type StandardReportColumn = {
   key: string;
@@ -9,16 +10,21 @@ export type StandardReportColumn = {
 
 export type StandardReportRow = Record<string, string | number | null | undefined>;
 
+export type StandardReportFilter = { key: string; label: string };
+
 export type StandardReportPageProps = {
   title: string;
   description: string;
   filename?: string;
+  funcionalidade: string;
   columns?: StandardReportColumn[];
   rows?: StandardReportRow[];
-  typeOptions?: string[];
-  statusOptions?: string[];
-  responsibleOptions?: string[];
-  originOptions?: string[];
+  loading?: boolean;
+  /** Colunas com <select> de filtro -- opções derivadas dos valores reais de `rows`, nunca fixas. */
+  filters?: StandardReportFilter[];
+  /** Só define se o domínio tiver um campo de data confiável -- omitir esconde o seletor de período em vez de fingir um que não filtra nada. */
+  dateColumnKey?: string;
+  emptyMessage?: string;
 };
 
 const defaultColumns: StandardReportColumn[] = [
@@ -28,33 +34,77 @@ const defaultColumns: StandardReportColumn[] = [
   { key: 'responsavel', label: 'Responsável' },
 ];
 
+const PERIOD_OPTIONS = ['Todos os períodos', 'Hoje', 'Últimos 7 dias', 'Últimos 30 dias', 'Este mês'] as const;
+type Period = (typeof PERIOD_OPTIONS)[number];
+
+function periodCutoff(period: Period): Date | null {
+  const now = new Date();
+  if (period === 'Hoje') return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  if (period === 'Últimos 7 dias') return new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+  if (period === 'Últimos 30 dias') return new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+  if (period === 'Este mês') return new Date(now.getFullYear(), now.getMonth(), 1);
+  return null;
+}
+
 export function StandardReportPage({
   title,
   description,
   filename,
+  funcionalidade,
   columns = defaultColumns,
   rows = [],
-  typeOptions = ['Todos os tipos', 'Operacional', 'Integração', 'Agente', 'Manual'],
-  statusOptions = ['Todos os status', 'Aberto', 'Em andamento', 'Concluído', 'Cancelado'],
-  responsibleOptions = ['Todos os responsáveis', 'Moises Mattos', 'SUSi', 'Equipe'],
-  originOptions = ['Todas as origens', 'Sistema', 'Canal', 'Integração', 'Agente'],
+  loading = false,
+  filters = [],
+  dateColumnKey,
+  emptyMessage = 'Nenhum registro encontrado para os filtros selecionados.',
 }: StandardReportPageProps) {
   const [query, setQuery] = useState('');
-  const [period, setPeriod] = useState('Últimos 30 dias');
-  const [type, setType] = useState(typeOptions[0] || 'Todos os tipos');
-  const [status, setStatus] = useState(statusOptions[0] || 'Todos os status');
-  const [responsible, setResponsible] = useState(responsibleOptions[0] || 'Todos os responsáveis');
-  const [origin, setOrigin] = useState(originOptions[0] || 'Todas as origens');
+  const [period, setPeriod] = useState<Period>('Todos os períodos');
+  const [filterValues, setFilterValues] = useState<Record<string, string>>({});
+  const exportReport = useReportExport();
+
+  const filterOptions = useMemo(() => {
+    const map: Record<string, string[]> = {};
+    for (const filter of filters) {
+      map[filter.key] = Array.from(new Set(rows.map((row) => String(row[filter.key] ?? '-')))).sort((a, b) => a.localeCompare(b));
+    }
+    return map;
+  }, [filters, rows]);
 
   const filteredRows = useMemo(() => {
     const search = query.trim().toLowerCase();
+    const cutoff = dateColumnKey ? periodCutoff(period) : null;
+
     return rows.filter((row) => {
-      const text = Object.values(row).join(' ').toLowerCase();
-      return !search || text.includes(search);
+      if (search) {
+        const text = Object.values(row).join(' ').toLowerCase();
+        if (!text.includes(search)) return false;
+      }
+      for (const filter of filters) {
+        const selected = filterValues[filter.key];
+        if (selected && selected !== 'Todos' && String(row[filter.key] ?? '-') !== selected) return false;
+      }
+      if (cutoff && dateColumnKey) {
+        const rawDate = row[dateColumnKey];
+        const parsed = rawDate ? new Date(String(rawDate)) : null;
+        if (!parsed || Number.isNaN(parsed.getTime()) || parsed < cutoff) return false;
+      }
+      return true;
     });
-  }, [query, rows]);
+  }, [query, rows, filters, filterValues, period, dateColumnKey]);
 
   const totalLabel = filteredRows.length === 1 ? '1 registro' : `${filteredRows.length} registros`;
+
+  const handleExport = async (format: 'xlsx' | 'pdf') => {
+    await exportReport({
+      format,
+      filename: filename || title,
+      title,
+      funcionalidade,
+      columns,
+      rows: filteredRows,
+    });
+  };
 
   return (
     <div className="v363-report-page">
@@ -63,67 +113,42 @@ export function StandardReportPage({
           <h1>{title}</h1>
           <p>{description}</p>
         </div>
-        <ExportAction filename={filename || title} />
+        <ExportAction filename={filename || title} onExport={handleExport} />
       </header>
 
       <section className="v363-report-card">
         <div className="v363-report-card-head">
           <strong>Filtros da consulta</strong>
-          <span>{totalLabel}</span>
+          <span>{loading ? 'Carregando...' : totalLabel}</span>
         </div>
 
         <div className="v363-filter-grid">
           <label className="v363-filter-search">
             <Search size={18} />
-            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar por texto, responsável, origem, status ou referência..." />
+            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar por texto..." />
           </label>
 
-          <label>
-            <CalendarDays size={17} />
-            <select value={period} onChange={(event) => setPeriod(event.target.value)}>
-              <option>Hoje</option>
-              <option>Últimos 7 dias</option>
-              <option>Últimos 30 dias</option>
-              <option>Este mês</option>
-              <option>Período personalizado</option>
-            </select>
-          </label>
+          {dateColumnKey && (
+            <label>
+              <CalendarDays size={17} />
+              <select value={period} onChange={(event) => setPeriod(event.target.value as Period)}>
+                {PERIOD_OPTIONS.map((option) => <option key={option}>{option}</option>)}
+              </select>
+            </label>
+          )}
 
-          <label>
-            <SlidersHorizontal size={17} />
-            <select value={type} onChange={(event) => setType(event.target.value)}>
-              {typeOptions.map((option) => <option key={option}>{option}</option>)}
-            </select>
-          </label>
-
-          <label>
-            <Filter size={17} />
-            <select value={status} onChange={(event) => setStatus(event.target.value)}>
-              {statusOptions.map((option) => <option key={option}>{option}</option>)}
-            </select>
-          </label>
-
-          <label>
-            <span>Resp.</span>
-            <select value={responsible} onChange={(event) => setResponsible(event.target.value)}>
-              {responsibleOptions.map((option) => <option key={option}>{option}</option>)}
-            </select>
-          </label>
-
-          <label>
-            <span>Origem</span>
-            <select value={origin} onChange={(event) => setOrigin(event.target.value)}>
-              {originOptions.map((option) => <option key={option}>{option}</option>)}
-            </select>
-          </label>
-        </div>
-
-        <div className="v363-active-filters">
-          <span>{period}</span>
-          <span>{type}</span>
-          <span>{status}</span>
-          <span>{responsible}</span>
-          <span>{origin}</span>
+          {filters.map((filter) => (
+            <label key={filter.key}>
+              <span>{filter.label}</span>
+              <select
+                value={filterValues[filter.key] || 'Todos'}
+                onChange={(event) => setFilterValues((current) => ({ ...current, [filter.key]: event.target.value }))}
+              >
+                <option>Todos</option>
+                {(filterOptions[filter.key] || []).map((option) => <option key={option}>{option}</option>)}
+              </select>
+            </label>
+          ))}
         </div>
 
         <div className="v363-report-table-wrap">
@@ -132,9 +157,13 @@ export function StandardReportPage({
               <tr>{columns.map((column) => <th key={column.key}>{column.label}</th>)}</tr>
             </thead>
             <tbody>
-              {filteredRows.length === 0 ? (
+              {loading ? (
                 <tr>
-                  <td colSpan={columns.length}>Nenhum registro encontrado para os filtros selecionados.</td>
+                  <td colSpan={columns.length}>Carregando...</td>
+                </tr>
+              ) : filteredRows.length === 0 ? (
+                <tr>
+                  <td colSpan={columns.length}>{emptyMessage}</td>
                 </tr>
               ) : filteredRows.map((row, index) => (
                 <tr key={index}>
