@@ -33,12 +33,28 @@ export type AgentRunResponse = {
     usage?: { inputTokens: number; outputTokens: number };
     memorySnippetsUsed?: number;
     memoryPersisted?: boolean;
+    /** Onda L (frente G, voz): texto reconhecido a partir do áudio, quando a pergunta veio por voz. */
+    transcript?: string;
+    /** Onda L (frente G, voz): resposta falada (base64), quando pedida ou quando a pergunta veio por voz. */
+    answerAudioBase64?: string;
+    answerAudioMimeType?: string;
   };
   error?: string;
 };
 
 export type AgentRunInput = {
   question: string;
+  clienteId: string;
+  role?: AgentRole;
+  mode?: AgentMode;
+  userId?: string;
+  conversationId?: string;
+  context?: Record<string, unknown>;
+};
+
+export type AgentRunVoiceInput = {
+  audioBase64: string;
+  audioMimeType: string;
   clienteId: string;
   role?: AgentRole;
   mode?: AgentMode;
@@ -77,5 +93,40 @@ export async function runAgent(input: AgentRunInput): Promise<AgentRunResponse> 
     return (data as AgentRunResponse) ?? { ok: false, error: 'Resposta vazia do agente.' };
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : 'Falha ao chamar o agente.' };
+  }
+}
+
+/**
+ * Onda L (§55-56 emenda "Imya", frente G — Voz & Presença), v1 push-to-talk. Mesma Edge
+ * Function `agent-run` do chat de texto (estendida pra aceitar audioBase64 no lugar de
+ * question) -- mesmo tenant/auth/memória/Tool Gateway, só a entrada muda de texto pra áudio.
+ * O runtime transcreve (Whisper) antes de rodar o agente e devolve a resposta também em
+ * áudio (TTS) quando `wantsAudioResponse` é pedido.
+ */
+export async function runAgentVoice(input: AgentRunVoiceInput): Promise<AgentRunResponse> {
+  const client = universoSupabase;
+  if (!client) return { ok: false, error: 'Supabase não configurado.' };
+
+  try {
+    const { data, error } = await client.functions.invoke('agent-run', {
+      body: {
+        role: input.role ?? 'chatbot-online',
+        audioBase64: input.audioBase64,
+        audioMimeType: input.audioMimeType,
+        wantsAudioResponse: true,
+        mode: input.mode ?? 'usuario-cliente',
+        clienteId: input.clienteId,
+        context: {
+          ...(input.context || {}),
+          userId: input.userId,
+          conversationId: input.conversationId,
+        },
+      },
+    });
+
+    if (error) return { ok: false, error: error.message };
+    return (data as AgentRunResponse) ?? { ok: false, error: 'Resposta vazia do agente.' };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : 'Falha ao chamar o agente por voz.' };
   }
 }

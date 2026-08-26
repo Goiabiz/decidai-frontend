@@ -1,9 +1,45 @@
-import { useEffect, useState } from 'react';
-import { Bot, ChevronDown, Maximize2, Minimize2, Send, Sparkles, User, X } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { Bot, ChevronDown, Maximize2, Mic, Minimize2, Send, Sparkles, Square, User, X } from 'lucide-react';
 import { useSession } from '../contexts/SessionContext';
-import { runAgent } from '../services/agentClient';
+import { runAgent, runAgentVoice } from '../services/agentClient';
+import { startVoiceActivityDetector, type VoiceActivityHandle } from '../services/voiceActivityDetector';
 
 const AGENT_UNAVAILABLE_MESSAGE = 'Ainda não consigo processar isso de verdade — o serviço de IA da plataforma está sendo publicado. Assim que estiver no ar, passo a responder com o motor real.';
+
+// Onda L (§55-56 emenda "Imya", frente G). v1 (23/08/2026) era push-to-talk manual;
+// v2 (24/08/2026, ainda um-falante-por-vez, sem diarização/endereçamento) troca isso por
+// escuta contínua real: VAD (voiceActivityDetector.ts) detecta sozinho quando a fala começa e
+// termina -- não precisa mais segurar/clicar o botão pra cada frase -- e barge-in interrompe o
+// TTS na hora que o usuário começa a falar por cima da resposta. Corte de duração evita
+// estourar o limite de corpo HTTP do runtime (AGENT_HTTP_MAX_BODY_BYTES, 1MB por padrão) -- 60s
+// de webm/opus fica bem abaixo disso mesmo em base64.
+const MAX_RECORDING_MS = 60_000;
+// Falsos positivos do VAD (ruído breve cruzando o limiar) viram gravações muito curtas --
+// descarta sem nem chamar o backend em vez de gastar uma chamada de STT numa transcrição vazia.
+const MIN_UTTERANCE_MS = 350;
+
+type VoiceMode = 'off' | 'listening' | 'recording' | 'speaking';
+
+function pickSupportedAudioMimeType(): string {
+  const candidates = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus', 'audio/mp4'];
+  for (const candidate of candidates) {
+    if (typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported?.(candidate)) return candidate;
+  }
+  return 'audio/webm';
+}
+
+function blobToBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const result = reader.result as string;
+      // data:audio/webm;base64,AAAA... -- só a parte depois da vírgula interessa.
+      resolve(result.slice(result.indexOf(',') + 1));
+    };
+    reader.onerror = () => reject(reader.error ?? new Error('Falha ao ler áudio gravado.'));
+    reader.readAsDataURL(blob);
+  });
+}
 
 type FloatingPlatformAssistantProps = {
   pageTitle?: string;
@@ -34,8 +70,36 @@ export function FloatingPlatformAssistant({ pageTitle }: FloatingPlatformAssista
   const [showTour, setShowTour] = useState(false);
   const [sending, setSending] = useState(false);
   const [conversationId, setConversationId] = useState<string | undefined>(undefined);
+  const [voiceMode, setVoiceMode] = useState<VoiceMode>('off');
+  const voiceModeRef = useRef<VoiceMode>('off');
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const recordingTimeoutRef = useRef<number | undefined>(undefined);
+  const recordingStartedAtRef = useRef<number>(0);
+  const micStreamRef = useRef<MediaStream | null>(null);
+  const vadHandleRef = useRef<VoiceActivityHandle | null>(null);
+  const mimeTypeRef = useRef<string>('audio/webm');
+  const currentAudioRef = useRef<HTMLAudioElement | null>(null);
+
+  const updateVoiceMode = (mode: VoiceMode) => {
+    voiceModeRef.current = mode;
+    setVoiceMode(mode);
+  };
 
   const [context, setContext] = useState('tela atual');
+
+  // A escuta contínua (VAD) fica ligada por vários turnos seguidos sem recriar o listener --
+  // os callbacks passados pro VAD na 1a chamada de startListening() ficam presos aos valores
+  // de conversationId/context/session daquele render específico (closure), então sem essas
+  // refs cada turno de voz perderia a conversa (conversationId sempre undefined) ou o
+  // contexto de tela certo depois do 1o turno. sendMessage (texto) não sofre disso porque é
+  // religado a cada render via o próprio JSX.
+  const conversationIdRef = useRef(conversationId);
+  const contextRef = useRef(context);
+  const sessionRef = useRef(session);
+  useEffect(() => { conversationIdRef.current = conversationId; }, [conversationId]);
+  useEffect(() => { contextRef.current = context; }, [context]);
+  useEffect(() => { sessionRef.current = session; }, [session]);
 
   useEffect(() => {
     const readContext = () => {
@@ -117,6 +181,167 @@ export function FloatingPlatformAssistant({ pageTitle }: FloatingPlatformAssista
     }
   };
 
+  // Interrompe a fala do assistente na hora (barge-in) -- chamado tanto quando o usuário
+  // clica pra desligar a escuta quanto quando o VAD detecta que ele começou a falar por cima.
+  const stopSpeaking = () => {
+    if (currentAudioRef.current) {
+      currentAudioRef.current.pause();
+      currentAudioRef.current = null;
+    }
+  };
+
+  const sendVoiceMessage = async (audioBlob: Blob, mimeType: string) => {
+    if (sending) return;
+
+    const activeSession = sessionRef.current;
+    if (!activeSession?.activeClientId) {
+      setMessages((current) => [...current, { role: 'assistant', text: AGENT_UNAVAILABLE_MESSAGE }]);
+      return;
+    }
+
+    setSending(true);
+    try {
+      const audioBase64 = await blobToBase64(audioBlob);
+
+      const result = await runAgentVoice({
+        audioBase64,
+        audioMimeType: mimeType,
+        clienteId: activeSession.activeClientId,
+        userId: activeSession.user.authUserId,
+        conversationId: conversationIdRef.current,
+        context: { screen: contextRef.current },
+      });
+
+      if (result.ok && result.conversationId) {
+        setConversationId(result.conversationId);
+      }
+
+      const transcript = result.response?.transcript;
+      setMessages((current) => [...current, { role: 'user', text: transcript || '(áudio enviado)' }]);
+
+      if (!result.ok) {
+        setMessages((current) => [...current, { role: 'assistant', text: result.error || AGENT_UNAVAILABLE_MESSAGE }]);
+        return;
+      }
+
+      const answer = result.response?.answer ? result.response.answer : AGENT_UNAVAILABLE_MESSAGE;
+      const text = result.response?.fallbackUsed
+        ? `${answer}\n\n(Resposta gerada em modo de contingência — motor principal indisponível no momento.)`
+        : answer;
+      setMessages((current) => [...current, { role: 'assistant', text }]);
+
+      // Escuta contínua (VAD): só entra em "falando" (e só toca o áudio) se o usuário não
+      // desligou a escuta enquanto a resposta processava -- senão fica tocando por cima do
+      // silêncio que ele já pediu.
+      if (result.response?.answerAudioBase64 && voiceModeRef.current !== 'off') {
+        const audio = new Audio(`data:${result.response.answerAudioMimeType || 'audio/mpeg'};base64,${result.response.answerAudioBase64}`);
+        currentAudioRef.current = audio;
+        audio.onended = () => {
+          if (currentAudioRef.current === audio) currentAudioRef.current = null;
+          if (voiceModeRef.current === 'speaking') updateVoiceMode('listening');
+        };
+        updateVoiceMode('speaking');
+        void audio.play().catch(() => {});
+      } else if (voiceModeRef.current !== 'off') {
+        updateVoiceMode('listening');
+      }
+    } finally {
+      setSending(false);
+    }
+  };
+
+  // VAD detectou início de fala -- se o assistente estava falando, isso é barge-in (interrompe
+  // a resposta na hora); em seguida (ou já em escuta normal) começa a gravar o novo turno.
+  const handleSpeechStart = () => {
+    if (voiceModeRef.current === 'recording' || voiceModeRef.current === 'off') return;
+
+    if (voiceModeRef.current === 'speaking') stopSpeaking();
+
+    const stream = micStreamRef.current;
+    if (!stream) return;
+
+    const mimeType = mimeTypeRef.current;
+    const recorder = new MediaRecorder(stream, { mimeType });
+    audioChunksRef.current = [];
+    recordingStartedAtRef.current = Date.now();
+
+    recorder.ondataavailable = (event) => {
+      if (event.data.size > 0) audioChunksRef.current.push(event.data);
+    };
+
+    recorder.onstop = () => {
+      window.clearTimeout(recordingTimeoutRef.current);
+      const elapsedMs = Date.now() - recordingStartedAtRef.current;
+      const blob = new Blob(audioChunksRef.current, { type: mimeType });
+      audioChunksRef.current = [];
+      // Ruído breve confundido com fala pelo VAD -- descarta sem chamar o backend.
+      if (blob.size > 0 && elapsedMs >= MIN_UTTERANCE_MS) {
+        void sendVoiceMessage(blob, mimeType);
+      } else if (voiceModeRef.current === 'recording') {
+        updateVoiceMode('listening');
+      }
+    };
+
+    mediaRecorderRef.current = recorder;
+    recorder.start();
+    updateVoiceMode('recording');
+    recordingTimeoutRef.current = window.setTimeout(() => mediaRecorderRef.current?.stop(), MAX_RECORDING_MS);
+  };
+
+  // VAD detectou silêncio suficiente pra considerar a fala encerrada -- fecha a gravação
+  // deste turno (o próprio onstop decide se manda pro backend ou descarta por ser curto demais).
+  const handleSpeechEnd = () => {
+    if (voiceModeRef.current !== 'recording') return;
+    mediaRecorderRef.current?.stop();
+  };
+
+  const stopListening = () => {
+    vadHandleRef.current?.stop();
+    vadHandleRef.current = null;
+    window.clearTimeout(recordingTimeoutRef.current);
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.onstop = null;
+      mediaRecorderRef.current.stop();
+    }
+    mediaRecorderRef.current = null;
+    stopSpeaking();
+    micStreamRef.current?.getTracks().forEach((track) => track.stop());
+    micStreamRef.current = null;
+    updateVoiceMode('off');
+  };
+
+  const startListening = async () => {
+    if (voiceModeRef.current !== 'off') return;
+
+    try {
+      // echoCancellation: essencial pro barge-in não confundir o próprio TTS tocando nos
+      // alto-falantes com o usuário falando -- sem isso o microfone captaria a resposta do
+      // assistente de volta e o VAD interpretaria como o usuário interrompendo a si mesmo.
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true },
+      });
+      micStreamRef.current = stream;
+      mimeTypeRef.current = pickSupportedAudioMimeType();
+      updateVoiceMode('listening');
+      vadHandleRef.current = startVoiceActivityDetector(stream, {
+        onSpeechStart: handleSpeechStart,
+        onSpeechEnd: handleSpeechEnd,
+      });
+    } catch {
+      setMessages((current) => [...current, { role: 'assistant', text: 'Não consegui acessar o microfone — verifique a permissão do navegador pra este site.' }]);
+    }
+  };
+
+  const toggleVoiceMode = () => {
+    if (voiceMode === 'off') {
+      void startListening();
+    } else {
+      stopListening();
+    }
+  };
+
+  useEffect(() => () => stopListening(), []);
+
   const openAssistant = () => {
     dismissTour();
     setOpen(true);
@@ -184,8 +409,21 @@ export function FloatingPlatformAssistant({ pageTitle }: FloatingPlatformAssista
               disabled={sending}
               onChange={(event) => setMessage(event.target.value)}
               onKeyDown={(event) => { if (event.key === 'Enter') void sendMessage(message); }}
-              placeholder="Pergunte ao assistente..."
+              placeholder={
+                voiceMode === 'recording' ? 'Ouvindo você...'
+                : voiceMode === 'speaking' ? 'Respondendo (fale para interromper)...'
+                : voiceMode === 'listening' ? 'Escutando...'
+                : 'Pergunte ao assistente...'
+              }
             />
+            <button
+              className={`v363-assistant-mic ${voiceMode !== 'off' ? voiceMode : ''}`}
+              onClick={toggleVoiceMode}
+              aria-label={voiceMode === 'off' ? 'Falar com o assistente' : 'Parar escuta de voz'}
+              title={voiceMode === 'off' ? 'Falar com o assistente' : 'Parar escuta de voz'}
+            >
+              {voiceMode === 'off' ? <Mic size={16} /> : <Square size={16} />}
+            </button>
             <button className="v363-assistant-send" disabled={sending} onClick={() => void sendMessage(message)} aria-label="Enviar"><Send size={16} /></button>
           </footer>
         </div>
