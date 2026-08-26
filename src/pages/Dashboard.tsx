@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { AlertTriangle, ClipboardList, FileText, Globe2, ListChecks } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { AlertTriangle, ChevronRight, ClipboardList, FileText, Globe2, ListChecks } from 'lucide-react';
 import { PageHeader } from '../components/PageHeader';
 import { KpiCard } from '../components/KpiCard';
 import { Badge } from '../components/Badge';
@@ -8,21 +8,47 @@ import { useAsyncData } from '../hooks/useAsyncData';
 import { fetchAlertas, fetchDashboard, fetchDocumentos } from '../services/radarApi';
 import { useSession } from '../contexts/SessionContext';
 import { listTasks, type TaskRecord } from '../services/tarefas';
-import { STATUS_CATEGORY_LABELS, STATUS_CATEGORY_ORDER, type StatusCategory } from '../lib/statusCategory';
+import { listKnowledgeEntries, type KnowledgeEntryRecord, type KnowledgeSourceType } from '../services/baseConhecimento';
+import { STATUS_CATEGORY_LABELS } from '../lib/statusCategory';
 import type { PageProps } from '../App';
 
-const getCombinedSource = (sources: string[]) => sources.every((source) => source === 'supabase') ? 'supabase' : 'mock';
+const knowledgeSourceLabel: Record<KnowledgeSourceType, string> = {
+  agente_extraido: 'Extraído pelo agente',
+  manual: 'Cadastro manual',
+  documento: 'Documento',
+};
+
+const TONE_CYCLE = ['blue', 'orange', 'green', 'red', 'purple', 'cyan', 'slate'];
+const toneForIndex = (index: number) => TONE_CYCLE[index % TONE_CYCLE.length];
+
+/**
+ * Níveis de drill-down são fixos aos campos básicos que já existem (pedido do usuário,
+ * 17/08) -- não é configurável por tela, é sempre esta ordem.
+ */
+type DonutLevel<T> = { title: string; groupLabel: (item: T) => string };
+
+function computeDrillState<T>(items: T[], levels: DonutLevel<T>[], path: string[]) {
+  let filtered = items;
+  for (let i = 0; i < path.length; i++) {
+    const level = levels[i];
+    filtered = filtered.filter((item) => level.groupLabel(item) === path[i]);
+  }
+  const currentLevel = levels[path.length];
+  const counts = new Map<string, number>();
+  if (currentLevel) {
+    for (const item of filtered) {
+      const label = currentLevel.groupLabel(item);
+      counts.set(label, (counts.get(label) ?? 0) + 1);
+    }
+  }
+  const segments = Array.from(counts.entries()).map(([label, value], index) => ({ label, value, tone: toneForIndex(index) }));
+  const total = filtered.length;
+  return { segments, total, hasMoreLevels: path.length + 1 < levels.length };
+}
 
 const normalizeNumber = (value: unknown, fallback: number) => {
   const parsed = Number(String(value ?? '').replace(/\D/g, ''));
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
-};
-
-const STATUS_DONUT_TONE: Record<StatusCategory, string> = {
-  novo: 'blue',
-  andamento: 'orange',
-  concluido: 'green',
-  cancelado: 'red',
 };
 
 const toneColor = (tone: string) => {
@@ -38,28 +64,84 @@ const toneColor = (tone: string) => {
   return map[tone] ?? map.blue;
 };
 
-const getDonutGradient = (items: Array<{ value: number; tone: string }>) => {
-  const total = items.reduce((sum, item) => sum + item.value, 0) || 1;
+type DrillSegment = { label: string; value: number; tone: string };
+
+/**
+ * Anel clicável de verdade (cada segmento é um <circle> SVG separado, não um único
+ * background de conic-gradient) -- pedido explícito: "clicar numa fatia desce um nível".
+ * Legenda também clicável, pelo mesmo motivo de acessibilidade (fatia fina é difícil de
+ * acertar no mouse).
+ */
+function DrillDonutChart({
+  segments,
+  total,
+  centerLabel,
+  canDrill,
+  onSelect,
+}: {
+  segments: DrillSegment[];
+  total: number;
+  centerLabel: string;
+  canDrill: boolean;
+  onSelect: (label: string) => void;
+}) {
+  const size = 190;
+  const center = size / 2;
+  const radius = 77;
+  const strokeWidth = 36;
+  const circumference = 2 * Math.PI * radius;
+
+  const arcs: Array<{ segment: DrillSegment; dashLength: number; dashOffset: number }> = [];
   let cursor = 0;
+  for (const segment of segments) {
+    const fraction = total ? segment.value / total : 0;
+    const dashLength = fraction * circumference;
+    arcs.push({ segment, dashLength, dashOffset: -cursor * circumference });
+    cursor += fraction;
+  }
 
-  return `conic-gradient(${items.map((item) => {
-    const start = cursor;
-    const end = cursor + (item.value / total) * 100;
-    cursor = end;
-    return `${toneColor(item.tone)} ${start}% ${end}%`;
-  }).join(', ')})`;
-};
+  return (
+    <div className="executive-donut">
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="executive-donut-svg">
+        <circle cx={center} cy={center} r={radius} fill="none" stroke="var(--slate-100)" strokeWidth={strokeWidth} />
+        {arcs.map(({ segment, dashLength, dashOffset }) => (
+          <circle
+            key={segment.label}
+            cx={center}
+            cy={center}
+            r={radius}
+            fill="none"
+            stroke={toneColor(segment.tone)}
+            strokeWidth={strokeWidth}
+            strokeDasharray={`${dashLength} ${circumference - dashLength}`}
+            strokeDashoffset={dashOffset}
+            transform={`rotate(-90 ${center} ${center})`}
+            className={canDrill ? 'donut-segment clickable' : 'donut-segment'}
+            onClick={canDrill ? () => onSelect(segment.label) : undefined}
+          >
+            <title>{segment.label}: {segment.value} ({total ? Math.round((segment.value / total) * 100) : 0}%)</title>
+          </circle>
+        ))}
+      </svg>
+      <div><strong>{total}</strong><span>{centerLabel}</span></div>
+    </div>
+  );
+}
 
-const getOriginCategory = (tipo: string) => {
-  const normalized = tipo.toLowerCase();
-  if (normalized.includes('youtube') || normalized.includes('vídeo') || normalized.includes('video')) return { label: 'Canal de vídeo', tone: 'red' };
-  if (normalized.includes('instagram') || normalized.includes('facebook') || normalized.includes('tiktok') || normalized.includes('linkedin') || normalized.includes('rede social')) return { label: 'Rede social', tone: 'purple' };
-  if (normalized.includes('site') || normalized.includes('wiki') || normalized.includes('guia') || normalized.includes('página')) return { label: 'Página/Site', tone: 'cyan' };
-  if (normalized.includes('api') || normalized.includes('integração') || normalized.includes('integracao')) return { label: 'API/Integração', tone: 'green' };
-  if (normalized.includes('planilha')) return { label: 'Planilha/Base', tone: 'green' };
-  if (normalized.includes('portaria') || normalized.includes('nota técnica') || normalized.includes('norma')) return { label: 'Norma/Regra', tone: 'blue' };
-  return { label: 'Documento/Arquivo', tone: 'slate' };
-};
+function DonutBreadcrumb({ path, onJump }: { path: string[]; onJump: (depth: number) => void }) {
+  if (path.length === 0) return null;
+  return (
+    <div className="donut-breadcrumb">
+      <button onClick={() => onJump(0)}>Todos</button>
+      {path.map((label, index) => (
+        <span key={index}>
+          <ChevronRight size={12} />
+          {index === path.length - 1 ? <strong>{label}</strong> : <button onClick={() => onJump(index + 1)}>{label}</button>}
+        </span>
+      ))}
+    </div>
+  );
+}
 
 export function Dashboard({ onOpenDetail, onNavigate }: PageProps) {
   const { session } = useSession();
@@ -70,6 +152,9 @@ export function Dashboard({ onOpenDetail, onNavigate }: PageProps) {
   const documentosData = useAsyncData(fetchDocumentos, documentos);
 
   const [tasks, setTasks] = useState<TaskRecord[]>([]);
+  const [knowledgeEntries, setKnowledgeEntries] = useState<KnowledgeEntryRecord[]>([]);
+  const [taskDrillPath, setTaskDrillPath] = useState<string[]>([]);
+  const [knowledgeDrillPath, setKnowledgeDrillPath] = useState<string[]>([]);
 
   useEffect(() => {
     if (!clienteId) { setTasks([]); return; }
@@ -78,9 +163,36 @@ export function Dashboard({ onOpenDetail, onNavigate }: PageProps) {
     return () => { active = false; };
   }, [clienteId]);
 
-  const source = getCombinedSource([dashboard.source, alertasData.source, documentosData.source]);
-  const loading = dashboard.loading || alertasData.loading || documentosData.loading;
-  const error = dashboard.error || alertasData.error || documentosData.error;
+  useEffect(() => {
+    if (!clienteId) { setKnowledgeEntries([]); return; }
+    let active = true;
+    listKnowledgeEntries(undefined, clienteId).then((result) => { if (active) setKnowledgeEntries(result.items); });
+    return () => { active = false; };
+  }, [clienteId]);
+
+  // Níveis imutáveis (não configuráveis por usuário) -- decisão de 17/08.
+  const taskDonutLevels = useMemo<DonutLevel<TaskRecord>[]>(() => [
+    { title: 'status', groupLabel: (task) => STATUS_CATEGORY_LABELS[task.categoria] },
+    { title: 'origem', groupLabel: (task) => task.origem || 'Sem origem' },
+    { title: 'responsável', groupLabel: (task) => task.responsavel || 'Sem responsável' },
+  ], []);
+
+  const knowledgeDonutLevels = useMemo<DonutLevel<KnowledgeEntryRecord>[]>(() => [
+    { title: 'categoria', groupLabel: (entry) => entry.category || 'Sem categoria' },
+    { title: 'origem', groupLabel: (entry) => knowledgeSourceLabel[entry.sourceType] || entry.sourceType },
+  ], []);
+
+  const taskDrill = useMemo(
+    () => computeDrillState(tasks, taskDonutLevels, taskDrillPath),
+    [tasks, taskDonutLevels, taskDrillPath],
+  );
+  const knowledgeDrill = useMemo(
+    () => computeDrillState(knowledgeEntries, knowledgeDonutLevels, knowledgeDrillPath),
+    [knowledgeEntries, knowledgeDonutLevels, knowledgeDrillPath],
+  );
+
+  const drillTaskInto = (label: string) => setTaskDrillPath((current) => [...current, label]);
+  const drillKnowledgeInto = (label: string) => setKnowledgeDrillPath((current) => [...current, label]);
 
   const metricValue = (labelIncludes: string[], fallback: number) => {
     const item = dashboard.data.find((kpi) => labelIncludes.some((label) => kpi.label.toLowerCase().includes(label)));
@@ -132,29 +244,6 @@ export function Dashboard({ onOpenDetail, onNavigate }: PageProps) {
 
   const latestAlertas = alertasData.data.slice(0, 5);
   const latestTasks = tasks.slice(0, 5);
-  const statusResumo = STATUS_CATEGORY_ORDER.map((categoria) => ({
-    label: STATUS_CATEGORY_LABELS[categoria],
-    value: tasks.filter((task) => task.categoria === categoria).length,
-    tone: STATUS_DONUT_TONE[categoria],
-  }));
-  const statusTotal = statusResumo.reduce((sum, item) => sum + item.value, 0);
-  const statusGradient = getDonutGradient(statusResumo);
-
-  const originMap = documentosData.data.reduce<Record<string, { label: string; value: number; tone: string }>>((acc, item) => {
-    const category = getOriginCategory(item.tipo);
-    acc[category.label] = acc[category.label] ?? { ...category, value: 0 };
-    acc[category.label].value += 1;
-    return acc;
-  }, {});
-
-  const origemResumo = Object.values(originMap);
-  const origemFinal = origemResumo.length ? origemResumo : [
-    { label: 'Norma/Regra', value: 2, tone: 'blue' },
-    { label: 'Documento/Arquivo', value: 1, tone: 'slate' },
-    { label: 'Planilha/Base', value: 1, tone: 'green' }
-  ];
-  const origemTotal = origemFinal.reduce((sum, item) => sum + item.value, 0);
-  const origemGradient = getDonutGradient(origemFinal);
 
   const openAlertModal = (alerta: (typeof latestAlertas)[number]) => {
     onOpenDetail?.({
@@ -214,49 +303,74 @@ export function Dashboard({ onOpenDetail, onNavigate }: PageProps) {
           <div className="section-title-row">
             <div>
               <h3>Tarefas por status</h3>
-              <p className="muted">Percentual de gargalo operacional por situação.</p>
+              <p className="muted">
+                {taskDrillPath.length === 0 ? 'Percentual de gargalo operacional por situação.' : `Nível ${taskDrillPath.length + 1}: por ${taskDonutLevels[taskDrillPath.length]?.title ?? ''}.`}
+              </p>
             </div>
           </div>
 
+          <DonutBreadcrumb path={taskDrillPath} onJump={(depth) => setTaskDrillPath((current) => current.slice(0, depth))} />
+
           <div className="donut-summary-layout">
-            <div className="executive-donut" style={{ background: statusGradient }}>
-              <div><strong>{statusTotal}</strong><span>tarefas</span></div>
-            </div>
+            <DrillDonutChart
+              segments={taskDrill.segments}
+              total={taskDrill.total}
+              centerLabel="tarefas"
+              canDrill={taskDrill.hasMoreLevels}
+              onSelect={drillTaskInto}
+            />
             <div className="donut-legend-list">
-              {statusResumo.map((item) => (
-                <div key={item.label}>
+              {taskDrill.segments.map((item) => (
+                <div
+                  key={item.label}
+                  className={taskDrill.hasMoreLevels ? 'clickable' : undefined}
+                  onClick={taskDrill.hasMoreLevels ? () => drillTaskInto(item.label) : undefined}
+                >
                   <i className={`tone-${item.tone}`} />
                   <span>{item.label}</span>
-                  <strong>{statusTotal ? Math.round((item.value / statusTotal) * 100) : 0}%</strong>
+                  <strong>{taskDrill.total ? Math.round((item.value / taskDrill.total) * 100) : 0}%</strong>
                 </div>
               ))}
             </div>
           </div>
-          {statusTotal === 0 && <p className="empty-note">Nenhuma tarefa registrada ainda.</p>}
+          {taskDrill.total === 0 && <p className="empty-note">Nenhuma tarefa registrada ainda.</p>}
         </section>
 
         <section className="card dashboard-donut-card">
           <div className="section-title-row">
             <div>
               <h3>Atualizações da Base de Conhecimento</h3>
-              <p className="muted">Distribuição dos conhecimentos pela origem da fonte.</p>
+              <p className="muted">
+                {knowledgeDrillPath.length === 0 ? 'Distribuição dos conhecimentos por categoria.' : `Nível ${knowledgeDrillPath.length + 1}: por ${knowledgeDonutLevels[knowledgeDrillPath.length]?.title ?? ''}.`}
+              </p>
             </div>
           </div>
 
+          <DonutBreadcrumb path={knowledgeDrillPath} onJump={(depth) => setKnowledgeDrillPath((current) => current.slice(0, depth))} />
+
           <div className="donut-summary-layout">
-            <div className="executive-donut origin-donut" style={{ background: origemGradient }}>
-              <div><strong>{origemTotal}</strong><span>entradas</span></div>
-            </div>
+            <DrillDonutChart
+              segments={knowledgeDrill.segments}
+              total={knowledgeDrill.total}
+              centerLabel="entradas"
+              canDrill={knowledgeDrill.hasMoreLevels}
+              onSelect={drillKnowledgeInto}
+            />
             <div className="donut-legend-list">
-              {origemFinal.map((item) => (
-                <div key={item.label}>
+              {knowledgeDrill.segments.map((item) => (
+                <div
+                  key={item.label}
+                  className={knowledgeDrill.hasMoreLevels ? 'clickable' : undefined}
+                  onClick={knowledgeDrill.hasMoreLevels ? () => drillKnowledgeInto(item.label) : undefined}
+                >
                   <i className={`tone-${item.tone}`} />
                   <span>{item.label}</span>
-                  <strong>{Math.round((item.value / origemTotal) * 100)}%</strong>
+                  <strong>{knowledgeDrill.total ? Math.round((item.value / knowledgeDrill.total) * 100) : 0}%</strong>
                 </div>
               ))}
             </div>
           </div>
+          {knowledgeDrill.total === 0 && <p className="empty-note">Nenhum conhecimento publicado ainda.</p>}
         </section>
       </div>
 
