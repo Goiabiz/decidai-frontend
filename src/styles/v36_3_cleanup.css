@@ -609,11 +609,85 @@
 .v363-voice-legend {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 4px 12px;
   padding: 8px 14px;
   border-top: 1px solid var(--slate-200);
   font-size: 11px;
   color: var(--slate-500);
+}
+
+/* Missão "voz mais natural" (28/08/2026): toggle da animação de ondas de voz -- fica junto da
+   legenda de texto que já existia, sem precisar de um painel de configurações novo. */
+.v363-voice-wave-toggle {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--slate-400);
+  cursor: pointer;
+  transition: color .15s ease, background .15s ease;
+}
+
+.v363-voice-wave-toggle:hover {
+  background: var(--slate-100);
+}
+
+.v363-voice-wave-toggle.active {
+  color: var(--primary, #00875a);
+}
+
+.v363-voice-wave-row {
+  display: flex;
+  justify-content: center;
+  padding: 0 14px 10px;
+}
+
+.v363-voice-wave-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: var(--slate-100);
+}
+
+.v363-voice-wave-canvas {
+  width: 140px;
+  height: 28px;
+  display: block;
+}
+
+.v363-voice-wave-pulse {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 28px;
+}
+
+.v363-voice-wave-pulse i {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  font-style: normal;
+  opacity: 0.35;
+  animation: v363-voice-wave-pulse-beat 1.1s ease-in-out infinite;
+}
+
+.v363-voice-wave-pulse i:nth-child(2) { animation-delay: .18s; }
+.v363-voice-wave-pulse i:nth-child(3) { animation-delay: .36s; }
+
+@keyframes v363-voice-wave-pulse-beat {
+  0%, 100% { opacity: 0.3; transform: scale(0.85); }
+  50% { opacity: 1; transform: scale(1.15); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .v363-voice-wave-pulse i { animation: none; opacity: 0.8; }
 }
 
 .v363-voice-legend-item {

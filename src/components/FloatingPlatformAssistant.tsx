@@ -1,8 +1,19 @@
 import { useEffect, useRef, useState } from 'react';
-import { Bot, ChevronDown, Loader2, Maximize2, Mic, Minimize2, Send, Sparkles, Square, User, X } from 'lucide-react';
+import { Bot, ChevronDown, Loader2, Maximize2, Mic, Minimize2, Send, Sparkles, Square, User, Waves, X } from 'lucide-react';
 import { useSession } from '../contexts/SessionContext';
 import { runAgent, runAgentVoice } from '../services/agentClient';
 import { startVoiceActivityDetector, type VoiceActivityHandle } from '../services/voiceActivityDetector';
+import { VoiceWaveVisualizer } from './VoiceWaveVisualizer';
+
+// Missão "voz mais natural" (28/08/2026): preferência de animação de ondas de voz é por
+// navegador/usuário (localStorage), não por tenant -- cada pessoa decide se quer ver, sem
+// precisar de schema/backend novo pra uma preferência puramente visual.
+const VOICE_WAVE_PREFERENCE_KEY = 'assistant-voice-wave-enabled';
+
+function getAudioContextCtor(): typeof AudioContext {
+  return window.AudioContext
+    || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext!;
+}
 
 const AGENT_UNAVAILABLE_MESSAGE = 'Ainda não consigo processar isso de verdade — o serviço de IA da plataforma está sendo publicado. Assim que estiver no ar, passo a responder com o motor real.';
 
@@ -83,6 +94,19 @@ export function FloatingPlatformAssistant({ pageTitle }: FloatingPlatformAssista
   const vadHandleRef = useRef<VoiceActivityHandle | null>(null);
   const mimeTypeRef = useRef<string>('audio/webm');
   const currentAudioRef = useRef<HTMLAudioElement | null>(null);
+  const micAudioContextRef = useRef<AudioContext | null>(null);
+  const ttsAudioContextRef = useRef<AudioContext | null>(null);
+  const [micAnalyser, setMicAnalyser] = useState<AnalyserNode | null>(null);
+  const [ttsAnalyser, setTtsAnalyser] = useState<AnalyserNode | null>(null);
+  const [voiceWaveEnabled, setVoiceWaveEnabled] = useState(() => window.localStorage.getItem(VOICE_WAVE_PREFERENCE_KEY) !== '0');
+
+  const toggleVoiceWave = () => {
+    setVoiceWaveEnabled((current) => {
+      const next = !current;
+      window.localStorage.setItem(VOICE_WAVE_PREFERENCE_KEY, next ? '1' : '0');
+      return next;
+    });
+  };
 
   const updateVoiceMode = (mode: VoiceMode) => {
     voiceModeRef.current = mode;
@@ -191,6 +215,7 @@ export function FloatingPlatformAssistant({ pageTitle }: FloatingPlatformAssista
       currentAudioRef.current.pause();
       currentAudioRef.current = null;
     }
+    setTtsAnalyser(null);
   };
 
   const sendVoiceMessage = async (audioBlob: Blob, mimeType: string) => {
@@ -242,8 +267,32 @@ export function FloatingPlatformAssistant({ pageTitle }: FloatingPlatformAssista
         currentAudioRef.current = audio;
         audio.onended = () => {
           if (currentAudioRef.current === audio) currentAudioRef.current = null;
+          setTtsAnalyser(null);
           if (voiceModeRef.current === 'speaking') updateVoiceMode('listening');
         };
+
+        // Ondas de voz (missão "voz mais natural", 28/08/2026): analisa a amplitude REAL do
+        // áudio que vai tocar -- precisa conectar analyser -> destination também, senão o
+        // grafo de áudio para no analyser e a resposta fica muda (createMediaElementSource
+        // assume o roteamento de saída do elemento por completo). Cria 1 AudioContext e
+        // reaproveita entre falas (não pode chamar createMediaElementSource 2x no mesmo
+        // elemento, mas cada resposta já cria um <audio> novo, então não colide).
+        try {
+          if (!ttsAudioContextRef.current) {
+            ttsAudioContextRef.current = new (getAudioContextCtor())();
+          }
+          const audioCtx = ttsAudioContextRef.current;
+          const source = audioCtx.createMediaElementSource(audio);
+          const analyser = audioCtx.createAnalyser();
+          analyser.fftSize = 256;
+          source.connect(analyser);
+          analyser.connect(audioCtx.destination);
+          setTtsAnalyser(analyser);
+        } catch {
+          // Degrada bem: sem analyser, a onda simplesmente não anima -- o áudio toca normal.
+          setTtsAnalyser(null);
+        }
+
         updateVoiceMode('speaking');
         void audio.play().catch(() => {});
       } else if (voiceModeRef.current !== 'off') {
@@ -311,6 +360,9 @@ export function FloatingPlatformAssistant({ pageTitle }: FloatingPlatformAssista
     stopSpeaking();
     micStreamRef.current?.getTracks().forEach((track) => track.stop());
     micStreamRef.current = null;
+    setMicAnalyser(null);
+    void micAudioContextRef.current?.close().catch(() => {});
+    micAudioContextRef.current = null;
     updateVoiceMode('off');
   };
 
@@ -331,6 +383,22 @@ export function FloatingPlatformAssistant({ pageTitle }: FloatingPlatformAssista
         onSpeechStart: handleSpeechStart,
         onSpeechEnd: handleSpeechEnd,
       });
+
+      // Onda de voz reagindo ao mic de verdade (missão "voz mais natural", 28/08/2026) --
+      // tap independente do MESMO stream que o VAD já usa (Web Audio permite múltiplas
+      // MediaStreamSource na mesma stream, não disputa/consome). Nunca conecta a
+      // destination -- mesma razão do VAD (evitar eco do próprio mic nos alto-falantes).
+      try {
+        const audioCtx = new (getAudioContextCtor())();
+        const source = audioCtx.createMediaStreamSource(stream);
+        const analyser = audioCtx.createAnalyser();
+        analyser.fftSize = 256;
+        source.connect(analyser);
+        micAudioContextRef.current = audioCtx;
+        setMicAnalyser(analyser);
+      } catch {
+        setMicAnalyser(null);
+      }
     } catch {
       setMessages((current) => [...current, { role: 'assistant', text: 'Não consegui acessar o microfone — verifique a permissão do navegador pra este site.' }]);
     }
@@ -412,6 +480,26 @@ export function FloatingPlatformAssistant({ pageTitle }: FloatingPlatformAssista
               <span className={`v363-voice-legend-item recording ${voiceMode === 'recording' ? 'active' : ''}`}><i /> Ouvindo você</span>
               <span className={`v363-voice-legend-item processing ${voiceMode === 'processing' ? 'active' : ''}`}><i /> Pensando</span>
               <span className={`v363-voice-legend-item speaking ${voiceMode === 'speaking' ? 'active' : ''}`}><i /> Respondendo</span>
+              <button
+                type="button"
+                className={`v363-voice-wave-toggle ${voiceWaveEnabled ? 'active' : ''}`}
+                onClick={toggleVoiceWave}
+                aria-pressed={voiceWaveEnabled}
+                aria-label={voiceWaveEnabled ? 'Desativar animação de ondas de voz' : 'Ativar animação de ondas de voz'}
+                title={voiceWaveEnabled ? 'Desativar animação de ondas de voz' : 'Ativar animação de ondas de voz'}
+              >
+                <Waves size={14} />
+              </button>
+            </div>
+          )}
+
+          {voiceMode !== 'off' && voiceWaveEnabled && (
+            <div className="v363-voice-wave-row">
+              <VoiceWaveVisualizer
+                analyser={voiceMode === 'speaking' ? ttsAnalyser : micAnalyser}
+                state={voiceMode}
+                enabled={voiceWaveEnabled}
+              />
             </div>
           )}
 
