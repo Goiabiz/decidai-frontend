@@ -406,6 +406,15 @@ export function FloatingPlatformAssistant({ pageTitle }: FloatingPlatformAssista
             </div>
           </section>
 
+          {voiceMode !== 'off' && (
+            <div className="v363-voice-legend" role="status">
+              <span className={`v363-voice-legend-item listening ${voiceMode === 'listening' ? 'active' : ''}`}><i /> Pode falar</span>
+              <span className={`v363-voice-legend-item recording ${voiceMode === 'recording' ? 'active' : ''}`}><i /> Ouvindo você</span>
+              <span className={`v363-voice-legend-item processing ${voiceMode === 'processing' ? 'active' : ''}`}><i /> Pensando</span>
+              <span className={`v363-voice-legend-item speaking ${voiceMode === 'speaking' ? 'active' : ''}`}><i /> Respondendo</span>
+            </div>
+          )}
+
           <footer>
             <button className="v363-assistant-plus" aria-label="Mais opções"><ChevronDown size={16} /></button>
             <input
