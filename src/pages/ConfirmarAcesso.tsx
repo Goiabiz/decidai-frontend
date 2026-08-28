@@ -7,15 +7,11 @@ import markArrowLight from '../assets/brand/mark-arrow-light.svg';
 type VerifyType = 'signup' | 'invite' | 'magiclink' | 'recovery' | 'email_change' | 'email';
 
 /**
- * Os templates de e-mail em produção (confirmados ao vivo via Management API) são todos os
- * padrão do Supabase, com {{ .ConfirmationURL }} -- não {{ .TokenHash }} (esse último exigiria
- * o template customizado, desenhado mas nunca aplicado, bloqueado pelo plano free). O link real
- * abre o /verify do próprio Supabase, que confirma no servidor e só *depois* redireciona pra cá
- * com a sessão dentro do fragmento da URL (#access_token=...), nunca como ?token_hash= na
- * query -- o supabase-js já consome esse fragmento sozinho ao inicializar (detectSessionInUrl,
- * ligado por padrão) e emite PASSWORD_RECOVERY/SIGNED_IN via onAuthStateChange, que é o
- * mecanismo documentado pra esse fluxo. ?token_hash= continua suportado como fallback, pro caso
- * de algum link ser gerado manualmente (ex.: convite via admin API) nesse formato.
+ * Os templates de e-mail em produção (docs/email-templates/*.html, aplicados via Supabase
+ * Dashboard) usam {{ .RedirectTo }}&token_hash={{ .TokenHash }} -- não o {{ .ConfirmationURL }}
+ * padrão do Supabase. Ou seja, o caminho real é sempre ?token_hash= na query + handleConfirm()
+ * chamando verifyOtp() manualmente; onAuthStateChange/detectSessionInUrl (fragmento #access_token)
+ * é só um fallback defensivo, não o mecanismo principal.
  */
 export function ConfirmarAcesso() {
   const params = new URLSearchParams(window.location.search);

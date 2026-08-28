@@ -30,6 +30,12 @@
   --status-cancelado-bg: #f6deda;
   --status-cancelado-fg: #9c3f32;
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  /* Sem isso, a raiz do documento nunca declara um esquema de cor -- só telas específicas
+     (.login-screen, .confirm-access-screen) declaravam color-scheme:light nelas mesmas, escopo
+     que o autodarkening do navegador/SO (recurso diferente do forced-colors/High Contrast, não
+     coberto por forced-color-adjust) não necessariamente respeita numa div aninhada. Título
+     "lavado" em telas públicas era esse autodarkening resolvendo por conta própria. */
+  color-scheme: light;
 }
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--slate-100); color: var(--slate-950); }
@@ -10833,11 +10839,10 @@ td small {
   font-weight: 800;
   color: #10241d;
   margin: 0 0 4px;
-  /* Achado real testando em produção: título grande "lavado" enquanto o parágrafo (menor,
-     já cinza) renderiza normal -- padrão típico de extensão de navegador ou modo escuro
-     forçado pelo SO reescrevendo cor de texto grande por cima do CSS, ignorando o
-     color-scheme:light já declarado no ancestral. forced-color-adjust é a propriedade certa
-     pra dizer "esta cor é intencional, não ajuste". */
+  /* Causa real (achada depois que só isto aqui não resolveu): color-scheme:light nunca
+     era declarado na raiz do documento, só nesta tela -- corrigido em :root (topo do
+     arquivo). Mantido como reforço para o caso restrito de Windows High Contrast Mode
+     (forced-colors), que é o único cenário que forced-color-adjust de fato cobre. */
   forced-color-adjust: none;
 }
 

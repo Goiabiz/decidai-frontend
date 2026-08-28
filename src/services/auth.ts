@@ -520,7 +520,7 @@ export async function inviteUsuarioCliente(clienteId: string, input: UsuarioClie
 
   const { error: inviteError } = await supabase.auth.signInWithOtp({
     email: input.email,
-    options: { shouldCreateUser: true, emailRedirectTo: window.location.origin },
+    options: { shouldCreateUser: true, emailRedirectTo: `${window.location.origin}/confirmar-acesso?type=magiclink` },
   });
   if (inviteError) throw inviteError;
 
@@ -584,7 +584,7 @@ export async function resendUsuarioClienteInvite(email: string): Promise<void> {
   const supabase = requireClient();
   const { error } = await supabase.auth.signInWithOtp({
     email,
-    options: { shouldCreateUser: true, emailRedirectTo: window.location.origin },
+    options: { shouldCreateUser: true, emailRedirectTo: `${window.location.origin}/confirmar-acesso?type=magiclink` },
   });
   if (error) throw error;
 }
