@@ -64,9 +64,46 @@ Deno.serve(async (request) => {
       return jsonResponse(chargeResponse);
     }
 
+    // Gatilho manual de dunning (§35, migration 125) -- botão "Executar cobrança agora",
+    // staff-only. Diferente de createGatewayCharge (qualquer tenant pode cobrar a própria
+    // fatura): aqui quem aciona precisa ser staff da operadora, checado via
+    // fn_is_staff_sem_tenant (mesmo padrão de knowledge-admin, migration 114) porque o
+    // service_role desta função não enxerga usuarios_sistema direto (sem GRANT de propósito).
+    if (action === 'runDunningNow') {
+      if (!body.invoiceId) return jsonResponse({ ok: false, error: 'invoiceId é obrigatório.' }, 400);
+
+      const { data: isStaff, error: staffError } = await supabase.rpc('fn_is_staff_sem_tenant', { p_auth_user_id: user.id });
+      if (staffError) return jsonResponse({ ok: false, error: staffError.message }, 500);
+      if (!isStaff) return jsonResponse({ ok: false, error: 'Apenas suporte/administrador da operadora pode executar cobrança manual.' }, 403);
+
+      const runtimeUrl = Deno.env.get('AGENT_RUNTIME_URL');
+      const internalToken = Deno.env.get('AGENT_INTERNAL_TOKEN');
+      if (!runtimeUrl) return jsonResponse({ ok: false, error: 'AGENT_RUNTIME_URL não configurado.' }, 500);
+
+      const response = await fetch(`${runtimeUrl.replace(/\/$/, '')}/billing/dunning/run`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(internalToken ? { Authorization: `Bearer ${internalToken}` } : {}),
+        },
+        body: JSON.stringify({ invoiceId: body.invoiceId }),
+      });
+
+      const runResponse = await response.json().catch(() => undefined);
+
+      if (!response.ok || !runResponse) {
+        return jsonResponse({
+          ok: false,
+          error: runResponse?.message || `Agent runtime retornou HTTP ${response.status}.`,
+        }, 502);
+      }
+
+      return jsonResponse(runResponse);
+    }
+
     return jsonResponse({
       ok: false,
-      error: `action desconhecida: "${action}". Use "createGatewayCharge".`,
+      error: `action desconhecida: "${action}". Use "createGatewayCharge" ou "runDunningNow".`,
     }, 400);
   } catch (error) {
     return jsonResponse({

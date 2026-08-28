@@ -191,3 +191,22 @@ export async function createGatewayCharge(invoiceId: string, clienteId?: string 
     return { error: error instanceof Error ? error.message : 'Falha ao chamar billing-admin.' };
   }
 }
+
+// Gatilho manual de dunning (§35, migration 125) -- staff-only, checado de verdade dentro da
+// Edge Function (fn_is_staff_sem_tenant), não só escondido aqui. Roda a MESMA lógica que o
+// poller agendado (AGENT_DUNNING_ENABLED) usaria -- prova o mecanismo sem depender de confirmar
+// a env var no Railway.
+export async function runDunningNow(invoiceId: string, clienteId?: string | null): Promise<{ message: string } | { error: string }> {
+  const client = requireClient();
+  try {
+    const { data, error } = await client.functions.invoke('billing-admin', {
+      body: { action: 'runDunningNow', invoiceId, clienteId: clienteId || null },
+    });
+    if (error) return { error: await extractBillingFunctionErrorMessage(error) };
+    const payload = data as BillingAdminResult<{ message: string }>;
+    if (!payload || payload.ok !== true) return { error: (payload as BillingAdminErr)?.message || (payload as BillingAdminErr)?.error || 'Resposta vazia.' };
+    return { message: payload.message };
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : 'Falha ao chamar billing-admin.' };
+  }
+}

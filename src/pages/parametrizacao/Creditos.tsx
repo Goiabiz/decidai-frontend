@@ -7,6 +7,8 @@ import { showAppToast } from '../../lib/appToast';
 import { useSession, usePermission } from '../../contexts/SessionContext';
 import { getCreditsBalance, listCreditsLedger, type CreditsLedgerEntry, type CreditsLedgerTipo } from '../../services/creditos';
 import { exportReportRows, exportInvoicePdf } from '../../lib/reportExport';
+import { formatDate, formatDateTime } from '../../lib/formatDate';
+import { formatCurrencyBrl as formatBrl } from '../../lib/formatCurrency';
 import {
   closeBillingPeriod,
   createGatewayCharge,
@@ -14,6 +16,7 @@ import {
   listInvoiceItems,
   listInvoices,
   markInvoicePaid,
+  runDunningNow,
   type BillingInvoice,
   type BillingInvoiceItem,
   type PlanPricing,
@@ -37,21 +40,6 @@ function formatUsd(value: number) {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 4, maximumFractionDigits: 6 }).format(value);
 }
 
-function formatDateTime(iso: string) {
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return iso;
-  return date.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-}
-
-function formatDate(iso: string) {
-  const date = new Date(`${iso}T00:00:00`);
-  if (Number.isNaN(date.getTime())) return iso;
-  return date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
-}
-
-function formatBrl(value: number) {
-  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
-}
 
 const INVOICE_STATUS_LABELS: Record<BillingInvoice['status'], string> = { open: 'Em aberto', paid: 'Paga', void: 'Cancelada' };
 const INVOICE_STATUS_TONE: Record<BillingInvoice['status'], string> = { open: 'orange', paid: 'green', void: 'gray' };
@@ -92,6 +80,7 @@ export function Creditos() {
   const [cobrando, setCobrando] = useState<string | null>(null);
   const [pixAtivo, setPixAtivo] = useState<{ invoiceId: string; qrCode: string } | null>(null);
   const [baixandoPdf, setBaixandoPdf] = useState<string | null>(null);
+  const [executandoDunning, setExecutandoDunning] = useState<string | null>(null);
 
   const loadFaturamento = () => {
     if (!clienteId) return;
@@ -187,6 +176,18 @@ export function Creditos() {
     if ('error' in result) return showAppToast(result.error, 'warning');
     showAppToast('Fatura marcada como paga.', 'success');
     loadFaturamento();
+  };
+
+  const handleRunDunning = async (invoiceId: string) => {
+    setExecutandoDunning(invoiceId);
+    try {
+      const result = await runDunningNow(invoiceId, clienteId);
+      if ('error' in result) return showAppToast(result.error, 'warning');
+      showAppToast(result.message, 'success');
+      loadFaturamento();
+    } finally {
+      setExecutandoDunning(null);
+    }
   };
 
   const handlePayNow = async (invoice: BillingInvoice) => {
@@ -332,6 +333,16 @@ export function Creditos() {
                     )}
                     {podeEditarFaturas && invoice.status === 'open' && (
                       <button className="secondary-btn" onClick={() => handleMarkPaid(invoice.id)}>Marcar como paga</button>
+                    )}
+                    {podeEditarFaturas && invoice.status === 'open' && invoice.dueDate < new Date().toISOString().slice(0, 10) && (
+                      <button
+                        className="secondary-btn"
+                        title="Roda agora a mesma régua de inadimplência que o job agendado usaria"
+                        disabled={executandoDunning === invoice.id}
+                        onClick={() => handleRunDunning(invoice.id)}
+                      >
+                        {executandoDunning === invoice.id ? 'Executando...' : 'Executar cobrança agora'}
+                      </button>
                     )}
                     <button
                       className="secondary-btn"
