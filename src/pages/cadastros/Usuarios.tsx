@@ -368,6 +368,11 @@ export function Usuarios({ onSelectDetail, onOpenDetail }: PageProps) {
   const [approvingUser, setApprovingUser] = useState<UserRecord | null>(null);
   const [approvePerfilId, setApprovePerfilId] = useState('');
   const [approving, setApproving] = useState(false);
+  const [quickInviteOpen, setQuickInviteOpen] = useState(false);
+  const [quickInviteNome, setQuickInviteNome] = useState('');
+  const [quickInviteEmail, setQuickInviteEmail] = useState('');
+  const [quickInvitePerfilId, setQuickInvitePerfilId] = useState('');
+  const [quickInviteSubmitting, setQuickInviteSubmitting] = useState(false);
 
   const carregar = async () => {
     if (!clienteId) { setUsuarios([]); setLoading(false); return; }
@@ -404,10 +409,45 @@ export function Usuarios({ onSelectDetail, onOpenDetail }: PageProps) {
     setIsFormOpen(true);
   };
 
+  /**
+   * Convite rápido (nome + e-mail + perfil, só isso) -- pedido direto do usuário: abrir o
+   * formulário inteiro (endereço, telefone, cargo, foto...) só pra mandar um convite é
+   * pesado demais. A pessoa convidada preenche o resto sozinha depois, se quiser, quando
+   * aceitar o convite. O formulário completo continua existindo (botão "+ Novo usuário"
+   * aqui na tela), pra quando o admin já quer cadastrar tudo de uma vez.
+   */
+  const openQuickInvite = () => {
+    setQuickInviteNome('');
+    setQuickInviteEmail('');
+    setQuickInvitePerfilId('');
+    setQuickInviteOpen(true);
+  };
+
+  const submitQuickInvite = async () => {
+    if (!clienteId || !quickInviteNome.trim() || !quickInviteEmail.trim() || !quickInvitePerfilId) return;
+    setQuickInviteSubmitting(true);
+    try {
+      await inviteUsuarioCliente(clienteId, {
+        nome: quickInviteNome.trim(),
+        email: quickInviteEmail.trim(),
+        perfilAcessoId: quickInvitePerfilId,
+        cpf: '', telefone: '', telefoneIso: 'br', cargo: '', sexo: '', nascimento: '', fotoUrl: '',
+        cep: '', logradouro: '', numero: '', complemento: '', bairro: '', cidade: '', uf: '', unidade: '',
+      });
+      showAppToast(`Convite enviado para ${quickInviteEmail.trim()}.`, 'success');
+      setQuickInviteOpen(false);
+      await carregar();
+    } catch (error) {
+      showAppToast(getErrorMessage(error, 'Não foi possível enviar o convite.'), 'error');
+    } finally {
+      setQuickInviteSubmitting(false);
+    }
+  };
+
   useEffect(() => {
     if (window.sessionStorage.getItem('radar-sus-open-new-user')) {
       window.sessionStorage.removeItem('radar-sus-open-new-user');
-      openNewUserForm();
+      openQuickInvite();
     }
     if (window.sessionStorage.getItem('radar-sus-open-import-users')) {
       window.sessionStorage.removeItem('radar-sus-open-import-users');
@@ -418,7 +458,7 @@ export function Usuarios({ onSelectDetail, onOpenDetail }: PageProps) {
     // outra tela -- clicar nele já estando em Usuários não muda o "activePage" (SPA sem
     // rota real), então o efeito acima nunca reroda e o botão parecia "sem ação". Os eventos
     // cobrem esse caso sem duplicar a abertura no caminho que já funcionava (navegação real).
-    const handleOpenNewUser = () => openNewUserForm();
+    const handleOpenNewUser = () => openQuickInvite();
     const handleOpenImport = () => setIsImportOpen(true);
     window.addEventListener('radar-sus-open-new-user', handleOpenNewUser);
     window.addEventListener('radar-sus-open-import-users', handleOpenImport);
@@ -1196,6 +1236,46 @@ export function Usuarios({ onSelectDetail, onOpenDetail }: PageProps) {
                     }}
                   />
                 </label>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {quickInviteOpen && (
+        <div className="modal-backdrop small-action-modal-backdrop" onClick={(event) => { if (event.target === event.currentTarget) setQuickInviteOpen(false); }}>
+          <div className="small-action-modal">
+            <div className="user-modal-header">
+              <strong>Convidar pessoa</strong>
+              <button className="icon-btn" onClick={() => setQuickInviteOpen(false)}><X size={18} /></button>
+            </div>
+            <div className="small-action-modal-body">
+              <p>A pessoa recebe um convite por e-mail e preenche o resto dos dados dela ao aceitar.</p>
+              <label className="login-field" style={{ marginTop: 12 }}>
+                <span>Nome completo</span>
+                <input value={quickInviteNome} onChange={(event) => setQuickInviteNome(event.target.value)} placeholder="Nome da pessoa" autoFocus />
+              </label>
+              <label className="login-field" style={{ marginTop: 12 }}>
+                <span>E-mail</span>
+                <input type="email" value={quickInviteEmail} onChange={(event) => setQuickInviteEmail(event.target.value)} placeholder="pessoa@empresa.com" />
+              </label>
+              <label className="login-field" style={{ marginTop: 12 }}>
+                <span>Perfil de acesso</span>
+                <select value={quickInvitePerfilId} onChange={(event) => setQuickInvitePerfilId(event.target.value)}>
+                  <option value="">Selecione um perfil</option>
+                  {perfisDisponiveis.map((perfil) => (
+                    <option key={perfil.id} value={perfil.id}>{perfil.nome}</option>
+                  ))}
+                </select>
+              </label>
+              <div className="panel-actions" style={{ marginTop: 16 }}>
+                <button
+                  className="primary"
+                  disabled={!quickInviteNome.trim() || !quickInviteEmail.trim() || !quickInvitePerfilId || quickInviteSubmitting}
+                  onClick={() => void submitQuickInvite()}
+                >
+                  {quickInviteSubmitting ? 'Enviando...' : 'Enviar convite'}
+                </button>
+                <button onClick={() => setQuickInviteOpen(false)}>Cancelar</button>
               </div>
             </div>
           </div>
