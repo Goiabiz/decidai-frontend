@@ -654,7 +654,7 @@ export function Usuarios({ onSelectDetail, onOpenDetail }: PageProps) {
 
   const enviarConvite = async (usuario: UserRecord) => {
     try {
-      await resendUsuarioClienteInvite(usuario.email);
+      await resendUsuarioClienteInvite(usuario.id);
       showAppToast(`Convite enviado para ${usuario.email}.`, 'success');
     } catch (error) {
       showAppToast(error instanceof Error ? error.message : 'Não foi possível enviar o convite.', 'error');

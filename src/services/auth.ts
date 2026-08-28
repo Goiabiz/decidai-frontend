@@ -496,10 +496,37 @@ function usuarioClienteColumns(input: UsuarioClienteInput) {
 }
 
 /**
- * Cria a pessoa (status "Pendente", auth_user_id null) e manda o convite real por e-mail
- * (magic link via signInWithOtp -- client-safe, não precisa de Edge Function/service_role).
- * A conta de auth só é ligada de verdade quando a pessoa clicar no link (fn_claim_pending_usuario_cliente,
- * chamada automaticamente no próximo login real via loadSession).
+ * `functions.invoke()` só devolve mensagem genérica em `error.message` -- o corpo JSON real
+ * (`{ ok: false, error: "..." }`) fica em `error.context`, um Response não lido por padrão
+ * (mesmo achado documentado em services/baseConhecimento.ts).
+ */
+async function callUsuarioConvite(usuarioClienteId: string): Promise<void> {
+  const supabase = requireClient();
+  const { data, error } = await supabase.functions.invoke('usuario-convite', { body: { usuarioClienteId } });
+  if (error) {
+    const context = (error as { context?: unknown }).context;
+    if (context && typeof (context as Response).clone === 'function') {
+      try {
+        const body = await (context as Response).clone().json();
+        if (body && typeof body === 'object' && typeof (body as { error?: unknown }).error === 'string') {
+          throw new Error((body as { error: string }).error);
+        }
+      } catch (parseError) {
+        if (parseError instanceof Error && parseError.message) throw parseError;
+      }
+    }
+    throw new Error(error.message);
+  }
+  const payload = data as { ok?: boolean; error?: string };
+  if (!payload || payload.ok !== true) throw new Error(payload?.error || 'Falha ao enviar convite.');
+}
+
+/**
+ * Cria a pessoa (status "Pendente", auth_user_id null) e manda o convite real por e-mail via
+ * Edge Function usuario-convite (universo-conectasus-agent), que chama admin.inviteUserByEmail
+ * -- exige service_role, por isso não dá pra chamar direto do navegador. A conta de auth só é
+ * ligada de verdade quando a pessoa clicar no link (fn_claim_pending_usuario_cliente, chamada
+ * automaticamente no próximo login real via loadSession).
  */
 export async function inviteUsuarioCliente(clienteId: string, input: UsuarioClienteInput): Promise<UsuarioClienteFull> {
   const supabase = requireClient();
@@ -518,11 +545,7 @@ export async function inviteUsuarioCliente(clienteId: string, input: UsuarioClie
     if (perfilError) throw perfilError;
   }
 
-  const { error: inviteError } = await supabase.auth.signInWithOtp({
-    email: input.email,
-    options: { shouldCreateUser: true, emailRedirectTo: `${window.location.origin}/confirmar-acesso?type=magiclink` },
-  });
-  if (inviteError) throw inviteError;
+  await callUsuarioConvite(data.id);
 
   return mapUsuarioClienteFull({ ...(data as unknown as UsuarioClienteRow), usuarios_perfis: [{ perfil_acesso_id: input.perfilAcessoId, perfis_acesso: null }] });
 }
@@ -579,14 +602,9 @@ export async function approveAccessRequest(usuarioClienteId: string, perfilAcess
   if (error) throw error;
 }
 
-/** Reenvia o convite (mesmo mecanismo do cadastro -- magic link real). */
-export async function resendUsuarioClienteInvite(email: string): Promise<void> {
-  const supabase = requireClient();
-  const { error } = await supabase.auth.signInWithOtp({
-    email,
-    options: { shouldCreateUser: true, emailRedirectTo: `${window.location.origin}/confirmar-acesso?type=magiclink` },
-  });
-  if (error) throw error;
+/** Reenvia o convite (mesmo mecanismo do cadastro -- Edge Function usuario-convite). */
+export async function resendUsuarioClienteInvite(usuarioClienteId: string): Promise<void> {
+  await callUsuarioConvite(usuarioClienteId);
 }
 
 /**
