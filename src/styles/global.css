@@ -10833,6 +10833,12 @@ td small {
   font-weight: 800;
   color: #10241d;
   margin: 0 0 4px;
+  /* Achado real testando em produção: título grande "lavado" enquanto o parágrafo (menor,
+     já cinza) renderiza normal -- padrão típico de extensão de navegador ou modo escuro
+     forçado pelo SO reescrevendo cor de texto grande por cima do CSS, ignorando o
+     color-scheme:light já declarado no ancestral. forced-color-adjust é a propriedade certa
+     pra dizer "esta cor é intencional, não ajuste". */
+  forced-color-adjust: none;
 }
 
 .confirm-access-card p {
