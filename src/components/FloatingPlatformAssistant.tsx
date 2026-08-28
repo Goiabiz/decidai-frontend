@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Bot, ChevronDown, Maximize2, Mic, Minimize2, Send, Sparkles, Square, User, X } from 'lucide-react';
+import { Bot, ChevronDown, Loader2, Maximize2, Mic, Minimize2, Send, Sparkles, Square, User, X } from 'lucide-react';
 import { useSession } from '../contexts/SessionContext';
 import { runAgent, runAgentVoice } from '../services/agentClient';
 import { startVoiceActivityDetector, type VoiceActivityHandle } from '../services/voiceActivityDetector';
@@ -18,7 +18,10 @@ const MAX_RECORDING_MS = 60_000;
 // descarta sem nem chamar o backend em vez de gastar uma chamada de STT numa transcrição vazia.
 const MIN_UTTERANCE_MS = 350;
 
-type VoiceMode = 'off' | 'listening' | 'recording' | 'speaking';
+// 'processing' -- achado real testando ao vivo (usuário, 28/08): sem esse estado, o ícone
+// ficava vermelho ("gravando") do fim da fala até a resposta chegar (pode passar de 20-60s),
+// sem diferenciar "ainda te escutando" de "já ouvi, estou pensando" -- parecia travado.
+type VoiceMode = 'off' | 'listening' | 'recording' | 'processing' | 'speaking';
 
 function pickSupportedAudioMimeType(): string {
   const candidates = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus', 'audio/mp4'];
@@ -199,6 +202,7 @@ export function FloatingPlatformAssistant({ pageTitle }: FloatingPlatformAssista
       return;
     }
 
+    if (voiceModeRef.current !== 'off') updateVoiceMode('processing');
     setSending(true);
     try {
       const audioBase64 = await blobToBase64(audioBlob);
@@ -253,7 +257,7 @@ export function FloatingPlatformAssistant({ pageTitle }: FloatingPlatformAssista
   // VAD detectou início de fala -- se o assistente estava falando, isso é barge-in (interrompe
   // a resposta na hora); em seguida (ou já em escuta normal) começa a gravar o novo turno.
   const handleSpeechStart = () => {
-    if (voiceModeRef.current === 'recording' || voiceModeRef.current === 'off') return;
+    if (voiceModeRef.current === 'recording' || voiceModeRef.current === 'processing' || voiceModeRef.current === 'off') return;
 
     if (voiceModeRef.current === 'speaking') stopSpeaking();
 
@@ -411,6 +415,7 @@ export function FloatingPlatformAssistant({ pageTitle }: FloatingPlatformAssista
               onKeyDown={(event) => { if (event.key === 'Enter') void sendMessage(message); }}
               placeholder={
                 voiceMode === 'recording' ? 'Ouvindo você...'
+                : voiceMode === 'processing' ? 'Pensando...'
                 : voiceMode === 'speaking' ? 'Respondendo (fale para interromper)...'
                 : voiceMode === 'listening' ? 'Escutando...'
                 : 'Pergunte ao assistente...'
@@ -422,7 +427,7 @@ export function FloatingPlatformAssistant({ pageTitle }: FloatingPlatformAssista
               aria-label={voiceMode === 'off' ? 'Falar com o assistente' : 'Parar escuta de voz'}
               title={voiceMode === 'off' ? 'Falar com o assistente' : 'Parar escuta de voz'}
             >
-              {voiceMode === 'off' ? <Mic size={16} /> : <Square size={16} />}
+              {voiceMode === 'off' ? <Mic size={16} /> : voiceMode === 'processing' ? <Loader2 size={16} className="v363-spin" /> : <Square size={16} />}
             </button>
             <button className="v363-assistant-send" disabled={sending} onClick={() => void sendMessage(message)} aria-label="Enviar"><Send size={16} /></button>
           </footer>
