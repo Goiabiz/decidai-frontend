@@ -360,7 +360,10 @@
   pointer-events: none;
 }
 
-.v363-assistant.expanded {
+/* Bug real achado pelo usuário: sem o .open aqui, fechar o painel expandido (X) deixava
+   o FAB recolhido herdando o posicionamento de tela cheia (expanded fica true até reabrir),
+   porque o wrapper continua com a classe "expanded" mesmo com o painel já fechado. */
+.v363-assistant.open.expanded {
   top: 0;
   right: 0;
   bottom: 0;
