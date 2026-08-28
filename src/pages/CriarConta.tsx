@@ -177,6 +177,14 @@ export function CriarConta() {
                       autoComplete="new-password"
                       required
                     />
+                    <button
+                      type="button"
+                      className="login-eye-toggle"
+                      onClick={() => setShowPassword((value) => !value)}
+                      aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
+                    >
+                      {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
                   </div>
                 </label>
 
