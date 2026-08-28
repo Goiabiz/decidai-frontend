@@ -15,6 +15,7 @@ import {
   type AtendimentoMensagem,
   type AtendimentoStatus,
 } from '../services/atendimentos';
+import { listServicos, type ServicoRecord } from '../services/servicosFilas';
 import type { PanelDetail } from '../components/RightPanel';
 
 export type CentralAtendimentoProps = {
@@ -55,9 +56,18 @@ export function CentralAtendimento({ onOpenDetail }: CentralAtendimentoProps) {
   const [resposta, setResposta] = useState('');
   const [tipoResposta, setTipoResposta] = useState<'publica' | 'interna'>('publica');
   const [activeTab, setActiveTab] = useState<'comentarios' | 'atividade'>('comentarios');
-  const [novoForm, setNovoForm] = useState({ canal: canais[0], solicitante: '', resumo: '' });
+  const [novoForm, setNovoForm] = useState({ canal: canais[0], solicitante: '', resumo: '', servico: '' });
   const [enviando, setEnviando] = useState(false);
   const [salvando, setSalvando] = useState(false);
+  const [servicos, setServicos] = useState<ServicoRecord[]>([]);
+
+  useEffect(() => {
+    if (!clienteId) {
+      setServicos([]);
+      return;
+    }
+    listServicos(clienteId).then(({ items }) => setServicos(items.filter((item) => item.status === 'Ativo')));
+  }, [clienteId]);
 
   useEffect(() => {
     if (!clienteId) {
@@ -163,11 +173,12 @@ export function CentralAtendimento({ onOpenDetail }: CentralAtendimentoProps) {
         solicitanteNome: novoForm.solicitante.trim(),
         assunto: novoForm.resumo.trim(),
         mensagem: novoForm.resumo.trim(),
+        servicoId: novoForm.servico || undefined,
       });
       setDemandas((current) => [atendimento, ...current]);
       setSelectedId(atendimento.id);
       setActiveTab('comentarios');
-      setNovoForm({ canal: canais[0], solicitante: '', resumo: '' });
+      setNovoForm({ canal: canais[0], solicitante: '', resumo: '', servico: '' });
       setModal(false);
       showAppToast('Atendimento criado.', 'success');
     } finally {
@@ -333,6 +344,12 @@ export function CentralAtendimento({ onOpenDetail }: CentralAtendimentoProps) {
               </label>
               <label>Resumo
                 <textarea value={novoForm.resumo} onChange={(event) => setNovoForm((current) => ({ ...current, resumo: event.target.value }))} />
+              </label>
+              <label>Serviço (opcional)
+                <select value={novoForm.servico} onChange={(event) => setNovoForm((current) => ({ ...current, servico: event.target.value }))}>
+                  <option value="">Nenhum</option>
+                  {servicos.map((item) => <option key={item.id} value={item.id}>{item.nome}</option>)}
+                </select>
               </label>
             </div>
             <footer>

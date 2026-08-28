@@ -18,6 +18,7 @@ export type Atendimento = {
   prioridade: 'Alta' | 'Média' | 'Baixa';
   responsavel_usuario_sistema_id: string | null;
   responsavel_nome?: string | null;
+  servico_id?: string | null;
   criado_em: string;
   atualizado_em: string;
 };
@@ -276,6 +277,8 @@ export type NovoAtendimentoManualInput = {
   solicitanteNome: string;
   assunto: string;
   mensagem: string;
+  /** Opcional -- sem isso, o atendimento não entra na comparação de SLA real vs. meta (vw_atendimento_sla, migration 151). */
+  servicoId?: string;
 };
 
 /** Atendimento criado pela própria equipe (e-mail, WhatsApp, widget, API, manual) -- não é origem Portal. */
@@ -292,6 +295,7 @@ export async function createAtendimentoManual(input: NovoAtendimentoManualInput)
         solicitante_nome: input.solicitanteNome,
         assunto: input.assunto,
         status: 'Novo',
+        servico_id: input.servicoId || null,
       })
       .select('*')
       .single();
@@ -411,11 +415,20 @@ export type AtendimentoSla = {
   tempo_primeira_resposta_segundos: number | null;
   tempo_resolucao_segundos: number | null;
   tem_resposta: boolean;
+  servico_id: string | null;
+  servico_nome: string | null;
+  meta_primeira_resposta_minutos: number | null;
+  meta_resolucao_minutos: number | null;
+  meta_horario_comercial: boolean | null;
+  primeira_resposta_dentro_meta: boolean | null;
+  resolucao_dentro_meta: boolean | null;
 };
 
 /**
- * Uma linha por atendimento com os tempos já calculados (vw_atendimento_sla, migration 150).
- * Sem fallback local -- é uma view do banco real, não faz sentido simular em localStorage.
+ * Uma linha por atendimento com os tempos já calculados (vw_atendimento_sla, migration 150)
+ * e a comparação com a meta configurada em Central de Atendimento > Serviços > SLA, quando o
+ * atendimento tem servico_id vinculado (migration 151). Sem fallback local -- é uma view do
+ * banco real, não faz sentido simular em localStorage.
  */
 export async function listAtendimentoSla(clienteId: string): Promise<AtendimentoSla[]> {
   const client = getClient();

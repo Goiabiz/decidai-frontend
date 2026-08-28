@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Clock3, Gauge, Inbox, MessageCircleReply } from 'lucide-react';
+import { Clock3, Gauge, Inbox, MessageCircleReply, Target } from 'lucide-react';
 import { PageHeader } from '../../components/PageHeader';
 import { KpiCard } from '../../components/KpiCard';
 import { useSession } from '../../contexts/SessionContext';
@@ -15,9 +15,19 @@ function formatDuracao(segundos: number | null): string {
   return minutos > 0 ? `${horas}h ${minutos}min` : `${horas}h`;
 }
 
+function formatMetaLabel(dentro: boolean | null): string {
+  if (dentro === null) return 'Sem meta';
+  return dentro ? 'Dentro do prazo' : 'Estourou';
+}
+
 function media(valores: number[]): number | null {
   if (valores.length === 0) return null;
   return valores.reduce((soma, item) => soma + item, 0) / valores.length;
+}
+
+function percentual(dentro: number, avaliados: number): string {
+  if (avaliados === 0) return '—';
+  return `${Math.round((dentro / avaliados) * 100)}%`;
 }
 
 type CanalResumo = {
@@ -26,6 +36,15 @@ type CanalResumo = {
   taxaResposta: number;
   mediaPrimeiraResposta: number | null;
   mediaResolucao: number | null;
+};
+
+type ServicoResumo = {
+  servico: string;
+  volume: number;
+  avaliadosPrimeiraResposta: number;
+  dentroPrimeiraResposta: number;
+  avaliadosResolucao: number;
+  dentroResolucao: number;
 };
 
 export default function RelatorioSLA() {
@@ -76,7 +95,43 @@ export default function RelatorioSLA() {
       })
       .sort((a, b) => b.volume - a.volume);
 
-    return { total, taxaResposta, mediaPrimeiraResposta, mediaResolucao, canais };
+    const comServico = linhas.filter((item) => item.servico_id !== null);
+    const avaliadosPrimeiraResposta = linhas.filter((item) => item.primeira_resposta_dentro_meta !== null);
+    const dentroPrimeiraResposta = avaliadosPrimeiraResposta.filter((item) => item.primeira_resposta_dentro_meta === true);
+    const avaliadosResolucao = linhas.filter((item) => item.resolucao_dentro_meta !== null);
+    const dentroResolucao = avaliadosResolucao.filter((item) => item.resolucao_dentro_meta === true);
+
+    const porServico = new Map<string, AtendimentoSla[]>();
+    for (const item of comServico) {
+      const chave = item.servico_nome || 'Serviço removido';
+      const lista = porServico.get(chave) || [];
+      lista.push(item);
+      porServico.set(chave, lista);
+    }
+    const servicos: ServicoResumo[] = Array.from(porServico.entries())
+      .map(([servico, items]) => ({
+        servico,
+        volume: items.length,
+        avaliadosPrimeiraResposta: items.filter((item) => item.primeira_resposta_dentro_meta !== null).length,
+        dentroPrimeiraResposta: items.filter((item) => item.primeira_resposta_dentro_meta === true).length,
+        avaliadosResolucao: items.filter((item) => item.resolucao_dentro_meta !== null).length,
+        dentroResolucao: items.filter((item) => item.resolucao_dentro_meta === true).length,
+      }))
+      .sort((a, b) => b.volume - a.volume);
+
+    return {
+      total,
+      taxaResposta,
+      mediaPrimeiraResposta,
+      mediaResolucao,
+      canais,
+      comServicoCount: comServico.length,
+      avaliadosPrimeiraResposta: avaliadosPrimeiraResposta.length,
+      dentroPrimeiraResposta: dentroPrimeiraResposta.length,
+      avaliadosResolucao: avaliadosResolucao.length,
+      dentroResolucao: dentroResolucao.length,
+      servicos,
+    };
   }, [linhas]);
 
   const linhasRelatorio: StandardReportRow[] = useMemo(() => linhas.map((item) => ({
@@ -84,8 +139,11 @@ export default function RelatorioSLA() {
     status: item.status,
     prioridade: item.prioridade,
     criado_em: item.criado_em,
+    servico: item.servico_nome || '-',
     primeira_resposta: item.tem_resposta ? formatDuracao(item.tempo_primeira_resposta_segundos) : 'Sem resposta',
+    meta_primeira_resposta: formatMetaLabel(item.primeira_resposta_dentro_meta),
     resolucao: item.resolvido_em ? formatDuracao(item.tempo_resolucao_segundos) : 'Em aberto',
+    meta_resolucao: formatMetaLabel(item.resolucao_dentro_meta),
   })), [linhas]);
 
   if (!clienteId) {
@@ -165,9 +223,71 @@ export default function RelatorioSLA() {
         )}
       </section>
 
+      <section className="card roadmap-card">
+        <div className="section-title-row">
+          <h3>Cumprimento de meta (SLA configurado)</h3>
+          <span className="small-muted">{resumo.comServicoCount} de {resumo.total} atendimento(s) vinculado(s) a um serviço</span>
+        </div>
+        {resumo.comServicoCount === 0 ? (
+          <p className="empty-note">
+            Nenhum atendimento vinculado a um serviço ainda -- a comparação com a meta configurada
+            (Central de Atendimento → Serviços → aba SLA) aparece aqui assim que um atendimento novo
+            for criado com o campo "Serviço" preenchido. Atendimentos já existentes, sem serviço, não
+            entram nessa comparação (não é erro -- vínculo é opcional, de propósito).
+          </p>
+        ) : (
+          <>
+            <div className="kpi-grid" style={{ gridTemplateColumns: 'repeat(2, 1fr)', marginBottom: 18 }}>
+              <KpiCard
+                label="Dentro da meta de 1ª resposta"
+                value={percentual(resumo.dentroPrimeiraResposta, resumo.avaliadosPrimeiraResposta)}
+                trend={`${resumo.dentroPrimeiraResposta} de ${resumo.avaliadosPrimeiraResposta} avaliados`}
+                icon={<Target size={20} />}
+                tone="green"
+              />
+              <KpiCard
+                label="Dentro da meta de resolução"
+                value={percentual(resumo.dentroResolucao, resumo.avaliadosResolucao)}
+                trend={`${resumo.dentroResolucao} de ${resumo.avaliadosResolucao} avaliados`}
+                icon={<Target size={20} />}
+                tone="purple"
+              />
+            </div>
+            <p className="small-muted" style={{ marginBottom: 12 }}>
+              Comparação por tempo corrido (do momento em que o atendimento foi criado até o evento
+              real) contra o prazo configurado em minutos. Réguas com calendário "comercial" (horário
+              comercial) não têm a contagem pausada fora do expediente aqui -- a meta pode aparecer
+              mais apertada do que a régua realmente pretende nesse caso.
+            </p>
+            <div className="simple-table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Serviço</th>
+                    <th>Volume</th>
+                    <th>Dentro da meta de 1ª resposta</th>
+                    <th>Dentro da meta de resolução</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {resumo.servicos.map((item) => (
+                    <tr key={item.servico}>
+                      <td>{item.servico}</td>
+                      <td>{item.volume}</td>
+                      <td>{percentual(item.dentroPrimeiraResposta, item.avaliadosPrimeiraResposta)} ({item.dentroPrimeiraResposta}/{item.avaliadosPrimeiraResposta})</td>
+                      <td>{percentual(item.dentroResolucao, item.avaliadosResolucao)} ({item.dentroResolucao}/{item.avaliadosResolucao})</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
+      </section>
+
       <StandardReportPage
         title="Atendimentos -- detalhe de SLA"
-        description="Um atendimento por linha, com tempo de primeira resposta e de resolução calculados."
+        description="Um atendimento por linha, com tempo de primeira resposta e de resolução calculados, e o cumprimento da meta configurada quando o atendimento tem serviço vinculado."
         filename="relatorio-sla-atendimento"
         funcionalidade="relatorio_sla_atendimento"
         columns={[
@@ -175,8 +295,11 @@ export default function RelatorioSLA() {
           { key: 'status', label: 'Status' },
           { key: 'prioridade', label: 'Prioridade' },
           { key: 'criado_em', label: 'Criado em' },
+          { key: 'servico', label: 'Serviço' },
           { key: 'primeira_resposta', label: '1ª resposta' },
+          { key: 'meta_primeira_resposta', label: 'Meta 1ª resposta' },
           { key: 'resolucao', label: 'Resolução' },
+          { key: 'meta_resolucao', label: 'Meta resolução' },
         ]}
         rows={linhasRelatorio}
         loading={loading}
@@ -184,6 +307,7 @@ export default function RelatorioSLA() {
           { key: 'canal', label: 'Canal' },
           { key: 'status', label: 'Status' },
           { key: 'prioridade', label: 'Prioridade' },
+          { key: 'servico', label: 'Serviço' },
         ]}
         dateColumnKey="criado_em"
         emptyMessage="Nenhum atendimento encontrado para os filtros selecionados."
