@@ -2,6 +2,9 @@ import { universoSupabase } from '../lib/supabase';
 
 export type AtendimentoStatus = 'Novo' | 'Em andamento' | 'Aguardando resposta' | 'Concluído' | 'Cancelado';
 export type MensagemTipo = 'publica' | 'interna' | 'sistema';
+/** Alinhado com service_sla_rules.priority (services/servicosFilas.ts) desde a migration 155 -- antes atendimentos só aceitava 3 valores, sem Crítica. */
+export type AtendimentoPrioridade = 'Crítica' | 'Alta' | 'Média' | 'Baixa';
+export const prioridadesAtendimento: AtendimentoPrioridade[] = ['Crítica', 'Alta', 'Média', 'Baixa'];
 
 export type Atendimento = {
   id: string;
@@ -15,7 +18,7 @@ export type Atendimento = {
   solicitante_telefone: string | null;
   assunto: string;
   status: AtendimentoStatus;
-  prioridade: 'Alta' | 'Média' | 'Baixa';
+  prioridade: AtendimentoPrioridade;
   responsavel_usuario_sistema_id: string | null;
   responsavel_nome?: string | null;
   servico_id?: string | null;
@@ -279,6 +282,8 @@ export type NovoAtendimentoManualInput = {
   mensagem: string;
   /** Opcional -- sem isso, o atendimento não entra na comparação de SLA real vs. meta (vw_atendimento_sla, migration 151). */
   servicoId?: string;
+  /** Default 'Média' se omitido (mesmo default do banco, migration 027). */
+  prioridade?: AtendimentoPrioridade;
 };
 
 /** Atendimento criado pela própria equipe (e-mail, WhatsApp, widget, API, manual) -- não é origem Portal. */
@@ -296,6 +301,7 @@ export async function createAtendimentoManual(input: NovoAtendimentoManualInput)
         assunto: input.assunto,
         status: 'Novo',
         servico_id: input.servicoId || null,
+        prioridade: input.prioridade || 'Média',
       })
       .select('*')
       .single();
@@ -323,7 +329,7 @@ export async function createAtendimentoManual(input: NovoAtendimentoManualInput)
     solicitante_telefone: null,
     assunto: input.assunto,
     status: 'Novo',
-    prioridade: 'Média',
+    prioridade: input.prioridade || 'Média',
     responsavel_usuario_sistema_id: null,
     criado_em: now,
     atualizado_em: now,
@@ -407,7 +413,7 @@ export type AtendimentoSla = {
   cliente_id: string;
   canal: string;
   status: AtendimentoStatus;
-  prioridade: 'Alta' | 'Média' | 'Baixa';
+  prioridade: AtendimentoPrioridade;
   origem_portal: boolean;
   criado_em: string;
   resolvido_em: string | null;

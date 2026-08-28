@@ -10,6 +10,7 @@ import {
   listAtendimentosAdmin,
   listMensagensAdmin,
   postMensagemAdmin,
+  prioridadesAtendimento,
   updateAtendimentoStatus,
   type Atendimento,
   type AtendimentoMensagem,
@@ -56,7 +57,7 @@ export function CentralAtendimento({ onOpenDetail }: CentralAtendimentoProps) {
   const [resposta, setResposta] = useState('');
   const [tipoResposta, setTipoResposta] = useState<'publica' | 'interna'>('publica');
   const [activeTab, setActiveTab] = useState<'comentarios' | 'atividade'>('comentarios');
-  const [novoForm, setNovoForm] = useState({ canal: canais[0], solicitante: '', resumo: '', servico: '' });
+  const [novoForm, setNovoForm] = useState({ canal: canais[0], solicitante: '', resumo: '', servico: '', prioridade: 'Média' as (typeof prioridadesAtendimento)[number] });
   const [enviando, setEnviando] = useState(false);
   const [salvando, setSalvando] = useState(false);
   const [servicos, setServicos] = useState<ServicoRecord[]>([]);
@@ -174,11 +175,12 @@ export function CentralAtendimento({ onOpenDetail }: CentralAtendimentoProps) {
         assunto: novoForm.resumo.trim(),
         mensagem: novoForm.resumo.trim(),
         servicoId: novoForm.servico || undefined,
+        prioridade: novoForm.prioridade,
       });
       setDemandas((current) => [atendimento, ...current]);
       setSelectedId(atendimento.id);
       setActiveTab('comentarios');
-      setNovoForm({ canal: canais[0], solicitante: '', resumo: '', servico: '' });
+      setNovoForm({ canal: canais[0], solicitante: '', resumo: '', servico: '', prioridade: 'Média' });
       setModal(false);
       showAppToast('Atendimento criado.', 'success');
     } finally {
@@ -341,6 +343,11 @@ export function CentralAtendimento({ onOpenDetail }: CentralAtendimentoProps) {
               </label>
               <label>Solicitante
                 <input value={novoForm.solicitante} onChange={(event) => setNovoForm((current) => ({ ...current, solicitante: event.target.value }))} />
+              </label>
+              <label>Prioridade
+                <select value={novoForm.prioridade} onChange={(event) => setNovoForm((current) => ({ ...current, prioridade: event.target.value as typeof current.prioridade }))}>
+                  {prioridadesAtendimento.map((item) => <option key={item}>{item}</option>)}
+                </select>
               </label>
               <label>Resumo
                 <textarea value={novoForm.resumo} onChange={(event) => setNovoForm((current) => ({ ...current, resumo: event.target.value }))} />
