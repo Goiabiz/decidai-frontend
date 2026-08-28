@@ -35,6 +35,7 @@ import { useSession } from '../../contexts/SessionContext';
 import { logAudit } from '../../services/auditLog';
 import { uploadAvatar } from '../../services/storage';
 import {
+  approveAccessRequest,
   inviteUsuarioCliente,
   listPerfisAcesso,
   listUsuariosClienteFull,
@@ -49,7 +50,7 @@ import {
 import type { PageProps } from '../../App';
 import type { PanelDetail } from '../../components/RightPanel';
 
-type UserStatus = 'Ativo' | 'Inativo' | 'Bloqueado' | 'Pendente';
+type UserStatus = 'Ativo' | 'Inativo' | 'Bloqueado' | 'Pendente' | 'Solicitação';
 
 type CountryCode = {
   pais: string;
@@ -167,13 +168,14 @@ const emptyForm: UserFormState = {
   phones: [{ id: 'phone-1', tipo: 'Celular', pais: 'br', numero: '' }],
 };
 
-const statusList: UserStatus[] = ['Ativo', 'Bloqueado', 'Inativo', 'Pendente'];
+const statusList: UserStatus[] = ['Ativo', 'Bloqueado', 'Inativo', 'Pendente', 'Solicitação'];
 const generos = ['Feminino', 'Masculino'];
 
 const statusTone = (status: UserStatus) => {
   if (status === 'Ativo') return 'green';
   if (status === 'Pendente') return 'orange';
   if (status === 'Bloqueado') return 'red';
+  if (status === 'Solicitação') return 'purple';
   return 'blue';
 };
 
@@ -362,6 +364,9 @@ export function Usuarios({ onSelectDetail, onOpenDetail }: PageProps) {
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [cepLoading, setCepLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [approvingUser, setApprovingUser] = useState<UserRecord | null>(null);
+  const [approvePerfilId, setApprovePerfilId] = useState('');
+  const [approving, setApproving] = useState(false);
 
   const carregar = async () => {
     if (!clienteId) { setUsuarios([]); setLoading(false); return; }
@@ -623,6 +628,30 @@ export function Usuarios({ onSelectDetail, onOpenDetail }: PageProps) {
     }
   };
 
+  const openApprove = (usuario: UserRecord) => {
+    setApprovingUser(usuario);
+    setApprovePerfilId('');
+  };
+
+  const confirmApprove = async () => {
+    if (!approvingUser || !approvePerfilId) return;
+    setApproving(true);
+    try {
+      await approveAccessRequest(approvingUser.id, approvePerfilId);
+      const perfilNome = perfisDisponiveis.find((item) => item.id === approvePerfilId)?.nome || '';
+      setUsuarios((current) => current.map((item) => item.id === approvingUser.id
+        ? { ...item, status: 'Ativo', perfilNome }
+        : item));
+      setSelectedUser((current) => current?.id === approvingUser.id ? { ...current, status: 'Ativo', perfilNome } : current);
+      showAppToast(`Acesso de ${approvingUser.nome} aprovado.`, 'success');
+      setApprovingUser(null);
+    } catch (error) {
+      showAppToast(error instanceof Error ? error.message : 'Não foi possível aprovar o acesso.', 'error');
+    } finally {
+      setApproving(false);
+    }
+  };
+
   const enviarConvite = async (usuario: UserRecord) => {
     try {
       await resendUsuarioClienteInvite(usuario.email);
@@ -870,6 +899,10 @@ export function Usuarios({ onSelectDetail, onOpenDetail }: PageProps) {
                             <button title="Enviar convite" onClick={() => void enviarConvite(usuario)}>
                               <Mail size={16} />
                             </button>
+                          ) : usuario.status === 'Solicitação' ? (
+                            <button title="Aprovar solicitação" onClick={() => openApprove(usuario)}>
+                              <CheckCircle2 size={16} />
+                            </button>
                           ) : (
                             <span className="row-action-spacer" aria-hidden="true" />
                           )}
@@ -924,6 +957,9 @@ export function Usuarios({ onSelectDetail, onOpenDetail }: PageProps) {
                   <button onClick={() => onOpenDetail?.(buildDetail(selectedUser))}>Gerenciar permissões</button>
                   {selectedUser.status === 'Pendente' && (
                     <button onClick={() => void enviarConvite(selectedUser)}>Enviar convite</button>
+                  )}
+                  {selectedUser.status === 'Solicitação' && (
+                    <button className="primary" onClick={() => openApprove(selectedUser)}>Aprovar solicitação</button>
                   )}
                   {selectedUser.status === 'Bloqueado'
                     ? <button onClick={() => void updateStatus(selectedUser.id, 'Ativo')}>Reativar acesso</button>
@@ -1143,6 +1179,37 @@ export function Usuarios({ onSelectDetail, onOpenDetail }: PageProps) {
                     }}
                   />
                 </label>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {approvingUser && (
+        <div className="modal-backdrop small-action-modal-backdrop" onClick={(event) => { if (event.target === event.currentTarget) setApprovingUser(null); }}>
+          <div className="small-action-modal">
+            <div className="user-modal-header">
+              <strong>Aprovar solicitação de acesso</strong>
+              <button className="icon-btn" onClick={() => setApprovingUser(null)}><X size={18} /></button>
+            </div>
+            <div className="small-action-modal-body">
+              <p>
+                <strong>{approvingUser.nome}</strong> ({approvingUser.email}) se cadastrou sozinho e foi
+                vinculado automaticamente pelo domínio do e-mail. Escolha o perfil de acesso para aprovar.
+              </p>
+              <label className="login-field" style={{ marginTop: 12 }}>
+                <span>Perfil de acesso</span>
+                <select value={approvePerfilId} onChange={(event) => setApprovePerfilId(event.target.value)}>
+                  <option value="">Selecione um perfil</option>
+                  {perfisDisponiveis.map((perfil) => (
+                    <option key={perfil.id} value={perfil.id}>{perfil.nome}</option>
+                  ))}
+                </select>
+              </label>
+              <div className="panel-actions" style={{ marginTop: 16 }}>
+                <button className="primary" disabled={!approvePerfilId || approving} onClick={() => void confirmApprove()}>
+                  {approving ? 'Aprovando...' : 'Aprovar acesso'}
+                </button>
+                <button onClick={() => setApprovingUser(null)}>Cancelar</button>
               </div>
             </div>
           </div>

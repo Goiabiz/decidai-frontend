@@ -44,6 +44,8 @@ import { Usuarios } from './pages/cadastros/Usuarios';
 import { MinhaConta } from './pages/MinhaConta';
 import { CentralAjuda } from './pages/CentralAjuda';
 import { Login } from './pages/Login';
+import { CriarConta } from './pages/CriarConta';
+import { AguardandoAprovacao } from './pages/AguardandoAprovacao';
 import { PortalCliente } from './pages/portal/PortalCliente';
 import { PartnerSubmission } from './pages/PartnerSubmission';
 import { ConfirmarAcesso } from './pages/ConfirmarAcesso';
@@ -168,6 +170,10 @@ export function App() {
     return <ConfirmarAcesso />;
   }
 
+  if (window.location.pathname.startsWith('/criar-conta')) {
+    return <CriarConta />;
+  }
+
   if (window.location.pathname.startsWith('/parametrizacao/conectores/github/callback')) {
     return <GithubAppCallback />;
   }
@@ -178,6 +184,10 @@ export function App() {
 
   if (!session) {
     return <Login />;
+  }
+
+  if (session.user.kind === 'cliente' && session.user.status === 'Solicitação') {
+    return <AguardandoAprovacao />;
   }
 
   const handleNavigate = (page: PageKey) => {

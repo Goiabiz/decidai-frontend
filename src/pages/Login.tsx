@@ -1,9 +1,9 @@
 import { useState } from 'react';
-import { ArrowLeft, ArrowRight, Bot, CheckCircle2, Eye, EyeOff, Lock, Mail, Puzzle, ShieldCheck, Sparkles } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Bot, Building2, CheckCircle2, Eye, EyeOff, Lock, Mail, Phone, Puzzle, ShieldCheck, Sparkles, User, X } from 'lucide-react';
 import { useSession } from '../contexts/SessionContext';
 import { getBrandingConfig } from '../lib/branding';
 import { showAppToast } from '../lib/appToast';
-import { requestPasswordReset } from '../services/auth';
+import { requestPasswordReset, signInWithOAuthProvider, submitDemoLead, type OAuthProvider } from '../services/auth';
 import markArrowLight from '../assets/brand/mark-arrow-light.svg';
 import markArrowDark from '../assets/brand/mark-arrow-dark.svg';
 
@@ -77,6 +77,17 @@ export function Login() {
   const [forgotSubmitting, setForgotSubmitting] = useState(false);
   const [forgotSent, setForgotSent] = useState(false);
 
+  const [oauthLoading, setOauthLoading] = useState<OAuthProvider | null>(null);
+  const [demoModalOpen, setDemoModalOpen] = useState(false);
+  const [demoNome, setDemoNome] = useState('');
+  const [demoEmail, setDemoEmail] = useState('');
+  const [demoEmpresa, setDemoEmpresa] = useState('');
+  const [demoTelefone, setDemoTelefone] = useState('');
+  const [demoMensagem, setDemoMensagem] = useState('');
+  const [demoError, setDemoError] = useState('');
+  const [demoSubmitting, setDemoSubmitting] = useState(false);
+  const [demoSent, setDemoSent] = useState(false);
+
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     setError('');
@@ -117,6 +128,51 @@ export function Login() {
   };
 
   const notReady = (label: string) => showAppToast(`${label} chega numa fase futura do produto.`);
+
+  const handleOAuth = async (provider: OAuthProvider) => {
+    setOauthLoading(provider);
+    try {
+      await signInWithOAuthProvider(provider);
+      // Sucesso redireciona pro provider (Google/Microsoft) -- não há "depois" aqui nesta função.
+    } catch (err) {
+      setOauthLoading(null);
+      showAppToast(
+        err instanceof Error ? err.message : `Não foi possível iniciar o login com ${provider}.`,
+        'error',
+      );
+    }
+  };
+
+  const openDemoModal = () => {
+    setDemoNome('');
+    setDemoEmail('');
+    setDemoEmpresa('');
+    setDemoTelefone('');
+    setDemoMensagem('');
+    setDemoError('');
+    setDemoSent(false);
+    setDemoModalOpen(true);
+  };
+
+  const handleDemoSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setDemoError('');
+    setDemoSubmitting(true);
+    try {
+      await submitDemoLead({
+        nome: demoNome.trim(),
+        email: demoEmail.trim(),
+        empresa: demoEmpresa.trim(),
+        telefone: demoTelefone.trim() || undefined,
+        mensagem: demoMensagem.trim() || undefined,
+      });
+      setDemoSent(true);
+    } catch (err) {
+      setDemoError(err instanceof Error ? err.message : 'Não foi possível enviar sua solicitação.');
+    } finally {
+      setDemoSubmitting(false);
+    }
+  };
 
   const brandedName = companyName.endsWith('AI')
     ? <>{companyName.slice(0, -2)}<span className="login-ai-red">AI</span></>
@@ -278,18 +334,26 @@ export function Login() {
                   key={option.key}
                   type="button"
                   className="login-social-btn"
-                  onClick={() => notReady(option.key === 'sso' ? 'Login com SSO corporativo' : `Login com ${option.label}`)}
+                  disabled={option.key !== 'sso' && oauthLoading === option.key}
+                  onClick={() => {
+                    if (option.key === 'sso') {
+                      showAppToast('SSO corporativo (SAML) é uma configuração por empresa — fale com nosso time para habilitar.');
+                      return;
+                    }
+                    void handleOAuth(option.key as OAuthProvider);
+                  }}
                   title={option.key === 'sso' ? 'Login corporativo único da empresa' : `Entrar com ${option.label}`}
                 >
                   <span className="login-social-icon"><LoginProviderIcon type={option.key} /></span>
-                  <span>{option.label}</span>
+                  <span>{oauthLoading === option.key ? 'Redirecionando...' : option.label}</span>
                 </button>
               ))}
             </div>
 
             <div className="login-signup">
-              Novo por aqui?{' '}
-              <a href="#" onClick={(event) => { event.preventDefault(); notReady('Solicitação de demonstração'); }}>
+              Novo por aqui? <a href="/criar-conta">Criar conta</a>
+              {' · '}
+              <a href="#" onClick={(event) => { event.preventDefault(); openDemoModal(); }}>
                 Solicitar demonstração
               </a>
             </div>
@@ -306,6 +370,70 @@ export function Login() {
           </div>
         </div>
       </div>
+
+      {demoModalOpen && (
+        <div className="modal-backdrop" onClick={() => setDemoModalOpen(false)}>
+          <div className="demo-lead-modal" onClick={(event) => event.stopPropagation()}>
+            <div className="demo-lead-modal-header">
+              <strong>Solicitar demonstração</strong>
+              <button className="icon-btn" onClick={() => setDemoModalOpen(false)} aria-label="Fechar"><X size={18} /></button>
+            </div>
+
+            {demoSent ? (
+              <div className="login-forgot-sent">
+                <CheckCircle2 size={18} />
+                <span>Recebemos sua solicitação — nosso time entra em contato em breve.</span>
+              </div>
+            ) : (
+              <form onSubmit={handleDemoSubmit} className="demo-lead-form">
+                <label className="login-field">
+                  <span>Nome</span>
+                  <div className="login-input-icon">
+                    <User size={16} />
+                    <input type="text" value={demoNome} onChange={(event) => setDemoNome(event.target.value)} required autoFocus />
+                  </div>
+                </label>
+                <label className="login-field">
+                  <span>E-mail</span>
+                  <div className="login-input-icon">
+                    <Mail size={16} />
+                    <input type="email" value={demoEmail} onChange={(event) => setDemoEmail(event.target.value)} required />
+                  </div>
+                </label>
+                <label className="login-field">
+                  <span>Empresa</span>
+                  <div className="login-input-icon">
+                    <Building2 size={16} />
+                    <input type="text" value={demoEmpresa} onChange={(event) => setDemoEmpresa(event.target.value)} required />
+                  </div>
+                </label>
+                <label className="login-field">
+                  <span>Telefone (opcional)</span>
+                  <div className="login-input-icon">
+                    <Phone size={16} />
+                    <input type="tel" value={demoTelefone} onChange={(event) => setDemoTelefone(event.target.value)} />
+                  </div>
+                </label>
+                <label className="login-field">
+                  <span>Mensagem (opcional)</span>
+                  <textarea
+                    className="demo-lead-textarea"
+                    value={demoMensagem}
+                    onChange={(event) => setDemoMensagem(event.target.value)}
+                    rows={3}
+                  />
+                </label>
+
+                {demoError && <p className="login-error">{demoError}</p>}
+
+                <button className="primary-small login-submit" type="submit" disabled={demoSubmitting}>
+                  {demoSubmitting ? 'Enviando...' : 'Enviar solicitação'} <ArrowRight size={16} />
+                </button>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -21,6 +21,8 @@ export type SessionUser = {
   tipoAcesso: TipoAcesso;
   /** Cliente ao qual o usuário pertence de fato (null para staff da operadora). */
   homeClientId: string | null;
+  /** Só relevante pra kind='cliente': 'Ativo' | 'Solicitação' | 'Bloqueado' | 'Inativo'. Sistema sempre 'Ativo'. */
+  status: string;
 };
 
 export type SessionData = {
@@ -47,6 +49,53 @@ export async function signIn(email: string, password: string) {
 export async function signOut() {
   const supabase = requireClient();
   await supabase.auth.signOut();
+}
+
+/**
+ * Self-signup real (sem convite prévio) -- nome vai pro user_metadata do JWT, é dali que
+ * fn_request_client_access() lê (nunca de um parâmetro vindo do cliente, ver migration 146).
+ * Se o projeto tiver confirmação de e-mail ligada, `data.session` vem null aqui -- o vínculo
+ * por domínio só acontece no primeiro login real de verdade, dentro de loadSession().
+ */
+export async function signUpWithPassword(email: string, password: string, nome: string) {
+  const supabase = requireClient();
+  // ?type=signup explícito na NOSSA query, mesmo motivo do ?type=recovery em
+  // requestPasswordReset -- ConfirmarAcesso.tsx usa isso (hasAutoFlow) pra saber que é, de
+  // fato, um retorno de link de confirmação em andamento, sem depender do fragmento da URL
+  // (que o supabase-js pode já ter consumido antes do componente montar).
+  const redirectTo = `${window.location.origin}/confirmar-acesso?type=signup`;
+  const { data, error } = await supabase.auth.signUp({
+    email,
+    password,
+    options: { data: { nome }, emailRedirectTo: redirectTo },
+  });
+  if (error) throw error;
+  return { hasSession: Boolean(data.session) };
+}
+
+export type OAuthProvider = 'google' | 'azure';
+
+/** Login social real -- só funciona depois do provider configurado no Supabase Dashboard (Client ID/Secret reais). */
+export async function signInWithOAuthProvider(provider: OAuthProvider) {
+  const supabase = requireClient();
+  const { error } = await supabase.auth.signInWithOAuth({
+    provider,
+    options: { redirectTo: window.location.origin },
+  });
+  if (error) throw error;
+}
+
+/** Captura real do formulário "Solicitar demonstração" -- insert público, sem autenticação. */
+export async function submitDemoLead(input: { nome: string; email: string; empresa: string; telefone?: string; mensagem?: string }) {
+  const supabase = requireClient();
+  const { error } = await supabase.from('demo_leads').insert({
+    nome: input.nome,
+    email: input.email,
+    empresa: input.empresa,
+    telefone: input.telefone || null,
+    mensagem: input.mensagem || null,
+  });
+  if (error) throw error;
 }
 
 /**
@@ -140,6 +189,7 @@ export async function loadSession(authUserId: string): Promise<SessionData | nul
       registroId: row.id,
       tipoAcesso: row.tipo_usuario_sistema as TipoAcesso,
       homeClientId: row.platform_client_id,
+      status: 'Ativo',
     };
 
     return { user, activeClientId: row.platform_client_id, permissoes };
@@ -147,7 +197,7 @@ export async function loadSession(authUserId: string): Promise<SessionData | nul
 
   let { data: clienteRows, error: clienteError } = await supabase
     .from('usuarios_cliente')
-    .select('id, nome, email_principal, platform_client_id')
+    .select('id, nome, email_principal, platform_client_id, status')
     .eq('auth_user_id', authUserId)
     .is('excluido_em', null)
     .limit(1);
@@ -161,7 +211,24 @@ export async function loadSession(authUserId: string): Promise<SessionData | nul
     if (!claimError) {
       const retry = await supabase
         .from('usuarios_cliente')
-        .select('id, nome, email_principal, platform_client_id')
+        .select('id, nome, email_principal, platform_client_id, status')
+        .eq('auth_user_id', authUserId)
+        .is('excluido_em', null)
+        .limit(1);
+      clienteRows = retry.data;
+    }
+  }
+
+  if (!clienteRows || clienteRows.length === 0) {
+    // Sem convite prévio (self-signup direto): fn_request_client_access() tenta achar um
+    // cliente real pelo domínio do e-mail (auth.email() do JWT) e cria o registro com status
+    // "Solicitação" -- só o domínio já bastar pra existir uma linha, aprovação humana continua
+    // obrigatória antes de virar Ativo (ver AguardandoAprovacao.tsx).
+    const { error: requestError } = await supabase.rpc('fn_request_client_access');
+    if (!requestError) {
+      const retry = await supabase
+        .from('usuarios_cliente')
+        .select('id, nome, email_principal, platform_client_id, status')
         .eq('auth_user_id', authUserId)
         .is('excluido_em', null)
         .limit(1);
@@ -188,6 +255,7 @@ export async function loadSession(authUserId: string): Promise<SessionData | nul
       registroId: row.id,
       tipoAcesso: 'operacional',
       homeClientId: row.platform_client_id,
+      status: row.status,
     };
 
     return { user, activeClientId: row.platform_client_id, permissoes };
@@ -494,6 +562,20 @@ export async function setUsuarioClienteStatus(id: string, status: string): Promi
 export async function softDeleteUsuarioCliente(id: string): Promise<void> {
   const supabase = requireClient();
   const { error } = await supabase.from('usuarios_cliente').update({ excluido_em: new Date().toISOString() }).eq('id', id);
+  if (error) throw error;
+}
+
+/**
+ * Aprova uma solicitação de self-signup (status "Solicitação" -> "Ativo"), atribuindo o
+ * perfil escolhido pelo admin. Só transiciona a partir de "Solicitação" -- fn_approve_client_
+ * access_request rejeita qualquer outro estado (evita reaprovação indevida).
+ */
+export async function approveAccessRequest(usuarioClienteId: string, perfilAcessoId: string): Promise<void> {
+  const supabase = requireClient();
+  const { error } = await supabase.rpc('fn_approve_client_access_request', {
+    p_usuario_cliente_id: usuarioClienteId,
+    p_perfil_acesso_id: perfilAcessoId,
+  });
   if (error) throw error;
 }
 

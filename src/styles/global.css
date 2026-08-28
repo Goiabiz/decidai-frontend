@@ -10727,6 +10727,48 @@ td small {
   color: var(--red-500) !important;
 }
 
+/* Modal de "Solicitar demonstração" (aberto de dentro da tela de login) -- mesmo visual fixo
+   claro do login, já que só existe nesse contexto. */
+.demo-lead-modal {
+  color-scheme: light;
+  width: 100%;
+  max-width: 440px;
+  background: #fff;
+  border-radius: 16px;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  box-shadow: 0 24px 60px rgba(12, 61, 46, 0.25);
+}
+
+.demo-lead-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 16px;
+  font-weight: 800;
+  color: #10241d;
+}
+
+.demo-lead-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.demo-lead-textarea {
+  width: 100%;
+  border: 1px solid #d7e1db;
+  border-radius: 12px;
+  padding: 12px 14px;
+  background: #fbfcfb;
+  color: #10241d;
+  font: inherit;
+  font-size: 14px;
+  resize: vertical;
+}
+
 /* Tela de confirmação de acesso (link do convite/magic-link) usa o mesmo visual fixo (claro) do login */
 .confirm-access-screen {
   min-height: 100vh;
