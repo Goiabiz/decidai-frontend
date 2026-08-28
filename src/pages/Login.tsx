@@ -33,6 +33,14 @@ const SOCIAL_AUTH_OPTIONS = [
 
 type SocialAuthKey = typeof SOCIAL_AUTH_OPTIONS[number]['key'];
 
+// A chave da UI ("microsoft") não é o mesmo slug que o Supabase Auth espera pro provider
+// ("azure") -- achado real testando em produção: mandar provider=microsoft direto devolve
+// "Provider microsoft could not be found" (nem chega a "not enabled", como o Google dá).
+const SOCIAL_KEY_TO_OAUTH_PROVIDER: Partial<Record<SocialAuthKey, OAuthProvider>> = {
+  google: 'google',
+  microsoft: 'azure',
+};
+
 function LoginProviderIcon({ type }: { type: SocialAuthKey }) {
   if (type === 'google') {
     return (
@@ -77,7 +85,7 @@ export function Login() {
   const [forgotSubmitting, setForgotSubmitting] = useState(false);
   const [forgotSent, setForgotSent] = useState(false);
 
-  const [oauthLoading, setOauthLoading] = useState<OAuthProvider | null>(null);
+  const [oauthLoading, setOauthLoading] = useState<SocialAuthKey | null>(null);
   const [demoModalOpen, setDemoModalOpen] = useState(false);
   const [demoNome, setDemoNome] = useState('');
   const [demoEmail, setDemoEmail] = useState('');
@@ -129,15 +137,17 @@ export function Login() {
 
   const notReady = (label: string) => showAppToast(`${label} chega numa fase futura do produto.`);
 
-  const handleOAuth = async (provider: OAuthProvider) => {
-    setOauthLoading(provider);
+  const handleOAuth = async (key: SocialAuthKey) => {
+    const provider = SOCIAL_KEY_TO_OAUTH_PROVIDER[key];
+    if (!provider) return;
+    setOauthLoading(key);
     try {
       await signInWithOAuthProvider(provider);
       // Sucesso redireciona pro provider (Google/Microsoft) -- não há "depois" aqui nesta função.
     } catch (err) {
       setOauthLoading(null);
       showAppToast(
-        err instanceof Error ? err.message : `Não foi possível iniciar o login com ${provider}.`,
+        err instanceof Error ? err.message : `Não foi possível iniciar o login com ${key}.`,
         'error',
       );
     }
@@ -340,7 +350,7 @@ export function Login() {
                       showAppToast('SSO corporativo (SAML) é uma configuração por empresa — fale com nosso time para habilitar.');
                       return;
                     }
-                    void handleOAuth(option.key as OAuthProvider);
+                    void handleOAuth(option.key);
                   }}
                   title={option.key === 'sso' ? 'Login corporativo único da empresa' : `Entrar com ${option.label}`}
                 >
