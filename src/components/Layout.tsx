@@ -296,24 +296,7 @@ export function Layout({ activePage, onNavigate, children, rightPanel }: { activ
           if (isSidebarCollapsed) setIsSidebarHovered(false);
         }}
       >
-        <BrandMenu
-          companyName={branding.companyName}
-          tipoAcesso={session?.user.tipoAcesso}
-          markSrc={markArrowDark}
-          onNavigateAdmin={() => onNavigate('param-admin')}
-          onNavigateMarketplace={() => onNavigate('param-marketplace')}
-          onRequestNewUser={() => {
-            window.sessionStorage.setItem('radar-sus-open-new-user', '1');
-            onNavigate('cad-usuarios');
-            window.dispatchEvent(new CustomEvent('radar-sus-open-new-user'));
-          }}
-          onRequestImportUsers={() => {
-            window.sessionStorage.setItem('radar-sus-open-import-users', '1');
-            onNavigate('cad-usuarios');
-            window.dispatchEvent(new CustomEvent('radar-sus-open-import-users'));
-          }}
-          onSignOut={() => signOut()}
-        />
+        <BrandMenu companyName={branding.companyName} markSrc={markArrowDark} />
 
         <nav className="sidebar-nav">
           {navGroups.filter((group) => !group.staffOnly || isSupport).map((group) => {
@@ -438,7 +421,21 @@ export function Layout({ activePage, onNavigate, children, rightPanel }: { activ
               name={session?.user.displayName ?? prefs.userName}
               email={session?.user.email ?? prefs.userEmail ?? 'Administrador'}
               photoUrl={session?.user.fotoUrl ?? prefs.userPhotoUrl}
+              companyName={branding.companyName}
+              tipoAcesso={session?.user.tipoAcesso}
               onNavigateAccount={() => onNavigate('minha-conta')}
+              onNavigateAdmin={() => onNavigate('param-admin')}
+              onNavigateMarketplace={() => onNavigate('param-marketplace')}
+              onRequestNewUser={() => {
+                window.sessionStorage.setItem('radar-sus-open-new-user', '1');
+                onNavigate('cad-usuarios');
+                window.dispatchEvent(new CustomEvent('radar-sus-open-new-user'));
+              }}
+              onRequestImportUsers={() => {
+                window.sessionStorage.setItem('radar-sus-open-import-users', '1');
+                onNavigate('cad-usuarios');
+                window.dispatchEvent(new CustomEvent('radar-sus-open-import-users'));
+              }}
               onSignOut={() => signOut()}
             />
           </div>

@@ -1,14 +1,28 @@
 import { useEffect, useRef, useState } from 'react';
-import { CreditCard, LogOut, Monitor, Moon, Sun, UserRound } from 'lucide-react';
+import { Building2, Compass, CreditCard, LogOut, Megaphone, Monitor, Moon, Settings, Sun, Upload, UserPlus, UserRound } from 'lucide-react';
 import { getBrandingConfig, saveBrandingConfig } from '../lib/branding';
+import type { TipoAcesso } from '../services/auth';
 
 type ThemeMode = 'system' | 'light' | 'dark';
+
+const ROLE_LABELS: Record<TipoAcesso, string> = {
+  suporte: 'Suporte',
+  admin_operadora: 'Administrador da operadora',
+  admin_cliente: 'Administrador',
+  operacional: 'Operacional',
+};
 
 type Props = {
   name: string;
   email: string;
   photoUrl?: string;
+  companyName: string;
+  tipoAcesso?: TipoAcesso;
   onNavigateAccount: () => void;
+  onNavigateAdmin: () => void;
+  onNavigateMarketplace: () => void;
+  onRequestNewUser: () => void;
+  onRequestImportUsers: () => void;
   onSignOut: () => void | Promise<void>;
 };
 
@@ -18,7 +32,14 @@ const THEME_OPTIONS: Array<{ mode: ThemeMode; label: string; icon: typeof Sun }>
   { mode: 'system', label: 'Automático', icon: Monitor },
 ];
 
-export function UserMenu({ name, email, photoUrl, onNavigateAccount, onSignOut }: Props) {
+/**
+ * Um único menu de conta, gatilho só aqui (topo-direito) -- até 28/08 existia um segundo
+ * menu duplicado no logo da sidebar (topo-esquerdo, "Perfil"/"Administração"/"Marketplace"),
+ * repetindo opção em dois lugares. Mesclado a pedido do usuário, mesmo padrão do menu de
+ * conta do Jira/Rovo: estado compacto só com o avatar (sem nome/e-mail poluindo a topbar),
+ * nome+e-mail aparecem só dentro do dropdown já aberto.
+ */
+export function UserMenu({ name, email, photoUrl, companyName, tipoAcesso, onNavigateAccount, onNavigateAdmin, onNavigateMarketplace, onRequestNewUser, onRequestImportUsers, onSignOut }: Props) {
   const [isOpen, setIsOpen] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
   const [themeMode, setThemeMode] = useState<ThemeMode>(() => getBrandingConfig().themeMode);
@@ -51,11 +72,17 @@ export function UserMenu({ name, email, photoUrl, onNavigateAccount, onSignOut }
     return () => window.removeEventListener('mousedown', handlePointerDown);
   }, [isOpen]);
 
+  const close = () => setIsOpen(false);
+
+  const focusSearch = () => {
+    close();
+    document.querySelector<HTMLInputElement>('.search-box input')?.focus();
+  };
+
   return (
     <div className="user-menu-wrap" ref={ref}>
-      <button className="user-area" type="button" onClick={() => setIsOpen((value) => !value)}>
+      <button className="user-area user-area-compact" type="button" onClick={() => setIsOpen((value) => !value)} title={name}>
         <div className="avatar">{photoUrl ? <img src={photoUrl} alt={name} /> : <UserRound size={18} />}</div>
-        <div><strong>{name}</strong></div>
       </button>
 
       {isOpen && (
@@ -64,12 +91,8 @@ export function UserMenu({ name, email, photoUrl, onNavigateAccount, onSignOut }
             <strong>{name}</strong>
             <small>{email}</small>
           </div>
-          <button
-            onClick={() => {
-              setIsOpen(false);
-              onNavigateAccount();
-            }}
-          >
+
+          <button onClick={() => { close(); onNavigateAccount(); }}>
             <CreditCard size={15} /> Minha Conta
           </button>
 
@@ -91,6 +114,16 @@ export function UserMenu({ name, email, photoUrl, onNavigateAccount, onSignOut }
             </div>
           </div>
 
+          <div className="user-menu-divider" />
+
+          <button onClick={() => { close(); onNavigateAdmin(); }}><Settings size={15} /> Administração</button>
+          <button onClick={() => { close(); onNavigateMarketplace(); }}><Megaphone size={15} /> Marketplace</button>
+          <button onClick={focusSearch}><Compass size={15} /> Atalhos</button>
+          <button onClick={() => { close(); onRequestNewUser(); }}><UserPlus size={15} /> Convidar</button>
+          <button onClick={() => { close(); onRequestImportUsers(); }}><Upload size={15} /> Importar dados</button>
+
+          <div className="user-menu-divider" />
+
           <button
             className="danger"
             disabled={signingOut}
@@ -98,6 +131,11 @@ export function UserMenu({ name, email, photoUrl, onNavigateAccount, onSignOut }
           >
             <LogOut size={15} /> {signingOut ? 'Saindo...' : 'Sair'}
           </button>
+
+          <div className="user-menu-footer">
+            <Building2 size={13} />
+            <span>{tipoAcesso ? ROLE_LABELS[tipoAcesso] : 'Operacional'} · {companyName}</span>
+          </div>
         </div>
       )}
     </div>
