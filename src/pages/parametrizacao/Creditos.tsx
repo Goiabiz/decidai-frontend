@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Wallet } from 'lucide-react';
+import { Wallet, FileDown } from 'lucide-react';
 import { PageHeader } from '../../components/PageHeader';
 import { Badge } from '../../components/Badge';
-import { ExportAction } from '../../components/ExportAction';
+import { ExportAction, type ExportFormat } from '../../components/ExportAction';
 import { showAppToast } from '../../lib/appToast';
 import { useSession, usePermission } from '../../contexts/SessionContext';
 import { getCreditsBalance, listCreditsLedger, type CreditsLedgerEntry, type CreditsLedgerTipo } from '../../services/creditos';
+import { exportReportRows, exportInvoicePdf } from '../../lib/reportExport';
 import {
   closeBillingPeriod,
   createGatewayCharge,
@@ -90,6 +91,7 @@ export function Creditos() {
   const [periodo, setPeriodo] = useState(currentMonthRange());
   const [cobrando, setCobrando] = useState<string | null>(null);
   const [pixAtivo, setPixAtivo] = useState<{ invoiceId: string; qrCode: string } | null>(null);
+  const [baixandoPdf, setBaixandoPdf] = useState<string | null>(null);
 
   const loadFaturamento = () => {
     if (!clienteId) return;
@@ -120,6 +122,51 @@ export function Creditos() {
     } catch (error) {
       showAppToast(error instanceof Error ? error.message : 'Falha ao carregar itens da fatura.', 'warning');
     }
+  };
+
+  const handleDownloadInvoicePdf = async (invoice: BillingInvoice, items: BillingInvoiceItem[]) => {
+    setBaixandoPdf(invoice.id);
+    try {
+      await exportInvoicePdf({
+        id: invoice.id,
+        clientName: plano?.clientName || 'Cliente',
+        planCode: invoice.planCode,
+        periodStart: invoice.periodStart,
+        periodEnd: invoice.periodEnd,
+        dueDate: invoice.dueDate,
+        statusLabel: INVOICE_STATUS_LABELS[invoice.status],
+        paidAtLabel: invoice.paidAt ? formatDate(invoice.paidAt.slice(0, 10)) : null,
+        items: items.map((item) => ({ description: item.description, amountBrl: item.amountBrl })),
+        totalAmountBrl: invoice.totalAmountBrl,
+        gatewayQrCode: invoice.status === 'open' ? invoice.gatewayQrCode : null,
+      });
+    } catch (error) {
+      showAppToast(error instanceof Error ? error.message : 'Não foi possível gerar o PDF da fatura.', 'warning');
+    } finally {
+      setBaixandoPdf(null);
+    }
+  };
+
+  const handleExportLedger = async (format: ExportFormat) => {
+    await exportReportRows({
+      format,
+      filename: 'creditos-consumo',
+      title: 'Histórico de transações — Créditos e Consumo',
+      columns: [
+        { key: 'data', label: 'Data' },
+        { key: 'tipo', label: 'Tipo' },
+        { key: 'valor', label: 'Valor (USD)' },
+        { key: 'saldoApos', label: 'Saldo após (USD)' },
+        { key: 'descricao', label: 'Descrição' },
+      ],
+      rows: ledger.map((item) => ({
+        data: formatDateTime(item.data),
+        tipo: TIPO_LABELS[item.tipo] || item.tipo,
+        valor: item.valor,
+        saldoApos: item.saldoApos,
+        descricao: item.descricao,
+      })),
+    });
   };
 
   const handleCloseBillingPeriod = async () => {
@@ -194,7 +241,7 @@ export function Creditos() {
       <PageHeader
         title="Créditos e Consumo"
         subtitle="Saldo de créditos e histórico de uso de IA deste ambiente."
-        action={<ExportAction filename="creditos-consumo" title="Exportar histórico de créditos" />}
+        action={<ExportAction filename="creditos-consumo" title="Exportar histórico de créditos" onExport={handleExportLedger} />}
       />
 
       <section className="card audit-clean-card" style={{ marginBottom: 16 }}>
@@ -286,6 +333,17 @@ export function Creditos() {
                     {podeEditarFaturas && invoice.status === 'open' && (
                       <button className="secondary-btn" onClick={() => handleMarkPaid(invoice.id)}>Marcar como paga</button>
                     )}
+                    <button
+                      className="secondary-btn"
+                      title="Baixar PDF da fatura"
+                      disabled={baixandoPdf === invoice.id}
+                      onClick={async () => {
+                        const items = selectedInvoice?.id === invoice.id ? selectedInvoice.items : await listInvoiceItems(invoice.id);
+                        await handleDownloadInvoicePdf(invoice, items);
+                      }}
+                    >
+                      <FileDown size={15} />
+                    </button>
                   </td>
                 </tr>
               ))}
@@ -307,7 +365,19 @@ export function Creditos() {
 
         {selectedInvoice && (
           <div className="flow-run-detail">
-            <h4>Itens da fatura</h4>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h4>Itens da fatura</h4>
+              <button
+                className="secondary-btn"
+                disabled={baixandoPdf === selectedInvoice.id}
+                onClick={() => {
+                  const invoice = invoices.find((item) => item.id === selectedInvoice.id);
+                  if (invoice) void handleDownloadInvoicePdf(invoice, selectedInvoice.items);
+                }}
+              >
+                <FileDown size={15} /> {baixandoPdf === selectedInvoice.id ? 'Gerando...' : 'Baixar PDF'}
+              </button>
+            </div>
             {selectedInvoice.items.length === 0 && <p className="empty-note">Sem itens (fatura zerada).</p>}
             {selectedInvoice.items.map((item) => (
               <div key={item.id} className="flow-run-step-row">

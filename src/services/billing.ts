@@ -40,6 +40,7 @@ export type BillingInvoiceItem = {
 export type PlanPricing = {
   code: string;
   name: string;
+  clientName: string;
   monthlyPriceBrl: number | null;
   includedCreditsUsd: number;
   overagePricePerUsdBrl: number | null;
@@ -102,7 +103,7 @@ export async function getPlanPricing(clienteId: string): Promise<PlanPricing | n
   const client = requireClient();
   const { data: cliente, error: clienteError } = await client
     .from('platform_clients')
-    .select('plano_id')
+    .select('plano_id, trade_name, name')
     .eq('id', clienteId)
     .maybeSingle();
   if (clienteError) throw clienteError;
@@ -119,6 +120,7 @@ export async function getPlanPricing(clienteId: string): Promise<PlanPricing | n
   return {
     code: plano.code,
     name: plano.name,
+    clientName: (cliente.trade_name as string | null) || cliente.name,
     monthlyPriceBrl: plano.monthly_price_brl === null ? null : Number(plano.monthly_price_brl),
     includedCreditsUsd: Number(plano.included_credits_usd),
     overagePricePerUsdBrl: plano.overage_price_per_usd_brl === null ? null : Number(plano.overage_price_per_usd_brl),
