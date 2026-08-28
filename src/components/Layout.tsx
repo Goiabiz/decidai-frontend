@@ -300,16 +300,17 @@ export function Layout({ activePage, onNavigate, children, rightPanel }: { activ
           companyName={branding.companyName}
           tipoAcesso={session?.user.tipoAcesso}
           markSrc={markArrowDark}
-          onNavigateAccount={() => onNavigate('minha-conta')}
           onNavigateAdmin={() => onNavigate('param-admin')}
           onNavigateMarketplace={() => onNavigate('param-marketplace')}
           onRequestNewUser={() => {
             window.sessionStorage.setItem('radar-sus-open-new-user', '1');
             onNavigate('cad-usuarios');
+            window.dispatchEvent(new CustomEvent('radar-sus-open-new-user'));
           }}
           onRequestImportUsers={() => {
             window.sessionStorage.setItem('radar-sus-open-import-users', '1');
             onNavigate('cad-usuarios');
+            window.dispatchEvent(new CustomEvent('radar-sus-open-import-users'));
           }}
           onSignOut={() => signOut()}
         />
@@ -420,6 +421,7 @@ export function Layout({ activePage, onNavigate, children, rightPanel }: { activ
               onClick={() => {
                 window.sessionStorage.setItem('radar-sus-open-new-user', '1');
                 onNavigate('cad-usuarios');
+                window.dispatchEvent(new CustomEvent('radar-sus-open-new-user'));
               }}
             >
               <UserPlus size={19} />
@@ -435,7 +437,7 @@ export function Layout({ activePage, onNavigate, children, rightPanel }: { activ
             <UserMenu
               name={session?.user.displayName ?? prefs.userName}
               email={session?.user.email ?? prefs.userEmail ?? 'Administrador'}
-              photoUrl={prefs.userPhotoUrl}
+              photoUrl={session?.user.fotoUrl ?? prefs.userPhotoUrl}
               onNavigateAccount={() => onNavigate('minha-conta')}
               onSignOut={() => signOut()}
             />

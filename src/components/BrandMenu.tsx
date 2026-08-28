@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Building2, Compass, LogOut, Megaphone, Menu, Settings, Upload, UserPlus, UserRound } from 'lucide-react';
+import { Building2, Compass, LogOut, Megaphone, Menu, Settings, Upload, UserPlus } from 'lucide-react';
 import type { TipoAcesso } from '../services/auth';
 
 function BrandWordmark({ companyName }: { companyName: string }) {
@@ -20,7 +20,6 @@ type Props = {
   companyName: string;
   tipoAcesso?: TipoAcesso;
   markSrc: string;
-  onNavigateAccount: () => void;
   onNavigateAdmin: () => void;
   onNavigateMarketplace: () => void;
   onRequestNewUser: () => void;
@@ -28,7 +27,7 @@ type Props = {
   onSignOut: () => void | Promise<void>;
 };
 
-export function BrandMenu({ companyName, tipoAcesso, markSrc, onNavigateAccount, onNavigateAdmin, onNavigateMarketplace, onRequestNewUser, onRequestImportUsers, onSignOut }: Props) {
+export function BrandMenu({ companyName, tipoAcesso, markSrc, onNavigateAdmin, onNavigateMarketplace, onRequestNewUser, onRequestImportUsers, onSignOut }: Props) {
   const [isOpen, setIsOpen] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
   const ref = useRef<HTMLDivElement | null>(null);
@@ -77,7 +76,6 @@ export function BrandMenu({ companyName, tipoAcesso, markSrc, onNavigateAccount,
           <div className="brand-menu-columns">
             <div className="brand-menu-col">
               <span className="brand-menu-col-title">Conta</span>
-              <button type="button" onClick={() => { close(); onNavigateAccount(); }}><UserRound size={15} /> Perfil</button>
               <button type="button" onClick={() => { close(); onRequestImportUsers(); }}><Upload size={15} /> Importar dados</button>
               <button type="button" onClick={() => { close(); onNavigateAdmin(); }}><Settings size={15} /> Administração</button>
               <button type="button" className="danger" disabled={signingOut} onClick={() => void handleSignOut()}>

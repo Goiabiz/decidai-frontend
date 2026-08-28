@@ -28,6 +28,7 @@ import { PageHeader } from '../../components/PageHeader';
 import { normalizeFilterText } from '../../components/SmartFilters';
 import { showAppToast } from '../../lib/appToast';
 import { confirmApp } from '../../lib/appConfirm';
+import { getErrorMessage } from '../../lib/errorMessage';
 import { formatDate } from '../../lib/formatDate';
 import { formatCep, lookupCep } from '../../lib/viaCep';
 import { ExportAction, type ExportFormat } from '../../components/ExportAction';
@@ -397,18 +398,34 @@ export function Usuarios({ onSelectDetail, onOpenDetail }: PageProps) {
     return () => window.removeEventListener('mousedown', closeMenu);
   }, [openMenuId]);
 
-  useEffect(() => {
-    if (!window.sessionStorage.getItem('radar-sus-open-new-user')) return;
-    window.sessionStorage.removeItem('radar-sus-open-new-user');
+  const openNewUserForm = () => {
     setEditingUserId(null);
     setForm(emptyForm);
     setIsFormOpen(true);
-  }, []);
+  };
 
   useEffect(() => {
-    if (!window.sessionStorage.getItem('radar-sus-open-import-users')) return;
-    window.sessionStorage.removeItem('radar-sus-open-import-users');
-    setIsImportOpen(true);
+    if (window.sessionStorage.getItem('radar-sus-open-new-user')) {
+      window.sessionStorage.removeItem('radar-sus-open-new-user');
+      openNewUserForm();
+    }
+    if (window.sessionStorage.getItem('radar-sus-open-import-users')) {
+      window.sessionStorage.removeItem('radar-sus-open-import-users');
+      setIsImportOpen(true);
+    }
+
+    // O botão "Convidar membros" (topbar/menu) só remonta este componente quando navega DE
+    // outra tela -- clicar nele já estando em Usuários não muda o "activePage" (SPA sem
+    // rota real), então o efeito acima nunca reroda e o botão parecia "sem ação". Os eventos
+    // cobrem esse caso sem duplicar a abertura no caminho que já funcionava (navegação real).
+    const handleOpenNewUser = () => openNewUserForm();
+    const handleOpenImport = () => setIsImportOpen(true);
+    window.addEventListener('radar-sus-open-new-user', handleOpenNewUser);
+    window.addEventListener('radar-sus-open-import-users', handleOpenImport);
+    return () => {
+      window.removeEventListener('radar-sus-open-new-user', handleOpenNewUser);
+      window.removeEventListener('radar-sus-open-import-users', handleOpenImport);
+    };
   }, []);
 
   const filteredUsuarios = useMemo(() => {
@@ -622,7 +639,7 @@ export function Usuarios({ onSelectDetail, onOpenDetail }: PageProps) {
       setIsFormOpen(false);
       await carregar();
     } catch (error) {
-      showAppToast(error instanceof Error ? error.message : 'Não foi possível salvar o usuário.', 'error');
+      showAppToast(getErrorMessage(error, 'Não foi possível salvar o usuário.'), 'error');
     } finally {
       setSaving(false);
     }
@@ -646,7 +663,7 @@ export function Usuarios({ onSelectDetail, onOpenDetail }: PageProps) {
       showAppToast(`Acesso de ${approvingUser.nome} aprovado.`, 'success');
       setApprovingUser(null);
     } catch (error) {
-      showAppToast(error instanceof Error ? error.message : 'Não foi possível aprovar o acesso.', 'error');
+      showAppToast(getErrorMessage(error, 'Não foi possível aprovar o acesso.'), 'error');
     } finally {
       setApproving(false);
     }
@@ -657,7 +674,7 @@ export function Usuarios({ onSelectDetail, onOpenDetail }: PageProps) {
       await resendUsuarioClienteInvite(usuario.id);
       showAppToast(`Convite enviado para ${usuario.email}.`, 'success');
     } catch (error) {
-      showAppToast(error instanceof Error ? error.message : 'Não foi possível enviar o convite.', 'error');
+      showAppToast(getErrorMessage(error, 'Não foi possível enviar o convite.'), 'error');
     }
   };
 

@@ -1,11 +1,12 @@
-import { useEffect, useState } from 'react';
-import { CreditCard, PackagePlus, ShieldCheck, UserCog, Users, Wallet, Workflow, X } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { Camera, CreditCard, PackagePlus, ShieldCheck, UserCog, UserRound, Users, Wallet, Workflow, X } from 'lucide-react';
 import { PageHeader } from '../components/PageHeader';
 import { showAppToast } from '../lib/appToast';
 import { useSession, usePermission } from '../contexts/SessionContext';
 import { getAccountOverview, listPlans, type AccountOverview, type PlanDetails } from '../services/account';
 import { requestPlanChange } from '../services/billing';
-import { mfaConfirmEnrollment, mfaEnroll, mfaGetVerifiedFactor, mfaUnenroll } from '../services/auth';
+import { mfaConfirmEnrollment, mfaEnroll, mfaGetVerifiedFactor, mfaUnenroll, updateOwnAvatar } from '../services/auth';
+import { uploadAvatar } from '../services/storage';
 
 function formatNumber(value: number) {
   return new Intl.NumberFormat('pt-BR').format(value);
@@ -25,12 +26,14 @@ function LimitRow({ icon, label, used, max, unlimitedThreshold = 999 }: { icon: 
 }
 
 export function MinhaConta() {
-  const { session, isSupport } = useSession();
+  const { session, isSupport, updateOwnPhoto } = useSession();
   const [overview, setOverview] = useState<AccountOverview | null>(null);
   const [loading, setLoading] = useState(true);
   const [plans, setPlans] = useState<PlanDetails[]>([]);
   const [changingPlan, setChangingPlan] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const photoInputRef = useRef<HTMLInputElement | null>(null);
 
   const [mfaEnabled, setMfaEnabled] = useState(false);
   const [mfaFactorId, setMfaFactorId] = useState<string | null>(null);
@@ -121,6 +124,24 @@ export function MinhaConta() {
 
   useEffect(() => { void load(); }, [clientId]);
 
+  const handlePhotoChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file || !clientId || !session || session.user.kind !== 'cliente') return;
+
+    setUploadingPhoto(true);
+    try {
+      const fotoUrl = await uploadAvatar(clientId, session.user.registroId, file);
+      await updateOwnAvatar(session.user.registroId, fotoUrl);
+      updateOwnPhoto(fotoUrl);
+      showAppToast('Foto atualizada.', 'success');
+    } catch (error) {
+      showAppToast(error instanceof Error ? error.message : 'Não foi possível enviar a foto.', 'error');
+    } finally {
+      setUploadingPhoto(false);
+    }
+  };
+
   const openPlanSwitcher = async () => {
     if (plans.length === 0) {
       try {
@@ -168,6 +189,32 @@ export function MinhaConta() {
   return (
     <>
       <PageHeader title="Minha conta" />
+
+      {session?.user.kind === 'cliente' && (
+        <section className="card minha-conta-perfil-card">
+          <button
+            type="button"
+            className="minha-conta-avatar"
+            onClick={() => photoInputRef.current?.click()}
+            disabled={uploadingPhoto}
+            title="Alterar foto"
+          >
+            {session.user.fotoUrl ? <img src={session.user.fotoUrl} alt={session.user.displayName} /> : <UserRound size={28} />}
+            <span className="minha-conta-avatar-overlay"><Camera size={16} /></span>
+          </button>
+          <input
+            ref={photoInputRef}
+            type="file"
+            accept="image/*"
+            hidden
+            onChange={(event) => void handlePhotoChange(event)}
+          />
+          <div>
+            <strong>{session.user.displayName}</strong>
+            <small className="muted">{uploadingPhoto ? 'Enviando foto...' : 'Clique na foto para alterar'}</small>
+          </div>
+        </section>
+      )}
 
       <section className="card preferences-list-card">
         <h3>Plano e limites {overview?.clientName ? `— ${overview.clientName}` : ''}</h3>

@@ -353,8 +353,18 @@
   position: fixed;
   right: 22px;
   bottom: 22px;
-  z-index: 40;
+  /* Precisa ficar acima de qualquer modal de tela (a maior encontrada no projeto usa
+     z-index 100000) -- pedido direto do usuário: modal pode cobrir a tela anterior, mas
+     nunca o assistente, senão não dá pra perguntar sobre a própria tela com o modal aberto. */
+  z-index: 100010;
   pointer-events: none;
+}
+
+.v363-assistant.expanded {
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: auto;
 }
 
 .v363-assistant * {
@@ -460,7 +470,13 @@
 }
 
 .v363-assistant.expanded .v363-assistant-panel {
-  width: 460px;
+  width: min(480px, 100vw);
+  height: 100vh;
+  max-height: 100vh;
+  border-radius: 0;
+  border-top: 0;
+  border-right: 0;
+  border-bottom: 0;
 }
 
 .v363-assistant-panel header,
@@ -504,6 +520,7 @@
   color: var(--slate-950);
   width: 34px;
   height: 34px;
+  flex-shrink: 0;
   display: inline-grid;
   place-items: center;
   cursor: pointer;
@@ -567,6 +584,10 @@
 
 .v363-assistant-panel footer input {
   flex: 1;
+  /* Sem isso, o min-width padrão de um <input> ("auto", medido pelo conteúdo) recusa
+     encolher -- a linha inteira (mais 3 botões de 34px) fica mais larga que o painel e o
+     botão de enviar, por ser o último, é cortado pelo overflow:hidden do painel. */
+  min-width: 0;
   border: 1px solid var(--slate-200);
   border-radius: 12px;
   min-height: 38px;
@@ -1089,4 +1110,53 @@
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+
+.minha-conta-perfil-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.minha-conta-avatar {
+  position: relative;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  border: 1px solid var(--slate-200);
+  background: var(--surface-soft, #f2f6fb);
+  color: var(--slate-500);
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  cursor: pointer;
+  padding: 0;
+  flex: none;
+}
+
+.minha-conta-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.minha-conta-avatar-overlay {
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  background: rgba(6, 30, 22, .55);
+  color: #fff;
+}
+
+.minha-conta-perfil-card strong {
+  display: block;
+  font-size: 15px;
+  color: var(--slate-950);
+}
+
+.minha-conta-perfil-card small {
+  display: block;
+  margin-top: 2px;
 }

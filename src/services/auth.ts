@@ -23,6 +23,8 @@ export type SessionUser = {
   homeClientId: string | null;
   /** Só relevante pra kind='cliente': 'Ativo' | 'Solicitação' | 'Bloqueado' | 'Inativo'. Sistema sempre 'Ativo'. */
   status: string;
+  /** null para staff (usuarios_sistema não tem foto própria ainda) ou quando o usuário nunca enviou uma. */
+  fotoUrl: string | null;
 };
 
 export type SessionData = {
@@ -190,6 +192,7 @@ export async function loadSession(authUserId: string): Promise<SessionData | nul
       tipoAcesso: row.tipo_usuario_sistema as TipoAcesso,
       homeClientId: row.platform_client_id,
       status: 'Ativo',
+      fotoUrl: null,
     };
 
     return { user, activeClientId: row.platform_client_id, permissoes };
@@ -197,7 +200,7 @@ export async function loadSession(authUserId: string): Promise<SessionData | nul
 
   let { data: clienteRows, error: clienteError } = await supabase
     .from('usuarios_cliente')
-    .select('id, nome, email_principal, platform_client_id, status')
+    .select('id, nome, email_principal, platform_client_id, status, foto_url')
     .eq('auth_user_id', authUserId)
     .is('excluido_em', null)
     .limit(1);
@@ -211,7 +214,7 @@ export async function loadSession(authUserId: string): Promise<SessionData | nul
     if (!claimError) {
       const retry = await supabase
         .from('usuarios_cliente')
-        .select('id, nome, email_principal, platform_client_id, status')
+        .select('id, nome, email_principal, platform_client_id, status, foto_url')
         .eq('auth_user_id', authUserId)
         .is('excluido_em', null)
         .limit(1);
@@ -228,7 +231,7 @@ export async function loadSession(authUserId: string): Promise<SessionData | nul
     if (!requestError) {
       const retry = await supabase
         .from('usuarios_cliente')
-        .select('id, nome, email_principal, platform_client_id, status')
+        .select('id, nome, email_principal, platform_client_id, status, foto_url')
         .eq('auth_user_id', authUserId)
         .is('excluido_em', null)
         .limit(1);
@@ -256,6 +259,7 @@ export async function loadSession(authUserId: string): Promise<SessionData | nul
       tipoAcesso: 'operacional',
       homeClientId: row.platform_client_id,
       status: row.status,
+      fotoUrl: row.foto_url ?? null,
     };
 
     return { user, activeClientId: row.platform_client_id, permissoes };
@@ -574,6 +578,13 @@ export async function updateUsuarioCliente(id: string, input: UsuarioClienteInpu
       if (insertError) throw insertError;
     }
   }
+}
+
+/** Atualiza só a própria foto (não mexe em nenhum outro campo -- diferente de updateUsuarioCliente, que espera o input inteiro). */
+export async function updateOwnAvatar(usuarioClienteId: string, fotoUrl: string): Promise<void> {
+  const supabase = requireClient();
+  const { error } = await supabase.from('usuarios_cliente').update({ foto_url: fotoUrl }).eq('id', usuarioClienteId);
+  if (error) throw error;
 }
 
 export async function setUsuarioClienteStatus(id: string, status: string): Promise<void> {

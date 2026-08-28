@@ -20,6 +20,8 @@ type SessionContextValue = {
   /** Suporte sai da instância do cliente e volta ao contexto "sem cliente ativo". */
   releaseClient: () => Promise<void>;
   hasPermission: (chave: string) => boolean;
+  /** Reflete a própria foto recém-enviada sem precisar recarregar a sessão inteira. */
+  updateOwnPhoto: (fotoUrl: string) => void;
 };
 
 const SessionContext = createContext<SessionContextValue | null>(null);
@@ -118,6 +120,10 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     [session],
   );
 
+  const updateOwnPhoto = useCallback((fotoUrl: string) => {
+    setSession((current) => current && ({ ...current, user: { ...current.user, fotoUrl } }));
+  }, []);
+
   const value = useMemo<SessionContextValue>(() => ({
     loading,
     session,
@@ -127,7 +133,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     accessClient,
     releaseClient,
     hasPermission,
-  }), [loading, session, signIn, signOut, accessClient, releaseClient, hasPermission]);
+    updateOwnPhoto,
+  }), [loading, session, signIn, signOut, accessClient, releaseClient, hasPermission, updateOwnPhoto]);
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
 }

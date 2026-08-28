@@ -55,7 +55,7 @@ export function UserMenu({ name, email, photoUrl, onNavigateAccount, onSignOut }
     <div className="user-menu-wrap" ref={ref}>
       <button className="user-area" type="button" onClick={() => setIsOpen((value) => !value)}>
         <div className="avatar">{photoUrl ? <img src={photoUrl} alt={name} /> : <UserRound size={18} />}</div>
-        <div><strong>{name}</strong><small>{email}</small></div>
+        <div><strong>{name}</strong></div>
       </button>
 
       {isOpen && (
