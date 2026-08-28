@@ -10769,6 +10769,28 @@ td small {
   resize: vertical;
 }
 
+.demo-lead-modal .icon-btn {
+  background: #fff;
+  border-color: #d7e1db;
+  color: #10241d;
+}
+
+/* Mesmo achado já documentado nesta sessão: a regra genérica [data-theme=dark] input/select/
+   textarea (com !important) ignora contexto -- o login-screen já tinha o contorno pra <input>,
+   faltava pro textarea e pro botão de fechar (.icon-btn usa var(--surface)/var(--slate-700),
+   que resolvem escuro no tema dark). */
+:root[data-theme="dark"] .demo-lead-modal textarea {
+  background: #fbfcfb !important;
+  border-color: #d7e1db !important;
+  color: #10241d !important;
+}
+
+:root[data-theme="dark"] .demo-lead-modal .icon-btn {
+  background: #fff !important;
+  border-color: #d7e1db !important;
+  color: #10241d !important;
+}
+
 /* Tela de confirmação de acesso (link do convite/magic-link) usa o mesmo visual fixo (claro) do login */
 .confirm-access-screen {
   min-height: 100vh;
