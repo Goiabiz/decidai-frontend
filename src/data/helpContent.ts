@@ -249,6 +249,13 @@ export const helpContent: Record<PageKey, HelpEntry> = {
       'Cruze com a Fila de Chamados se precisar investigar um atendimento específico em vez de só o agregado.',
     ],
   },
+  'rel-sla-atendimento': {
+    summary: 'Tempo real de primeira resposta, tempo de resolução e taxa de resposta por canal.',
+    tips: [
+      'Um atendimento só entra na média de resolução depois de chegar em Concluído ou Cancelado -- em aberto, ele conta no volume mas não puxa a média pra baixo.',
+      'A régua de prazo por prioridade (o "SLA" configurado em Central de Atendimento → Serviços) é uma meta separada -- esta tela mostra o tempo real, não a comparação com a meta.',
+    ],
+  },
   'rel-alertas': {
     summary: 'Relatório de alertas disparados: prioridade, canal e volume por período.',
     tips: [

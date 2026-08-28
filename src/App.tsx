@@ -25,6 +25,7 @@ import { ObjetosDinamicos } from './pages/ObjetosDinamicos';
 import { Preferencias } from './pages/parametrizacao/Preferencias';
 import RelatorioAuditoria from './pages/relatorios/RelatorioAuditoria';
 import RelatorioAtendimentos from './pages/relatorios/RelatorioAtendimentos';
+import RelatorioSLA from './pages/relatorios/RelatorioSLA';
 import RelatorioAlertas from './pages/relatorios/RelatorioAlertas';
 import RelatorioConhecimentos from './pages/relatorios/RelatorioConhecimentos';
 import RelatorioIntegracoes from './pages/relatorios/RelatorioIntegracoes';
@@ -86,6 +87,7 @@ export type PageKey =
   | 'rel-personalizado'
   | 'rel-conhecimentos'
   | 'rel-atendimentos'
+  | 'rel-sla-atendimento'
   | 'rel-alertas'
   | 'rel-tarefas'
   | 'rel-integracoes'
@@ -127,6 +129,7 @@ const rightPanelByPage: Record<PageKey, React.ComponentProps<typeof RightPanel>[
   'rel-personalizado': 'config',
   'rel-conhecimentos': 'documento',
   'rel-atendimentos': 'atendimento',
+  'rel-sla-atendimento': 'atendimento',
   'rel-alertas': 'alerta',
   'rel-tarefas': 'acao',
   'rel-integracoes': 'config',
@@ -230,6 +233,7 @@ export function App() {
     'rel-personalizado': <RelatorioPersonalizado />,
     'rel-conhecimentos': <RelatorioConhecimentos />,
     'rel-atendimentos': <RelatorioAtendimentos />,
+    'rel-sla-atendimento': <RelatorioSLA />,
     'rel-alertas': <RelatorioAlertas />,
     'rel-tarefas': <RelatorioTarefas />,
     'rel-integracoes': <RelatorioIntegracoes />,

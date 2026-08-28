@@ -333,14 +333,24 @@ export async function createAtendimentoManual(input: NovoAtendimentoManualInput)
   return { atendimento, source: 'local' };
 }
 
-/** Resposta da equipe -- pública (visível ao solicitante) ou nota interna. */
-export async function postMensagemAdmin(atendimentoId: string, autorNome: string, tipo: 'publica' | 'interna', texto: string): Promise<AtendimentosLoadState> {
+export type AutorEquipe = { kind: 'sistema' | 'cliente'; registroId: string };
+
+/**
+ * Resposta da equipe -- pública (visível ao solicitante) ou nota interna. `autor` grava a
+ * FK certa (autor_usuario_sistema_id ou autor_usuario_cliente_id) -- sem isso não dava pra
+ * distinguir, em atendimento_mensagens, mensagem da equipe de mensagem do solicitante (os
+ * dois usam tipo='publica'; autor_nome é texto livre, não serve de sinal confiável). Base
+ * real do tempo de primeira resposta em vw_atendimento_sla (migration 150).
+ */
+export async function postMensagemAdmin(atendimentoId: string, autorNome: string, tipo: 'publica' | 'interna', texto: string, autor?: AutorEquipe): Promise<AtendimentosLoadState> {
   const client = getClient();
   if (client) {
     const { error } = await client.from('atendimento_mensagens').insert({
       atendimento_id: atendimentoId,
       tipo,
       autor_nome: autorNome,
+      autor_usuario_sistema_id: autor?.kind === 'sistema' ? autor.registroId : null,
+      autor_usuario_cliente_id: autor?.kind === 'cliente' ? autor.registroId : null,
       texto,
     });
     if (!error) return 'supabase';
@@ -386,6 +396,37 @@ export async function updateAtendimentoStatus(atendimentoId: string, statusAnter
   store.mensagens.push({ id: `local-msg-${Date.now()}-status`, atendimento_id: atendimentoId, tipo: 'sistema', autor_nome: null, texto: textoEvento, criado_em: now });
   saveLocalStore(store);
   return 'local';
+}
+
+export type AtendimentoSla = {
+  atendimento_id: string;
+  cliente_id: string;
+  canal: string;
+  status: AtendimentoStatus;
+  prioridade: 'Alta' | 'Média' | 'Baixa';
+  origem_portal: boolean;
+  criado_em: string;
+  resolvido_em: string | null;
+  primeira_resposta_em: string | null;
+  tempo_primeira_resposta_segundos: number | null;
+  tempo_resolucao_segundos: number | null;
+  tem_resposta: boolean;
+};
+
+/**
+ * Uma linha por atendimento com os tempos já calculados (vw_atendimento_sla, migration 150).
+ * Sem fallback local -- é uma view do banco real, não faz sentido simular em localStorage.
+ */
+export async function listAtendimentoSla(clienteId: string): Promise<AtendimentoSla[]> {
+  const client = getClient();
+  if (!client) return [];
+  const { data, error } = await client
+    .from('vw_atendimento_sla')
+    .select('*')
+    .eq('cliente_id', clienteId)
+    .order('criado_em', { ascending: false });
+  if (error) return [];
+  return (data || []) as AtendimentoSla[];
 }
 
 export { formatProtocolo };

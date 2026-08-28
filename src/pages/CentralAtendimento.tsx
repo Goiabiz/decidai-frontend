@@ -133,7 +133,8 @@ export function CentralAtendimento({ onOpenDetail }: CentralAtendimentoProps) {
     setEnviando(true);
     try {
       const autor = session?.user.displayName || 'Você';
-      await postMensagemAdmin(selected.id, autor, tipoResposta, texto);
+      const autorEquipe = session?.user ? { kind: session.user.kind, registroId: session.user.registroId } : undefined;
+      await postMensagemAdmin(selected.id, autor, tipoResposta, texto, autorEquipe);
       setMensagens((current) => [...current, {
         id: `temp-${Date.now()}`,
         atendimento_id: selected.id,
