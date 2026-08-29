@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   ArrowLeftRight,
   ArrowRight,
@@ -9,9 +9,11 @@ import {
   PlusCircle,
   X
 } from 'lucide-react';
-import { createRoadmapItem, discardItem, markReview } from '../services/operationalStore';
+import { createRoadmapItem, discardItem, getPatch, markReview, updateOperationalPatch } from '../services/operationalStore';
 import { KnowledgeActionsMenu } from './KnowledgeActionsMenu';
 import { AlertActionsMenu } from './AlertActionsMenu';
+import { useSession } from '../contexts/SessionContext';
+import { listUsuariosCliente, type UsuarioCliente } from '../services/auth';
 
 export type PanelDetail = {
   title: string;
@@ -72,9 +74,14 @@ const nextPanelSize = () => {
 };
 
 export function RightPanel({ variant = 'dashboard', detail, onExpand, onClose }: { variant?: Variant; detail?: PanelDetail | null; onExpand?: (detail: PanelDetail) => void; onClose?: () => void }) {
+  const { session } = useSession();
+  const userName = session?.user.displayName ?? 'Usuário';
+  const actor = { nome: userName, email: session?.user.email ?? '' };
+  const clienteId = session?.activeClientId ?? null;
   const [feedback, setFeedback] = useState('');
   const [panelSizeLabel, setPanelSizeLabel] = useState(() => sizeLabels[window.localStorage.getItem('radar-sus-right-panel-size') || 'medium']);
   const [knowledgeMenuId, setKnowledgeMenuId] = useState<string | null>(null);
+  const [usuarios, setUsuarios] = useState<UsuarioCliente[]>([]);
   const [openSections, setOpenSections] = useState<Record<SectionKey, boolean>>({
     resumo: true,
     informacoes: true,
@@ -93,6 +100,22 @@ export function RightPanel({ variant = 'dashboard', detail, onExpand, onClose }:
     return map;
   }, [current.meta]);
 
+  const patch = useMemo(() => getPatch(current), [current]);
+
+  useEffect(() => {
+    if (!clienteId) { setUsuarios([]); return; }
+    let active = true;
+    listUsuariosCliente(clienteId)
+      .then((rows) => { if (active) setUsuarios(rows); })
+      .catch(() => { if (active) setUsuarios([]); });
+    return () => { active = false; };
+  }, [clienteId]);
+
+  const handleFieldChange = (field: 'status' | 'prioridade' | 'responsavel', value: string) => {
+    updateOperationalPatch(current, { [field]: value }, actor);
+    setFeedback('Campo atualizado.');
+  };
+
   const toggleSection = (section: SectionKey) => {
     setOpenSections((state) => ({ ...state, [section]: !state[section] }));
   };
@@ -103,17 +126,17 @@ export function RightPanel({ variant = 'dashboard', detail, onExpand, onClose }:
   };
 
   const handleRoadmap = () => {
-    createRoadmapItem(current);
+    createRoadmapItem(current, actor);
     setFeedback(isKnowledge ? 'Tarefa adicionada ao Roadmap.' : 'Item enviado para o Roadmap.');
   };
 
   const handleReview = () => {
-    markReview(current);
+    markReview(current, actor);
     setFeedback(isKnowledge ? 'Conhecimento marcado para análise.' : 'Item marcado para revisão.');
   };
 
   const handleDiscard = () => {
-    discardItem(current);
+    discardItem(current, actor);
     setFeedback(isKnowledge ? 'Conhecimento cancelado.' : 'Item descartado.');
   };
 
@@ -180,7 +203,10 @@ export function RightPanel({ variant = 'dashboard', detail, onExpand, onClose }:
           <div className="panel-editable-grid">
             <label>
               <span>Status</span>
-              <select defaultValue={String(metaMap.get('Status') ?? current.badge ?? 'Novo')}>
+              <select
+                value={String(patch?.status ?? metaMap.get('Status') ?? current.badge ?? 'Novo')}
+                onChange={(event) => handleFieldChange('status', event.target.value)}
+              >
                 {variant === 'alerta' ? (
                   <>
                     <option>Novo</option>
@@ -199,7 +225,10 @@ export function RightPanel({ variant = 'dashboard', detail, onExpand, onClose }:
             </label>
             <label>
               <span>{variant === 'alerta' ? 'Prioridade' : 'Classificação'}</span>
-              <select defaultValue={String(metaMap.get(variant === 'alerta' ? 'Prioridade' : 'Classificação') ?? (variant === 'alerta' ? current.badge ?? 'Média' : 'Técnico'))}>
+              <select
+                value={String(patch?.prioridade ?? metaMap.get(variant === 'alerta' ? 'Prioridade' : 'Classificação') ?? (variant === 'alerta' ? current.badge ?? 'Média' : 'Técnico'))}
+                onChange={(event) => handleFieldChange('prioridade', event.target.value)}
+              >
                 {variant === 'alerta' ? (
                   <>
                     <option>Baixa</option>
@@ -220,11 +249,14 @@ export function RightPanel({ variant = 'dashboard', detail, onExpand, onClose }:
             </label>
             <label>
               <span>Responsável</span>
-              <select defaultValue={String(metaMap.get('Responsável') ?? 'Moises Mattos')}>
-                <option>Moises Mattos</option>
-                <option>Bruno Oliveira</option>
-                <option>Mariana Lima</option>
-                <option>Juliana Costa</option>
+              <select
+                value={String(patch?.responsavel ?? metaMap.get('Responsável') ?? userName)}
+                onChange={(event) => handleFieldChange('responsavel', event.target.value)}
+              >
+                {!usuarios.some((usuario) => usuario.nome === userName) && <option>{userName}</option>}
+                {usuarios.map((usuario) => (
+                  <option key={usuario.id}>{usuario.nome}</option>
+                ))}
               </select>
             </label>
           </div>

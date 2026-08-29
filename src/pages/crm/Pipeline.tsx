@@ -3,6 +3,8 @@ import { Plus, X, Settings, AlertTriangle } from 'lucide-react';
 import { PageHeader } from '../../components/PageHeader';
 import { KanbanBoard, type KanbanItem } from '../../components/KanbanBoard';
 import { showAppToast } from '../../lib/appToast';
+import { formatDateTime } from '../../lib/formatDate';
+import { formatCurrencyBrl } from '../../lib/formatCurrency';
 import { useSession, usePermission } from '../../contexts/SessionContext';
 import { listUsuariosCliente, type UsuarioCliente } from '../../services/auth';
 import {
@@ -34,14 +36,8 @@ const ATIVIDADE_TIPOS: Array<{ value: CrmAtividadeTipo; label: string }> = [
   { value: 'nota', label: 'Nota' },
 ];
 
-function formatBrl(value: number | null) {
-  if (value === null) return null;
-  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
-}
-
-function formatDataHora(value: string) {
-  return new Date(value).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-}
+const formatBrl = formatCurrencyBrl;
+const formatDataHora = formatDateTime;
 
 function toDateInputValue(value: string | null) {
   if (!value) return '';

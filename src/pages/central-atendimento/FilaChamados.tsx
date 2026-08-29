@@ -6,16 +6,13 @@ import { KanbanBoard } from '../../components/KanbanBoard';
 import { useSession } from '../../contexts/SessionContext';
 import { listAtendimentosAdmin, updateAtendimentoStatus, type Atendimento, type AtendimentoStatus, type AtendimentosLoadState } from '../../services/atendimentos';
 import { categorizeStatusLabel, STATUS_CATEGORY_TONE } from '../../lib/statusCategory';
+import { formatDateTime } from '../../lib/formatDate';
 
 const statusFiltros: AtendimentoStatus[] = ['Novo', 'Em andamento', 'Aguardando resposta', 'Concluído', 'Cancelado'];
 const filaColumns = statusFiltros.map((status) => ({ id: status, label: status, tone: STATUS_CATEGORY_TONE[categorizeStatusLabel(status)] }));
 
 type ViewMode = 'lista' | 'kanban';
 const VIEW_PREF_KEY = 'radar-sus-view-fila-chamados';
-
-function formatDataHora(iso: string): string {
-  return new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-}
 
 function formatDuracao(ms: number): string {
   const totalMin = Math.max(0, Math.floor(ms / 60000));
@@ -171,8 +168,8 @@ export function FilaChamados() {
                         <td>{chamado.canal}</td>
                         <td>{chamado.solicitante_nome || '-'}</td>
                         <td>{chamado.responsavel_nome || 'Não atribuído'}</td>
-                        <td>{formatDataHora(chamado.criado_em)}</td>
-                        <td>{formatDataHora(chamado.atualizado_em)}</td>
+                        <td>{formatDateTime(chamado.criado_em)}</td>
+                        <td>{formatDateTime(chamado.atualizado_em)}</td>
                         <td>{tempoAberto(chamado)}</td>
                       </tr>
                     );

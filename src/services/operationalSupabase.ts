@@ -1,22 +1,14 @@
 import { pocSupabase } from '../lib/supabase';
 import type { GeneratedRoadmapItem, OperationalHistory, OperationalPatch } from './operationalStore';
 
-export type AuditOperation = 'insert' | 'update' | 'delete' | 'login' | 'export' | 'print' | 'external_link' | 'agent_action';
-
-export type AuditPayload = {
-  usuarioNome: string;
-  usuarioEmail?: string;
-  modulo: string;
-  funcionalidade?: string;
-  operacao: AuditOperation;
-  origem: string;
-  ip?: string;
-  registroId?: string;
-  dadosAntes?: unknown;
-  dadosDepois?: unknown;
-  observacao?: string;
-};
-
+// O projeto Supabase "POC" (VITE_SUPABASE_POC_URL) que este arquivo mira não resolve mais em
+// DNS -- verificado em 28/08/2026 (curl/Invoke-WebRequest falham com "nome remoto não pôde ser
+// resolvido"). Não é mais um caso de "flag desligada por engano": o banco-alvo não existe.
+// Ligar ENABLE_SUPABASE_WRITES hoje só trocaria "sempre local" por "sempre falha de rede
+// silenciosa" -- os 3 chamadores já engolem o erro (.catch(() => undefined)), então o
+// resultado prático seria o mesmo. Persistência real destes 3 registros (patch/histórico/
+// roadmap gerado) exige desenhar schema novo em universo-conectasus-db no projeto principal
+// (universoSupabase) -- decisão de produto/schema em aberto, não uma correção mecânica.
 const ENABLE_SUPABASE_WRITES = false;
 
 const getClient = () => {
@@ -90,27 +82,6 @@ export async function persistOperationalHistory(history: OperationalHistory) {
   return { data, source: 'supabase', skipped: false };
 }
 
-export async function persistAuditLog(payload: AuditPayload) {
-  if (!ENABLE_SUPABASE_WRITES) return { data: payload, source: 'local', skipped: true };
-
-  const { data, error } = await getClient()
-    .from('auditoria_usuario')
-    .insert({
-      usuario_nome: payload.usuarioNome,
-      usuario_email: payload.usuarioEmail,
-      modulo: payload.modulo,
-      funcionalidade: payload.funcionalidade,
-      operacao: payload.operacao,
-      origem: payload.origem,
-      ip: payload.ip,
-      registro_id: payload.registroId,
-      dados_antes: payload.dadosAntes,
-      dados_depois: payload.dadosDepois,
-      observacao: payload.observacao
-    })
-    .select()
-    .single();
-
-  if (error) throw error;
-  return { data, source: 'supabase', skipped: false };
-}
+// Auditoria real de ações do workspace passou a usar services/auditLog.ts (auditoria_usuario
+// no projeto principal, migration 016) em vez de repetir esse mesmo destino aqui apontado pro
+// projeto POC morto -- ver operationalStore.ts.

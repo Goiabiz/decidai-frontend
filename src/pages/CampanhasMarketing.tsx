@@ -5,6 +5,7 @@ import { KpiCard } from '../components/KpiCard';
 import { Badge } from '../components/Badge';
 import { showAppToast } from '../lib/appToast';
 import { useSession } from '../contexts/SessionContext';
+import { formatCurrencyBrl } from '../lib/formatCurrency';
 import {
   computeCampaignStats,
   createCampaignSource,
@@ -25,7 +26,6 @@ const emptySourceForm: SourceFormState = { source: 'meta_ads', label: '', extern
 
 const CAMPAIGN_SOURCES = Object.keys(MARKET_CAMPAIGN_SOURCE_LABELS) as MarketCampaignSource[];
 
-const currencyFormatter = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
 
 export function CampanhasMarketing() {
   const { session } = useSession();
@@ -155,7 +155,7 @@ export function CampanhasMarketing() {
         <KpiCard label="Campanhas monitoradas" value={String(stats.totalCampaigns)} trend="última sincronização" tone="green" />
         <KpiCard label="Impressões" value={stats.totalImpressions.toLocaleString('pt-BR')} trend="soma de todas as fontes" tone="blue" />
         <KpiCard label="Cliques" value={stats.totalClicks.toLocaleString('pt-BR')} trend="soma de todas as fontes" tone="purple" />
-        <KpiCard label="Gasto" value={currencyFormatter.format(stats.totalSpend)} trend="Meta/Google Ads -- LinkedIn Ads sem métrica ainda" tone="orange" />
+        <KpiCard label="Gasto" value={formatCurrencyBrl(stats.totalSpend)} trend="Meta/Google Ads -- LinkedIn Ads sem métrica ainda" tone="orange" />
       </div>
 
       <section className="workspace-settings-panel">
@@ -224,7 +224,7 @@ export function CampanhasMarketing() {
                     <td className="table-subtitle">{signal.campaignStatus ?? '—'}</td>
                     <td>{signal.metrics.impressions ?? '—'}</td>
                     <td>{signal.metrics.clicks ?? '—'}</td>
-                    <td>{signal.metrics.spend !== undefined ? currencyFormatter.format(signal.metrics.spend) : '—'}</td>
+                    <td>{signal.metrics.spend !== undefined ? formatCurrencyBrl(signal.metrics.spend) : '—'}</td>
                   </tr>
                 ))}
               </tbody>

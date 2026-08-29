@@ -5,6 +5,7 @@ import { PageHeader } from '../components/PageHeader';
 import { normalizeFilterText } from '../components/SmartFilters';
 import { confirmApp } from '../lib/appConfirm';
 import { showAppToast } from '../lib/appToast';
+import { formatDateTime } from '../lib/formatDate';
 import { useSession } from '../contexts/SessionContext';
 import { logAudit } from '../services/auditLog';
 import {
@@ -40,11 +41,6 @@ const lifecycleTone: Record<KnowledgeLifecycleState, string> = {
   ARCHIVED: 'gray',
 };
 
-function formatDateTime(iso: string) {
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return iso;
-  return date.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-}
 
 type EditForm = { title: string; content: string; tags: string; category: string };
 

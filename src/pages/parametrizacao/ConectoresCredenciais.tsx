@@ -32,8 +32,7 @@ type ConnectorDef = {
 /**
  * Formato de secretValue por provider_code -- especificado pela sessão irmã
  * (brief-frontend-conectores-e-coordenacao-16-08.md, item 1). github é valor único; os
- * outros são JSON serializado. Trello ainda não tem conector real do lado do agente --
- * deixa desabilitado aqui pra não guardar credencial que ninguém vai usar ainda.
+ * outros são JSON serializado.
  */
 const CONNECTORS: ConnectorDef[] = [
   {
@@ -77,12 +76,11 @@ const CONNECTORS: ConnectorDef[] = [
   {
     code: 'trello',
     name: 'Trello',
-    description: 'Conector ainda não disponível -- em construção do lado do agente.',
+    description: 'Acesso de leitura e escrita a boards, listas, cartões e comentários do seu workspace Trello.',
     fields: [
       { key: 'apiKey', label: 'API Key' },
       { key: 'token', label: 'Token' },
     ],
-    disabled: true,
   },
 ];
 

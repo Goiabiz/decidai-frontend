@@ -192,8 +192,5 @@ export function confirmApp(options: AppConfirmOptions | string): Promise<boolean
   });
 }
 
-// Aliases para compatibilidade com todas as páginas geradas até aqui.
-export const appConfirm = confirmApp;
-export const requestConfirm = confirmApp;
-export const showConfirm = confirmApp;
+// Alias usado por parte das telas de cadastro/parametrização -- mesma função de confirmApp.
 export const showAppConfirm = confirmApp;

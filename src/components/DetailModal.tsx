@@ -3,6 +3,7 @@ import { X, Maximize2, Clock3, Link2, MessageSquareText, ShieldCheck, Paperclip,
 import type { PanelDetail } from './RightPanel';
 import { createRoadmapItem, discardItem, getHistory, getOperationalEventName, markReview, type OperationalHistory } from '../services/operationalStore';
 import { getBrandingConfig } from '../lib/branding';
+import { useSession } from '../contexts/SessionContext';
 
 type TabKey = 'resumo' | 'historico' | 'vinculos' | 'acoes' | 'anexos';
 
@@ -15,6 +16,8 @@ const tabs: Array<{ key: TabKey; label: string }> = [
 ];
 
 export function DetailModal({ detail, onClose }: { detail: PanelDetail | null; onClose: () => void }) {
+  const { session } = useSession();
+  const actor = { nome: session?.user.displayName ?? 'Usuário', email: session?.user.email ?? '' };
   const [activeTab, setActiveTab] = useState<TabKey>('resumo');
   const [history, setHistory] = useState<OperationalHistory[]>([]);
   const [feedback, setFeedback] = useState('');
@@ -32,19 +35,19 @@ export function DetailModal({ detail, onClose }: { detail: PanelDetail | null; o
   if (!detail) return null;
 
   const handleRoadmap = () => {
-    createRoadmapItem(detail);
+    createRoadmapItem(detail, actor);
     setFeedback('Item enviado para o Roadmap.');
     setActiveTab('acoes');
   };
 
   const handleDiscard = () => {
-    discardItem(detail);
+    discardItem(detail, actor);
     setFeedback('Item descartado operacionalmente.');
     setActiveTab('historico');
   };
 
   const handleReview = () => {
-    markReview(detail);
+    markReview(detail, actor);
     setFeedback('Item marcado para revisão do PO.');
     setActiveTab('historico');
   };

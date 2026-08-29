@@ -45,11 +45,25 @@ async function invokeFunction<T>(functionName: string, body: unknown): Promise<F
   return data as FunctionResult<T>;
 }
 
+/**
+ * api_guided_connections.auth_type (migration 019, universo-conectasus-db) só aceita
+ * 'none'/'api_key'/'bearer_token'/'basic'/'oauth2'/'custom_header'/'signed_request' -- um
+ * vocabulário mais grosso que os modos que a tela de Integrações oferece na UI. A distinção
+ * fina (cabeçalho x URL) já viaja separada em credential_type/config.credential_header_name;
+ * aqui só traduz pro rótulo que o CHECK constraint aceita antes de chamar a Edge Function,
+ * senão o INSERT do lado do banco estoura (23514) pra bearer/api_key_header/api_key_query.
+ */
+function toDbAuthType(mode: ApiGuidedSaveConnectionInput["auth_type"]): string {
+  if (mode === "bearer") return "bearer_token";
+  if (mode === "api_key_header" || mode === "api_key_query") return "api_key";
+  return mode;
+}
+
 export function saveApiGuidedConnection(input: ApiGuidedSaveConnectionInput) {
   return invokeFunction<{
     connection?: { id: string; name: string; base_url: string; auth_type: string; status: string };
     credential?: { id: string; credential_type: string; label: string; public_hint: string; status: string } | null;
-  }>("api-guided-save-connection", input);
+  }>("api-guided-save-connection", { ...input, auth_type: toDbAuthType(input.auth_type) });
 }
 
 export function testApiGuidedConnection(connectionId: string) {

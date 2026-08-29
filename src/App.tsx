@@ -203,7 +203,7 @@ export function App() {
   const pages: Record<PageKey, React.ReactNode> = {
     dashboard: <Dashboard onOpenDetail={setExpandedDetail} onNavigate={handleNavigate} />,
     'minha-conta': <MinhaConta />,
-    'cad-usuarios': <Usuarios />,
+    'cad-usuarios': <Usuarios onSelectDetail={handleSelectDetail} onOpenDetail={setExpandedDetail} />,
     'cad-unidades': <UnidadesCentrosCusto />,
     'cad-campos': <CamposContexto />,
     'cad-formularios': <FormulariosTelas />,

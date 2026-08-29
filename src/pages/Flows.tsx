@@ -4,6 +4,7 @@ import { PageHeader } from '../components/PageHeader';
 import { KpiCard } from '../components/KpiCard';
 import { Badge } from '../components/Badge';
 import { showAppToast } from '../lib/appToast';
+import { confirmApp } from '../lib/appConfirm';
 import { useSession } from '../contexts/SessionContext';
 import { FlowBuilderCanvas, type FlowBuilderCanvasHandle } from '../components/flow/FlowBuilderCanvas';
 import {
@@ -152,7 +153,13 @@ export function Flows() {
   };
 
   const remove = async (flow: FlowSummary) => {
-    if (!window.confirm(`Excluir o flow "${flow.name}"? Isso apaga também o histórico de execuções dele.`)) return;
+    const confirmed = await confirmApp({
+      title: 'Excluir flow',
+      description: `Excluir o flow "${flow.name}"? Isso apaga também o histórico de execuções dele.`,
+      confirmLabel: 'Excluir',
+      tone: 'danger',
+    });
+    if (!confirmed) return;
     const result = await deleteFlow(flow.id, clienteId);
     if ('error' in result) return showAppToast(result.error, 'warning');
     showAppToast('Flow excluído.', 'success');

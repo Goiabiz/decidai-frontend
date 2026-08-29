@@ -36,12 +36,12 @@ export function AlertActionsMenu({ id, openMenuId, setOpenMenuId, align = 'right
     return () => window.removeEventListener('mousedown', handlePointerDown);
   }, [isOpen, setOpenMenuId]);
 
-  const closeWithFeedback = (message: string) => {
-    setFeedback(message);
+  const closeWithFeedback = (label: string) => {
+    setFeedback(`"${label}" ainda não está disponível para este item.`);
     window.setTimeout(() => {
       setOpenMenuId(null);
       setFeedback('');
-    }, 900);
+    }, 1600);
   };
 
   return (
@@ -57,15 +57,15 @@ export function AlertActionsMenu({ id, openMenuId, setOpenMenuId, align = 'right
 
       {isOpen && (
         <div className={`alert-actions-menu align-${align}`}>
-          <button onClick={() => closeWithFeedback('Abrir divulgação do alerta.')}><Send size={15} /> Divulgar alerta</button>
-          <button onClick={() => closeWithFeedback('Criar tarefa vinculada ao alerta.')}><BellPlus size={15} /> Encaminhar para tarefa</button>
-          <button onClick={() => closeWithFeedback('Vincular tarefa existente.')}><Link2 size={15} /> Vincular tarefa existente</button>
-          <button onClick={() => closeWithFeedback('Gerar ou cadastrar orientação.')}><Sparkles size={15} /> Gerar orientação</button>
-          <button onClick={() => closeWithFeedback('Acionar agente configurado.')}><Sparkles size={15} /> Acionar agente</button>
-          <button onClick={() => closeWithFeedback('Compartilhar alerta.')}><Share2 size={15} /> Compartilhar</button>
-          <button onClick={() => closeWithFeedback('Concluir alerta.')}><CheckCircle2 size={15} /> Concluir alerta</button>
-          <button className="danger" onClick={() => closeWithFeedback('Cancelar alerta.')}><X size={15} /> Cancelar</button>
-          <button className="danger" onClick={() => closeWithFeedback('Excluir alerta.')}><Trash2 size={15} /> Excluir</button>
+          <button onClick={() => closeWithFeedback('Divulgar alerta')}><Send size={15} /> Divulgar alerta</button>
+          <button onClick={() => closeWithFeedback('Encaminhar para tarefa')}><BellPlus size={15} /> Encaminhar para tarefa</button>
+          <button onClick={() => closeWithFeedback('Vincular tarefa existente')}><Link2 size={15} /> Vincular tarefa existente</button>
+          <button onClick={() => closeWithFeedback('Gerar orientação')}><Sparkles size={15} /> Gerar orientação</button>
+          <button onClick={() => closeWithFeedback('Acionar agente')}><Sparkles size={15} /> Acionar agente</button>
+          <button onClick={() => closeWithFeedback('Compartilhar')}><Share2 size={15} /> Compartilhar</button>
+          <button onClick={() => closeWithFeedback('Concluir alerta')}><CheckCircle2 size={15} /> Concluir alerta</button>
+          <button className="danger" onClick={() => closeWithFeedback('Cancelar')}><X size={15} /> Cancelar</button>
+          <button className="danger" onClick={() => closeWithFeedback('Excluir')}><Trash2 size={15} /> Excluir</button>
           {feedback && <span className="menu-feedback">{feedback}</span>}
         </div>
       )}

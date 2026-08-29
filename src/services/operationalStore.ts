@@ -1,5 +1,8 @@
 import type { PanelDetail } from '../components/RightPanel';
-import { persistAuditLog, persistOperationalHistory, persistOperationalPatch, persistRoadmapItem } from './operationalSupabase';
+import { persistOperationalHistory, persistOperationalPatch, persistRoadmapItem } from './operationalSupabase';
+import { logAudit } from './auditLog';
+
+export type OperationalActor = { nome: string; email: string };
 
 export type OperationalPatch = {
   title: string;
@@ -35,7 +38,6 @@ export type GeneratedRoadmapItem = {
 const PATCHES_KEY = 'radar-sus-operational-patches';
 const HISTORY_KEY = 'radar-sus-operational-history';
 const ROADMAP_KEY = 'radar-sus-generated-roadmap';
-const USER = 'Moises Mattos';
 
 const now = () => new Date().toISOString();
 const eventName = 'radar-sus-operational-updated';
@@ -82,24 +84,24 @@ export const getPatch = (detail: PanelDetail | string): OperationalPatch | null 
 
 export const getAllPatches = () => readObject<Record<string, OperationalPatch>>(PATCHES_KEY, {});
 
-export const addHistory = (title: string, action: string, description: string) => {
+export const addHistory = (title: string, action: string, description: string, actor: OperationalActor) => {
   const history = readArray<OperationalHistory>(HISTORY_KEY);
   history.unshift({
     id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
     title,
     action,
     description,
-    user: USER,
+    user: actor.nome,
     createdAt: now()
   });
   write(HISTORY_KEY, history.slice(0, 200));
 
   persistOperationalHistory(history[0]).catch(() => undefined);
-  persistAuditLog({
-    usuarioNome: USER,
+  logAudit({
+    usuarioNome: actor.nome,
+    usuarioEmail: actor.email,
     modulo: 'Workspace',
     operacao: 'agent_action',
-    origem: 'histórico operacional local',
     registroId: history[0].id,
     dadosDepois: history[0],
     observacao: `${action}: ${description}`
@@ -111,7 +113,7 @@ export const getHistory = (detail: PanelDetail | string) => {
   return readArray<OperationalHistory>(HISTORY_KEY).filter((item) => item.title === title);
 };
 
-export const updateOperationalPatch = (detail: PanelDetail, patch: Partial<OperationalPatch>) => {
+export const updateOperationalPatch = (detail: PanelDetail, patch: Partial<OperationalPatch>, actor: OperationalActor) => {
   const title = getDetailKey(detail);
   const patches = readObject<Record<string, OperationalPatch>>(PATCHES_KEY, {});
   const previous = patches[title];
@@ -126,11 +128,11 @@ export const updateOperationalPatch = (detail: PanelDetail, patch: Partial<Opera
   write(PATCHES_KEY, patches);
 
   persistOperationalPatch(patches[title]).catch(() => undefined);
-  persistAuditLog({
-    usuarioNome: USER,
+  logAudit({
+    usuarioNome: actor.nome,
+    usuarioEmail: actor.email,
     modulo: 'Workspace',
     operacao: 'update',
-    origem: 'edição inline',
     registroId: title,
     dadosAntes: previous,
     dadosDepois: patches[title]
@@ -141,25 +143,25 @@ export const updateOperationalPatch = (detail: PanelDetail, patch: Partial<Opera
     .map(([key, value]) => `${key}: ${value}`)
     .join(', ');
 
-  addHistory(title, 'Atualização inline', changed || 'Item atualizado na área de trabalho.');
+  addHistory(title, 'Atualização inline', changed || 'Item atualizado na área de trabalho.', actor);
 };
 
-export const discardItem = (detail: PanelDetail) => {
-  updateOperationalPatch(detail, { status: 'Descartado', descartado: true });
-  addHistory(detail.title, 'Item descartado', 'O item foi descartado operacionalmente nesta POC.');
+export const discardItem = (detail: PanelDetail, actor: OperationalActor) => {
+  updateOperationalPatch(detail, { status: 'Descartado', descartado: true }, actor);
+  addHistory(detail.title, 'Item descartado', 'O item foi descartado operacionalmente.', actor);
 };
 
-export const markReview = (detail: PanelDetail) => {
-  updateOperationalPatch(detail, { status: 'Aguardando revisão do PO', revisao: true });
-  addHistory(detail.title, 'Revisão solicitada', 'O item foi marcado para revisão do PO.');
+export const markReview = (detail: PanelDetail, actor: OperationalActor) => {
+  updateOperationalPatch(detail, { status: 'Aguardando revisão do PO', revisao: true }, actor);
+  addHistory(detail.title, 'Revisão solicitada', 'O item foi marcado para revisão do PO.', actor);
 };
 
-export const createRoadmapItem = (detail: PanelDetail) => {
+export const createRoadmapItem = (detail: PanelDetail, actor: OperationalActor) => {
   const roadmap = readArray<GeneratedRoadmapItem>(ROADMAP_KEY);
   const existing = roadmap.find((item) => item.origem === detail.title);
 
   if (existing) {
-    addHistory(detail.title, 'Roadmap já existente', 'Já existe um item de roadmap gerado a partir deste registro.');
+    addHistory(detail.title, 'Roadmap já existente', 'Já existe um item de roadmap gerado a partir deste registro.', actor);
     return existing;
   }
 
@@ -168,7 +170,7 @@ export const createRoadmapItem = (detail: PanelDetail) => {
     origem: detail.title,
     resumo: `Decisão — ${detail.title}`,
     criticidade: detail.badge || 'Média',
-    responsavel: USER,
+    responsavel: actor.nome,
     prazo: new Date().toLocaleDateString('pt-BR'),
     status: 'Pendente',
     createdAt: now()
@@ -178,16 +180,16 @@ export const createRoadmapItem = (detail: PanelDetail) => {
   write(ROADMAP_KEY, roadmap);
 
   persistRoadmapItem(item).catch(() => undefined);
-  persistAuditLog({
-    usuarioNome: USER,
+  logAudit({
+    usuarioNome: actor.nome,
+    usuarioEmail: actor.email,
     modulo: 'Roadmap',
     operacao: 'insert',
-    origem: detail.title,
     registroId: item.id,
     dadosDepois: item
   }).catch(() => undefined);
 
-  addHistory(detail.title, 'Item enviado para Roadmap', 'Foi gerado um item de roadmap a partir deste registro.');
+  addHistory(detail.title, 'Item enviado para Roadmap', 'Foi gerado um item de roadmap a partir deste registro.', actor);
   return item;
 };
 
@@ -200,4 +202,3 @@ export const clearOperationalLocalData = () => {
   window.localStorage.removeItem(ROADMAP_KEY);
   window.dispatchEvent(new CustomEvent(eventName));
 };
-

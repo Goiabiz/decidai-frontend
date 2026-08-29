@@ -12,6 +12,8 @@ import {
   Trash2,
   X
 } from 'lucide-react';
+import { confirmApp } from '../lib/appConfirm';
+import { showAppToast } from '../lib/appToast';
 
 type Props = {
   id: string;
@@ -68,23 +70,44 @@ export function KnowledgeActionsMenu({ id, title, openMenuId, setOpenMenuId, ali
     setShareFeedback('Para enviar por e-mail, conecte uma conta em Parametrização > Integrações.');
   };
 
+  const notAvailable = (label: string) => {
+    setOpenMenuId(null);
+    showAppToast(`"${label}" ainda não está disponível para este item.`, 'info');
+  };
+
+  const print = () => {
+    setOpenMenuId(null);
+    window.print();
+  };
+
+  const remove = async () => {
+    const confirmed = await confirmApp({
+      title: 'Excluir',
+      description: `Excluir "${title}"? Esta ação ainda não está disponível para este item.`,
+      confirmLabel: 'Entendi',
+      tone: 'danger',
+    });
+    setOpenMenuId(null);
+    if (confirmed) showAppToast('Exclusão ainda não está disponível para este item.', 'info');
+  };
+
   return (
     <div className="knowledge-actions-wrap" ref={menuRef}>
       <button className="row-icon-btn" title="Mais opções" onClick={toggleMenu}>•••</button>
 
       {isOpen && !shareOpen && (
         <div className={`knowledge-more-menu align-${align}`}>
-          <button><CheckCircle2 size={15} /> Ativar conhecimento</button>
-          <button><X size={15} /> Cancelar conhecimento</button>
-          <button><Archive size={15} /> Arquivar</button>
-          <button><Printer size={15} /> Imprimir</button>
-          <button><FileDown size={15} /> Exportar PDF</button>
-          <button><FileSpreadsheet size={15} /> Exportar XLS</button>
-          <button><FileText size={15} /> Exportar DOC</button>
-          <button><FileText size={15} /> Exportar XML</button>
-          <button><FileText size={15} /> Exportar CSV</button>
+          <button onClick={() => notAvailable('Ativar conhecimento')}><CheckCircle2 size={15} /> Ativar conhecimento</button>
+          <button onClick={() => notAvailable('Cancelar conhecimento')}><X size={15} /> Cancelar conhecimento</button>
+          <button onClick={() => notAvailable('Arquivar')}><Archive size={15} /> Arquivar</button>
+          <button onClick={print}><Printer size={15} /> Imprimir</button>
+          <button onClick={() => notAvailable('Exportar PDF')}><FileDown size={15} /> Exportar PDF</button>
+          <button onClick={() => notAvailable('Exportar XLS')}><FileSpreadsheet size={15} /> Exportar XLS</button>
+          <button onClick={() => notAvailable('Exportar DOC')}><FileText size={15} /> Exportar DOC</button>
+          <button onClick={() => notAvailable('Exportar XML')}><FileText size={15} /> Exportar XML</button>
+          <button onClick={() => notAvailable('Exportar CSV')}><FileText size={15} /> Exportar CSV</button>
           <button onClick={openShare}><Share2 size={15} /> Compartilhar</button>
-          <button className="danger"><Trash2 size={15} /> Excluir</button>
+          <button className="danger" onClick={remove}><Trash2 size={15} /> Excluir</button>
         </div>
       )}
 

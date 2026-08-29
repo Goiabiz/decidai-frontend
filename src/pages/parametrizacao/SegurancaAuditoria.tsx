@@ -7,13 +7,9 @@ import { normalizeFilterText } from '../../components/SmartFilters';
 import { useSession } from '../../contexts/SessionContext';
 import { listAuditLogs, type AuditLogRecord } from '../../services/auditLog';
 import { OPERACAO_LABELS, OPERACAO_TONE } from '../../lib/auditLabels';
+import { formatDateTime } from '../../lib/formatDate';
 import { useReportExport } from '../relatorios/useReportExport';
 
-function formatDateTime(iso: string) {
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return iso;
-  return date.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-}
 
 export function SegurancaAuditoria() {
   const { isSupport } = useSession();

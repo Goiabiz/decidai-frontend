@@ -150,6 +150,7 @@ export function Dashboard({ onOpenDetail, onNavigate }: PageProps) {
   const dashboard = useAsyncData(fetchDashboard, kpis);
   const alertasData = useAsyncData(fetchAlertas, alertas);
   const documentosData = useAsyncData(fetchDocumentos, documentos);
+  const isDemoData = [dashboard.source, alertasData.source, documentosData.source].some((source) => source === 'mock');
 
   const [tasks, setTasks] = useState<TaskRecord[]>([]);
   const [knowledgeEntries, setKnowledgeEntries] = useState<KnowledgeEntryRecord[]>([]);
@@ -282,7 +283,7 @@ export function Dashboard({ onOpenDetail, onNavigate }: PageProps) {
 
   return (
     <>
-      <PageHeader title="Área de Trabalho" />
+      <PageHeader title="Área de Trabalho" subtitle={isDemoData ? 'Alguns indicadores estão exibindo dados locais de demonstração — não foi possível carregar do Supabase.' : undefined} />
 
       <div className="kpi-grid five dashboard-kpis">
         {cards.map((card) => (
