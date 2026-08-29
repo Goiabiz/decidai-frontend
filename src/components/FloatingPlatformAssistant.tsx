@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Bot, ChevronDown, Loader2, Maximize2, Mic, Minimize2, Send, Sparkles, Square, User, Waves, X } from 'lucide-react';
 import { useSession } from '../contexts/SessionContext';
-import { runAgent, runAgentVoice } from '../services/agentClient';
+import { runAgent, runAgentStream, runAgentVoice } from '../services/agentClient';
 import { startVoiceActivityDetector, type VoiceActivityHandle } from '../services/voiceActivityDetector';
 import { VoiceWaveVisualizer } from './VoiceWaveVisualizer';
 
@@ -172,6 +172,14 @@ export function FloatingPlatformAssistant({ pageTitle }: FloatingPlatformAssista
     'Quais filtros devo usar?',
   ];
 
+  // Streaming real (SSE) do chat por texto, relay H/agent-run-stream (28/08/2026) -- a bolha
+  // de resposta nasce vazia e cresce a cada pedaço que chega, em vez de ficar "Pensando..."
+  // parada até o texto inteiro estar pronto. `placeholderSendRef` marca que a bolha vazia
+  // atual pertence a um streaming em andamento (só o texto path pusha placeholder assim; voz
+  // continua sem, ver sendVoiceMessage) -- usado só pra decidir se mostra o indicador
+  // "Pensando..." extra no fim da lista (senão duplicaria com a própria bolha vazia).
+  const [placeholderSending, setPlaceholderSending] = useState(false);
+
   const sendMessage = async (text: string) => {
     const trimmed = text.trim();
     if (!trimmed || sending) return;
@@ -180,30 +188,83 @@ export function FloatingPlatformAssistant({ pageTitle }: FloatingPlatformAssista
     setMessage('');
     setSending(true);
 
-    try {
-      if (!session?.activeClientId) {
-        setMessages((current) => [...current, { role: 'assistant', text: AGENT_UNAVAILABLE_MESSAGE }]);
-        return;
-      }
+    if (!session?.activeClientId) {
+      setMessages((current) => [...current, { role: 'assistant', text: AGENT_UNAVAILABLE_MESSAGE }]);
+      setSending(false);
+      return;
+    }
 
-      const result = await runAgent({
-        question: trimmed,
-        clienteId: session.activeClientId,
-        userId: session.user.authUserId,
-        conversationId,
-        context: { screen: context },
+    const activeClientId = session.activeClientId;
+    const activeUserId = session.user.authUserId;
+
+    let assistantIndex = -1;
+    setPlaceholderSending(true);
+    setMessages((current) => {
+      assistantIndex = current.length;
+      return [...current, { role: 'assistant', text: '' }];
+    });
+
+    let streamedAnyDelta = false;
+    const appendDelta = (delta: string) => {
+      streamedAnyDelta = true;
+      setMessages((current) => {
+        const target = current[assistantIndex];
+        if (!target) return current;
+        const next = [...current];
+        next[assistantIndex] = { ...target, text: target.text + delta };
+        return next;
       });
+    };
+
+    try {
+      let result = await runAgentStream(
+        {
+          question: trimmed,
+          clienteId: activeClientId,
+          userId: activeUserId,
+          conversationId,
+          context: { screen: context },
+        },
+        appendDelta,
+      );
+
+      // Streaming indisponível (Edge Function ainda não publicada, rede, etc.) e nada chegou
+      // ainda -- cai pro caminho não-streaming de sempre em vez de deixar a bolha vazia parada.
+      if (!result.ok && !streamedAnyDelta) {
+        result = await runAgent({
+          question: trimmed,
+          clienteId: activeClientId,
+          userId: activeUserId,
+          conversationId,
+          context: { screen: context },
+        });
+      }
 
       if (result.ok && result.conversationId) {
         setConversationId(result.conversationId);
       }
 
-      const answer = result.ok && result.response?.answer ? result.response.answer : AGENT_UNAVAILABLE_MESSAGE;
-      const text = result.response?.fallbackUsed
-        ? `${answer}\n\n(Resposta gerada em modo de contingência — motor principal indisponível no momento.)`
-        : answer;
-      setMessages((current) => [...current, { role: 'assistant', text }]);
+      setMessages((current) => {
+        const target = current[assistantIndex];
+        if (!target) return current;
+        const next = [...current];
+
+        if (result.ok) {
+          const answer = result.response?.answer ?? target.text;
+          const finalText = result.response?.fallbackUsed
+            ? `${answer}\n\n(Resposta gerada em modo de contingência — motor principal indisponível no momento.)`
+            : answer;
+          next[assistantIndex] = { ...target, text: finalText };
+        } else {
+          // Erro depois de já ter chegado texto por streaming: mantém o que a pessoa já viu
+          // em vez de apagar; sem texto nenhum ainda, mostra o erro/indisponibilidade normal.
+          next[assistantIndex] = { ...target, text: target.text || result.error || AGENT_UNAVAILABLE_MESSAGE };
+        }
+
+        return next;
+      });
     } finally {
+      setPlaceholderSending(false);
       setSending(false);
     }
   };
@@ -456,10 +517,10 @@ export function FloatingPlatformAssistant({ pageTitle }: FloatingPlatformAssista
                 {messages.map((item, index) => (
                   <div key={index} className={`v363-assistant-bubble ${item.role}`}>
                     {item.role === 'assistant' ? <Bot size={14} /> : <User size={14} />}
-                    <span>{item.text}</span>
+                    <span>{item.role === 'assistant' && !item.text ? 'Pensando...' : item.text}</span>
                   </div>
                 ))}
-                {sending && (
+                {sending && !placeholderSending && (
                   <div className="v363-assistant-bubble assistant">
                     <Bot size={14} />
                     <span>Pensando...</span>
