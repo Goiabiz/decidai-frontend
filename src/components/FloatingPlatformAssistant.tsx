@@ -23,6 +23,27 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
 }
 
+// 2 instâncias podem estar montadas ao mesmo tempo (widget real da Imya, sempre presente no
+// Layout + o widget de teste do agente de cliente em Agentes.tsx). Achado real testando (29/08,
+// pedido do usuário via screenshot): sem posição salva ainda, as duas nascem no canto padrão
+// idêntico (right/bottom do CSS) e ficam uma em cima da outra. A instância "extra" (instanceId
+// não vazio) recebe uma posição inicial computada, deslocada 1 FAB + respiro pra esquerda do
+// canto padrão -- a Imya (instanceId vazio) nunca muda de comportamento.
+function defaultOffsetPosition(instanceId: string): { x: number; y: number } | null {
+  if (!instanceId) return null;
+  const gap = FAB_SIZE + 16;
+  return {
+    x: clamp(window.innerWidth - FAB_MARGIN - FAB_SIZE - gap, FAB_MARGIN, window.innerWidth - FAB_SIZE - FAB_MARGIN),
+    y: window.innerHeight - FAB_MARGIN - FAB_SIZE,
+  };
+}
+
+// Evita as duas instâncias ficando abertas (ou uma expandida) ao mesmo tempo -- sem isso o
+// painel de uma cobre o da outra por completo. Pub/sub simples via window (mesmo documento,
+// sem precisar de Context/Provider novo em Layout.tsx, arquivo compartilhado por muitas
+// frentes). Quem abre/expande por último "ganha"; a outra instância fecha sozinha.
+const ASSISTANT_ACTIVATE_EVENT = 'v363-assistant-activate';
+
 // Ativação/primeiro contato (29/08/2026, item 5 das prioridades pro teste ao vivo -- v0 do
 // corte da Imya). Chave por usuário (não global) pra não suprimir a saudação de outra pessoa
 // numa máquina compartilhada, e pra sobreviver a troca de aba/reload sem repetir. Guardado no
@@ -103,6 +124,10 @@ type FloatingPlatformAssistantProps = {
   /** Ícone customizado (ex.: avatar_url do agente de cliente sendo testado). Sem isso, usa o
    * ícone fixo da Imya (assistantIcon), igual sempre foi. */
   iconUrl?: string;
+  /** Cor de fundo por trás do ícone customizado (estilo avatar do Discord -- a imagem fica em
+   * `object-fit: contain`, não cobre o círculo todo, pra funcionar com imagem de fundo
+   * transparente). Só se aplica quando `iconUrl` está setado; o ícone fixo da Imya não usa. */
+  iconBackground?: string;
   /** Saudação de 1º contato (localStorage por usuário, "Eu sou a Imya...") só faz sentido pro
    * widget real e único da plataforma -- desligada por padrão em qualquer instância extra
    * (teste de agente de cliente), senão soaria como a Imya se apresentando dentro do teste da
@@ -137,6 +162,7 @@ export function FloatingPlatformAssistant({
   pageTitle,
   mode = 'administrador-cliente',
   iconUrl,
+  iconBackground,
   enableFirstContact = true,
   instanceId = '',
   initialOpen = false,
@@ -145,6 +171,11 @@ export function FloatingPlatformAssistant({
   const fabPositionKey = `${FAB_POSITION_KEY}${keySuffix}`;
   const voiceWavePreferenceKey = `${VOICE_WAVE_PREFERENCE_KEY}${keySuffix}`;
   const resolvedIconUrl = iconUrl || assistantIcon;
+  // Estilo de avatar do Discord: cor de fundo escolhida pelo tenant atrás da imagem (que pode
+  // ter fundo transparente) -- só quando o ícone é customizado, nunca no ícone fixo da Imya.
+  const iconStyle = iconUrl && iconBackground
+    ? { background: iconBackground, borderRadius: '50%' }
+    : undefined;
 
   const { session } = useSession();
   const [open, setOpen] = useState(initialOpen);
@@ -170,7 +201,7 @@ export function FloatingPlatformAssistant({
   const [micAnalyser, setMicAnalyser] = useState<AnalyserNode | null>(null);
   const [ttsAnalyser, setTtsAnalyser] = useState<AnalyserNode | null>(null);
   const [voiceWaveEnabled, setVoiceWaveEnabled] = useState(() => window.localStorage.getItem(voiceWavePreferenceKey) !== '0');
-  const [fabPosition, setFabPosition] = useState<{ x: number; y: number } | null>(() => loadFabPosition(fabPositionKey));
+  const [fabPosition, setFabPosition] = useState<{ x: number; y: number } | null>(() => loadFabPosition(fabPositionKey) ?? defaultOffsetPosition(instanceId));
   const fabDragRef = useRef<{ startX: number; startY: number; originLeft: number; originTop: number; moved: boolean } | null>(null);
   const [firstContactActive, setFirstContactActive] = useState(false);
 
@@ -641,6 +672,25 @@ export function FloatingPlatformAssistant({
 
   useEffect(() => () => stopListening(), []);
 
+  // Anuncia "estou aberto" (ou acabei de expandir) pra qualquer outra instância se fechar --
+  // ver ASSISTANT_ACTIVATE_EVENT acima.
+  useEffect(() => {
+    if (!open) return;
+    window.dispatchEvent(new CustomEvent(ASSISTANT_ACTIVATE_EVENT, { detail: { instanceId } }));
+  }, [open, expanded, instanceId]);
+
+  // Ouve as outras instâncias -- se outra abriu/expandiu, fecha esta pra não sobrepor.
+  useEffect(() => {
+    const handler = (event: Event) => {
+      const detail = (event as CustomEvent<{ instanceId?: string }>).detail;
+      if (detail?.instanceId === instanceId) return;
+      setOpen(false);
+      setExpanded(false);
+    };
+    window.addEventListener(ASSISTANT_ACTIVATE_EVENT, handler);
+    return () => window.removeEventListener(ASSISTANT_ACTIVATE_EVENT, handler);
+  }, [instanceId]);
+
   const openAssistant = () => {
     dismissTour();
     setOpen(true);
@@ -747,7 +797,7 @@ export function FloatingPlatformAssistant({
             onPointerUp={handleFabPointerUp}
             aria-label="Abrir assistente (arraste pra reposicionar)"
           >
-            <img src={resolvedIconUrl} alt="" className="v363-assistant-mark" />
+            <img src={resolvedIconUrl} alt="" className="v363-assistant-mark" style={iconStyle} />
           </button>
           {/* Escuta contínua sem precisar abrir o painel (pedido do usuário, 29/08 madrugada) --
               fechar o painel nunca desliga o VAD (stopListening só roda no unmount ou aqui),
@@ -768,7 +818,7 @@ export function FloatingPlatformAssistant({
         <div className="v363-assistant-panel">
           <header>
             <div>
-              <strong><img src={resolvedIconUrl} alt="" className="v363-assistant-mark v363-assistant-mark-small" /> Assistente</strong>
+              <strong><img src={resolvedIconUrl} alt="" className="v363-assistant-mark v363-assistant-mark-small" style={iconStyle} /> Assistente</strong>
               <small>Lendo: {context}</small>
             </div>
             <div>
@@ -781,7 +831,7 @@ export function FloatingPlatformAssistant({
             {firstContactActive ? (
               <div className="v363-assistant-first-contact">
                 <div className="v363-assistant-bubble assistant">
-                  <img src={resolvedIconUrl} alt="" className="v363-assistant-mark v363-assistant-mark-small" />
+                  <img src={resolvedIconUrl} alt="" className="v363-assistant-mark v363-assistant-mark-small" style={iconStyle} />
                   <span>
                     {firstContactName ? `Oi, ${firstContactName}! ` : 'Oi! '}
                     Eu sou a Imya, a assistente da DecidAI. Posso te acompanhar por aqui, ou você

@@ -9,12 +9,30 @@ import { FloatingPlatformAssistant } from '../../components/FloatingPlatformAssi
 
 export type AgentesProps = { onSelectDetail?: (detail: any) => void; onOpenDetail?: (detail: any) => void };
 
-const emptyAgent: AgentRecord = { id: '', name: '', purpose: '', status: 'Em configuração', flows: 'Atendimento padrão', usage: 'Atendimento', providers: '', prompt: '', avatarUrl: '' };
+const emptyAgent: AgentRecord = { id: '', name: '', purpose: '', status: 'Em configuração', flows: 'Atendimento padrão', usage: 'Atendimento', providers: '', prompt: '', avatarUrl: '', color: '#00875a' };
 
 // Sem padrão de tamanho/formato ainda em nenhum outro upload de avatar do app (usuário,
 // "minha conta") -- fixando um aqui porque o ícone do agente vale pra todos os clientes finais
 // que falarem com ele, não só pra quem fez o upload.
 const AVATAR_MAX_BYTES = 2 * 1024 * 1024;
+
+// Ícone estilo avatar do Discord: cor de fundo escolhida pelo tenant, imagem em cima
+// (`object-fit: contain`, não corta) -- funciona bem tanto com imagem de fundo transparente
+// quanto opaco. Componente pequeno reaproveitado nos 3 lugares que mostram o ícone (linha da
+// lista, painel lateral, botão de upload no modal) pra não repetir o mesmo estilo 3x.
+function AgentIcon({ agent, size }: { agent: Pick<AgentRecord, 'name' | 'avatarUrl' | 'color'>; size: number }) {
+  if (!agent.avatarUrl) return <Bot size={size} />;
+  return (
+    <span
+      style={{
+        width: size + 6, height: size + 6, borderRadius: '50%', background: agent.color || '#64748b',
+        display: 'inline-flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0,
+      }}
+    >
+      <img src={agent.avatarUrl} alt={agent.name} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+    </span>
+  );
+}
 
 export function Agentes(_props: AgentesProps) {
   const { session } = useSession();
@@ -30,7 +48,7 @@ export function Agentes(_props: AgentesProps) {
   const [form, setForm] = useState<AgentRecord>(emptyAgent);
   const [selected, setSelected] = useState<AgentRecord | null>(null);
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
-  const [testing, setTesting] = useState(false);
+  const [agentAtivo, setAgentAtivo] = useState(false);
   const avatarInputRef = useRef<HTMLInputElement>(null);
 
   // Só carrega o catálogo de conectores pra sugerir defaults em "Novo agente" -- não expõe
@@ -65,7 +83,7 @@ export function Agentes(_props: AgentesProps) {
 
   const selectAgent = (agent: AgentRecord) => {
     setSelected(agent);
-    setTesting(false);
+    setAgentAtivo(false);
   };
 
   const openNew = () => {
@@ -163,15 +181,15 @@ export function Agentes(_props: AgentesProps) {
       <div className="v3464-two">
         <section className="v3464-card">
           <div className="v3464-search"><Search size={18} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar agente, fluxo, uso, canal ou conector..." /></div>
-          <table className="v3464-table"><tbody>{filteredAgents.map((agent) => <tr key={agent.id} onClick={() => selectAgent(agent)}><td>{agent.avatarUrl ? <img src={agent.avatarUrl} alt={agent.name} style={{ width: 22, height: 22, borderRadius: '50%', objectFit: 'cover' }} /> : <Bot size={22} />}</td><td><strong>{agent.name}</strong><small>{agent.purpose} • {agent.flows}</small></td><td><button className="v3464-icon" onClick={(event) => { event.stopPropagation(); edit(agent); }}><SlidersHorizontal size={16} /></button></td></tr>)}</tbody></table>
+          <table className="v3464-table"><tbody>{filteredAgents.map((agent) => <tr key={agent.id} onClick={() => selectAgent(agent)}><td><AgentIcon agent={agent} size={22} /></td><td><strong>{agent.name}</strong><small>{agent.purpose} • {agent.flows}</small></td><td><button className="v3464-icon" onClick={(event) => { event.stopPropagation(); edit(agent); }}><SlidersHorizontal size={16} /></button></td></tr>)}</tbody></table>
         </section>
 
         {selected && (
           <aside className="v3464-side-panel">
-            {selected.avatarUrl ? <img src={selected.avatarUrl} alt={selected.name} style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover' }} /> : <Bot size={28} />}
+            <AgentIcon agent={selected} size={28} />
             <h2>{selected.name}</h2>
             <p>{selected.purpose}</p>
-            <button className="v3464-btn secondary" onClick={() => setTesting((current) => !current)}>{testing ? 'Fechar teste' : 'Testar agente'}</button> <button className="v3464-btn secondary" onClick={() => edit(selected)}><SlidersHorizontal size={16} /> Configurar</button>
+            <button className="v3464-btn secondary" onClick={() => setAgentAtivo((current) => !current)}>{agentAtivo ? 'Desativar agente' : 'Ativar agente'}</button> <button className="v3464-btn secondary" onClick={() => edit(selected)}><SlidersHorizontal size={16} /> Configurar</button>
             {[
               ['Prompt / Contexto', selected.prompt],
               ['Fluxos do agente', selected.flows],
@@ -183,10 +201,11 @@ export function Agentes(_props: AgentesProps) {
         )}
       </div>
 
-      {testing && selected && (
+      {agentAtivo && selected && (
         <FloatingPlatformAssistant
           mode="usuario-cliente"
           iconUrl={selected.avatarUrl || undefined}
+          iconBackground={selected.color || undefined}
           enableFirstContact={false}
           initialOpen
           instanceId="test-client-agent"
@@ -203,18 +222,22 @@ export function Agentes(_props: AgentesProps) {
             <div className="v3464-modal-form">
               <label>
                 Ícone
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                   <button
                     type="button"
                     className="v3464-icon"
                     onClick={() => avatarInputRef.current?.click()}
-                    title="Escolher ícone"
-                    style={{ width: 48, height: 48, borderRadius: '50%', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                    title="Escolher imagem do ícone"
+                    style={{ width: 52, height: 52, borderRadius: '50%', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', background: form.avatarUrl ? form.color || '#64748b' : undefined }}
                   >
-                    {form.avatarUrl ? <img src={form.avatarUrl} alt={form.name || 'Ícone do agente'} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <Camera size={18} />}
+                    {form.avatarUrl ? <img src={form.avatarUrl} alt={form.name || 'Ícone do agente'} style={{ width: '100%', height: '100%', objectFit: 'contain' }} /> : <Camera size={18} />}
                   </button>
                   <input ref={avatarInputRef} type="file" accept="image/*" hidden onChange={handleAvatarChange} />
-                  <small className="v36-muted">Imagem quadrada, até 2 MB. Vale para todos os clientes finais que falarem com este agente.</small>
+                  <div title="Cor de fundo do ícone" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, fontSize: 11 }}>
+                    <input type="color" value={form.color || '#64748b'} onChange={(event) => update('color', event.target.value)} style={{ width: 30, height: 30, padding: 0, border: 'none', background: 'none', cursor: 'pointer' }} />
+                    <span>Cor de fundo</span>
+                  </div>
+                  <small className="v36-muted">Imagem com fundo transparente fica melhor -- a cor ao lado aparece por trás dela. Vale para todos os clientes finais que falarem com este agente.</small>
                 </div>
               </label>
               <label>Nome<input value={form.name} onChange={(event) => update('name', event.target.value)} placeholder="Ex.: Assistente de Atendimento" /></label>
