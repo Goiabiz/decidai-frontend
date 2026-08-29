@@ -1,5 +1,6 @@
 import { BellPlus, Search, Send, X } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { PageHeader } from '../components/PageHeader';
 import { Badge } from '../components/Badge';
 import { BrandIcon } from '../components/BrandIcon';
@@ -31,31 +32,47 @@ function channelDomain(channel: ChannelRecord) {
   return providerDomain({ code: channel.providerCode, logo_hint: null, name: channel.providerName }) || undefined;
 }
 
+// Reforma de arquitetura 29/08 -- referência de conversão pra React Query. Antes: useState
+// items/loading + useEffect + Promise.all, refetch do zero toda vez que a tela remontava
+// (sem cache nenhum). Depois: useQuery cuida de loading/erro/cache sozinho (staleTime global
+// de 30s, main.tsx) e useMutation troca o "setItems local depois de criar" por
+// invalidateQueries -- refetch real, sem o estado da tela e o dado do banco poderem divergir.
 export function Alertas() {
   const { session } = useSession();
   const clienteId = session?.activeClientId ?? null;
+  const queryClient = useQueryClient();
 
-  const [items, setItems] = useState<AlertRecord[]>([]);
-  const [channels, setChannels] = useState<ChannelRecord[]>([]);
-  const [loading, setLoading] = useState(true);
+  const alertasQuery = useQuery({
+    queryKey: ['alertas', clienteId],
+    queryFn: () => listAlertas(clienteId as string),
+    enabled: !!clienteId,
+  });
+  const channelsQuery = useQuery({
+    queryKey: ['canais-agentes', clienteId],
+    queryFn: () => listChannels(clienteId as string),
+    enabled: !!clienteId,
+  });
+
+  const items = alertasQuery.data?.items ?? [];
+  const channels = channelsQuery.data?.items ?? [];
+  const loading = alertasQuery.isLoading || channelsQuery.isLoading;
+
   const [form, setForm] = useState<AlertFormState>(emptyAlert);
   const [open, setOpen] = useState(false);
-  const [salvando, setSalvando] = useState(false);
   const [query, setQuery] = useState('');
   const [status, setStatus] = useState('');
 
-  useEffect(() => {
-    if (!clienteId) { setLoading(false); return; }
-    setLoading(true);
-    Promise.all([listAlertas(clienteId), listChannels(clienteId)])
-      .then(([alertasResult, channelsResult]) => {
-        setItems(alertasResult.items);
-        setChannels(channelsResult.items);
-      })
-      .finally(() => setLoading(false));
-  }, [clienteId]);
+  const createMutation = useMutation({
+    mutationFn: (input: Parameters<typeof createAlerta>[0]) => createAlerta(input),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['alertas', clienteId] });
+      setOpen(false);
+      setForm(emptyAlert);
+      showAppToast('Alerta cadastrado.', 'success');
+    },
+  });
 
-  const channelName = (id: string) => channels.find((channel) => channel.id === id)?.nome || id;
+  const channelName = (id: string) => channels.find((channel: ChannelRecord) => channel.id === id)?.nome || id;
 
   const filtered = useMemo(() => {
     const normalized = normalizeFilterText(query);
@@ -67,7 +84,7 @@ export function Alertas() {
 
   const update = <K extends keyof AlertFormState>(key: K, value: AlertFormState[K]) => setForm((current) => ({ ...current, [key]: value }));
 
-  const save = async () => {
+  const save = () => {
     if (!form.descricao.trim()) {
       showAppToast('Informe a descrição do alerta.', 'warning');
       return;
@@ -76,16 +93,7 @@ export function Alertas() {
       showAppToast('Acesse o contexto de um cliente antes de cadastrar.', 'warning');
       return;
     }
-    setSalvando(true);
-    try {
-      const { item } = await createAlerta({ clienteId, ...form });
-      setItems((current) => [item, ...current]);
-      setOpen(false);
-      setForm(emptyAlert);
-      showAppToast('Alerta cadastrado.', 'success');
-    } finally {
-      setSalvando(false);
-    }
+    createMutation.mutate({ clienteId, ...form });
   };
 
   if (!clienteId) {
@@ -236,7 +244,7 @@ export function Alertas() {
 
             <div className="cadastro-modal-footer">
               <button onClick={() => setOpen(false)}>Cancelar</button>
-              <button className="primary" onClick={save} disabled={salvando}><Send size={16} /> {salvando ? 'Salvando...' : 'Salvar e preparar disparo'}</button>
+              <button className="primary" onClick={save} disabled={createMutation.isPending}><Send size={16} /> {createMutation.isPending ? 'Salvando...' : 'Salvar e preparar disparo'}</button>
             </div>
           </div>
         </div>

@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { Layout } from './components/Layout';
 import { RightPanel, type PanelDetail } from './components/RightPanel';
 import { DetailModal } from './components/DetailModal';
@@ -155,9 +156,22 @@ export type PageProps = {
   onNavigate?: (page: PageKey) => void;
 };
 
+const PAGE_KEYS = new Set(Object.keys(rightPanelByPage) as PageKey[]);
+
+// Reforma de arquitetura 29/08: antes, activePage era só useState, sem URL própria -- sem link
+// compartilhável, sem voltar/avançar do navegador funcionando. Mudança mínima (não reestrutura
+// as 44 páginas em <Route> uma por uma): a URL vira a fonte de verdade de qual PageKey está
+// ativa, mas o mapa `pages` continua igual, só trocando de onde ele lê o valor.
+function pageKeyFromPathname(pathname: string): PageKey {
+  const segment = pathname.replace(/^\//, '').split('/')[0];
+  return PAGE_KEYS.has(segment as PageKey) ? (segment as PageKey) : 'dashboard';
+}
+
 export function App() {
   const { loading, session } = useSession();
-  const [activePage, setActivePage] = useState<PageKey>('dashboard');
+  const location = useLocation();
+  const navigate = useNavigate();
+  const activePage = useMemo(() => pageKeyFromPathname(location.pathname), [location.pathname]);
   const [selectedDetail, setSelectedDetail] = useState<PanelDetail | null>(null);
   const [expandedDetail, setExpandedDetail] = useState<PanelDetail | null>(null);
   const [isRightPanelVisible, setIsRightPanelVisible] = useState(false);
@@ -220,7 +234,7 @@ export function App() {
   }
 
   const handleNavigate = (page: PageKey) => {
-    setActivePage(page);
+    navigate(`/${page}`);
     setSelectedDetail(null);
     setExpandedDetail(null);
     setIsRightPanelVisible(false);

@@ -38,15 +38,27 @@ function saveLocalStore(items: AlertRecord[]) {
   window.localStorage.setItem(LOCAL_KEY, JSON.stringify(items));
 }
 
-export async function listAlertas(clienteId: string): Promise<{ items: AlertRecord[]; source: AlertasLoadState }> {
+export type ListAlertasOptions = { page?: number; pageSize?: number };
+
+// Reforma de arquitetura 29/08: nenhum serviço deste repo paginava de verdade até aqui (risco
+// aceito conhecido, documentado no Manual de Engenharia). page/pageSize são opcionais e
+// default pra tudo-de-uma-vez com teto de 200 (não infinito -- protege contra tenant com
+// volume grande sem quebrar quem já chama listAlertas() sem argumento novo).
+export async function listAlertas(
+  clienteId: string,
+  { page = 0, pageSize = 200 }: ListAlertasOptions = {},
+): Promise<{ items: AlertRecord[]; source: AlertasLoadState; hasMore: boolean }> {
   const client = getClient();
   if (client) {
+    const from = page * pageSize;
+    const to = from + pageSize - 1;
     const { data, error } = await client
       .from('alertas')
       .select('id, descricao, status, prioridade, responsavel, mensagem, tarefas_vinculadas, duracao_horas')
       .eq('cliente_id', clienteId)
       .is('excluido_em', null)
-      .order('criado_em', { ascending: false });
+      .order('criado_em', { ascending: false })
+      .range(from, to);
     if (!error) {
       const alertaIds = (data || []).map((row) => row.id);
       const canaisPorAlerta = new Map<string, string[]>();
@@ -80,10 +92,11 @@ export async function listAlertas(clienteId: string): Promise<{ items: AlertReco
           enviados: contagemPorAlerta.get(row.id) || 0,
         })),
         source: 'supabase',
+        hasMore: (data || []).length === pageSize,
       };
     }
   }
-  return { items: loadLocalStore(), source: 'local' };
+  return { items: loadLocalStore(), source: 'local', hasMore: false };
 }
 
 export type NovoAlertaInput = {
