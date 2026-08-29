@@ -1,7 +1,7 @@
 import { universoSupabase } from '../lib/supabase';
 import type { StatusCategory } from '../lib/statusCategory';
 
-export type Prioridade = 'Baixa' | 'Média' | 'Alta' | 'Crítico';
+export type Prioridade = 'Baixa' | 'Média' | 'Alta' | 'Crítica';
 
 export type TaskRecord = {
   id: string;
