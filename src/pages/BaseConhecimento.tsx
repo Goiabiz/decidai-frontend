@@ -8,6 +8,8 @@ import { showAppToast } from '../lib/appToast';
 import { formatDateTime } from '../lib/formatDate';
 import { useSession } from '../contexts/SessionContext';
 import { logAudit } from '../services/auditLog';
+import type { PanelDetail } from '../components/RightPanel';
+import type { PageProps } from '../App';
 import {
   deleteKnowledgeEntry,
   listKnowledgeEntries,
@@ -44,7 +46,7 @@ const lifecycleTone: Record<KnowledgeLifecycleState, string> = {
 
 type EditForm = { title: string; content: string; tags: string; category: string };
 
-export function BaseConhecimento() {
+export function BaseConhecimento({ onSelectDetail }: PageProps) {
   const { session } = useSession();
   const clienteId = session?.activeClientId ?? null;
   const [items, setItems] = useState<KnowledgeEntryRecord[]>([]);
@@ -65,6 +67,26 @@ export function BaseConhecimento() {
   };
 
   useEffect(() => { void carregar(); }, [clienteId]);
+
+  const buildDetail = (item: KnowledgeEntryRecord): PanelDetail => ({
+    title: item.title,
+    description: item.content,
+    badge: KNOWLEDGE_LIFECYCLE_LABELS[item.lifecycleState],
+    badgeTone: lifecycleTone[item.lifecycleState],
+    meta: [
+      { label: 'Categoria', value: item.category || '-' },
+      { label: 'Origem', value: sourceLabel[item.sourceType] || item.sourceType },
+      { label: 'Tags', value: item.tags.join(', ') || '-' },
+      { label: 'Publicado em', value: formatDateTime(item.createdAt) },
+    ],
+    id: item.id,
+    lifecycleState: item.lifecycleState,
+    onAfterAction: () => void carregar(),
+  });
+
+  const openDetail = (item: KnowledgeEntryRecord) => {
+    onSelectDetail?.(buildDetail(item));
+  };
 
   const filtered = useMemo(() => {
     const query = normalizeFilterText(search);
@@ -239,7 +261,7 @@ export function BaseConhecimento() {
               {filtered.map((item) => {
                 const next = KNOWLEDGE_LIFECYCLE_NEXT[item.lifecycleState];
                 return (
-                <tr key={item.id}>
+                <tr key={item.id} className="clickable-row" onClick={() => openDetail(item)}>
                   <td>
                     <strong>{item.title}</strong>
                     <div className="table-subtitle">{item.content.length > 120 ? `${item.content.slice(0, 120)}…` : item.content}</div>
@@ -250,7 +272,7 @@ export function BaseConhecimento() {
                   <td><Badge tone={lifecycleTone[item.lifecycleState]}>{KNOWLEDGE_LIFECYCLE_LABELS[item.lifecycleState]}</Badge></td>
                   <td>{formatDateTime(item.createdAt)}</td>
                   <td>
-                    <div className="row-action-group">
+                    <div className="row-action-group" onClick={(event) => event.stopPropagation()}>
                       {next && <button title={next.label} onClick={() => void advance(item)}><ArrowRightCircle size={16} /></button>}
                       {item.lifecycleState !== 'ARCHIVED' && <button title="Arquivar" onClick={() => void archive(item)}><Archive size={16} /></button>}
                       <button title="Editar" onClick={() => openEdit(item)}><Edit3 size={16} /></button>

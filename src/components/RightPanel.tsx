@@ -23,6 +23,9 @@ export type PanelDetail = {
   badgeTone?: string;
   meta?: Array<{ label: string; value?: string | number | null }>;
   actions?: string[];
+  id?: string;
+  lifecycleState?: string;
+  onAfterAction?: () => void;
 };
 
 type Variant = 'dashboard' | 'alerta' | 'acao' | 'documento' | 'atendimento' | 'impacto' | 'config';
@@ -170,6 +173,11 @@ export function RightPanel({ variant = 'dashboard', detail, onExpand, onClose }:
                 openMenuId={knowledgeMenuId}
                 setOpenMenuId={setKnowledgeMenuId}
                 align="right"
+                entryId={current.id}
+                lifecycleState={current.lifecycleState}
+                clienteId={clienteId}
+                onDone={current.onAfterAction}
+                onClosePanel={onClose}
               />
               ) : variant === 'alerta' ? (
                 <AlertActionsMenu
