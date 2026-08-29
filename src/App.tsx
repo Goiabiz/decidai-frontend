@@ -30,7 +30,9 @@ import RelatorioAlertas from './pages/relatorios/RelatorioAlertas';
 import RelatorioConhecimentos from './pages/relatorios/RelatorioConhecimentos';
 import RelatorioIntegracoes from './pages/relatorios/RelatorioIntegracoes';
 import RelatorioTarefas from './pages/relatorios/RelatorioTarefas';
+import RelatorioTrabalho from './pages/relatorios/RelatorioTrabalho';
 import { RelatorioPersonalizado } from './pages/relatorios/RelatorioPersonalizado';
+import { Decisoes } from './pages/Decisoes';
 import { SegurancaAuditoria } from './pages/parametrizacao/SegurancaAuditoria';
 import { ServicosFilas } from './pages/central-atendimento/ServicosFilas';
 import { Flows } from './pages/Flows';
@@ -74,6 +76,7 @@ export type PageKey =
   | 'crm-contatos'
   | 'crm-pipeline'
   | 'analise'
+  | 'decisoes'
   | 'param-admin'
   | 'param-integracoes'
   | 'param-agentes'
@@ -92,6 +95,7 @@ export type PageKey =
   | 'rel-tarefas'
   | 'rel-integracoes'
   | 'rel-auditoria'
+  | 'rel-work-items'
   | 'intranet-conhecimento'
   | 'objetos-dinamicos'
   | 'ajuda';
@@ -116,6 +120,7 @@ const rightPanelByPage: Record<PageKey, React.ComponentProps<typeof RightPanel>[
   'crm-contatos': 'config',
   'crm-pipeline': 'config',
   analise: 'acao',
+  decisoes: 'acao',
   'param-admin': 'config',
   'param-integracoes': 'config',
   'param-agentes': 'config',
@@ -134,6 +139,7 @@ const rightPanelByPage: Record<PageKey, React.ComponentProps<typeof RightPanel>[
   'rel-tarefas': 'acao',
   'rel-integracoes': 'config',
   'rel-auditoria': 'config',
+  'rel-work-items': 'acao',
   'intranet-conhecimento': 'documento',
   'objetos-dinamicos': 'config',
   ajuda: 'config',
@@ -220,6 +226,7 @@ export function App() {
     'crm-contatos': <CrmContatos />,
     'crm-pipeline': <CrmPipeline />,
     analise: <AnaliseAcoes />,
+    decisoes: <Decisoes />,
     'param-admin': <Configuracoes onNavigate={handleNavigate} />,
     'param-integracoes': <Integracoes />,
     'param-agentes': <Agentes />,
@@ -238,6 +245,7 @@ export function App() {
     'rel-tarefas': <RelatorioTarefas />,
     'rel-integracoes': <RelatorioIntegracoes />,
     'rel-auditoria': <RelatorioAuditoria />,
+    'rel-work-items': <RelatorioTrabalho />,
     'intranet-conhecimento': <EnterpriseKnowledgeIntranet />,
     'objetos-dinamicos': <ObjetosDinamicos />,
     ajuda: <CentralAjuda />,

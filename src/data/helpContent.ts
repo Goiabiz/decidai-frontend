@@ -249,6 +249,19 @@ export const helpContent: Record<PageKey, HelpEntry> = {
       'Cruze com a Fila de Chamados se precisar investigar um atendimento específico em vez de só o agregado.',
     ],
   },
+  decisoes: {
+    summary: 'Objeto Decision (§8 do Plano Mestre v4): problema detectado + diagnóstico/recomendação por IA, aguardando revisão humana.',
+    tips: [
+      'Geradas automaticamente por regras de Detection contra dado real do tenant -- nenhuma decisão nasce daqui, a tela só serve pra revisar e fechar o loop.',
+      'Só os campos de revisão (status, decisão tomada, justificativa, resultado observado) são editáveis -- o problema/diagnóstico/recomendação são a saída do sistema automático.',
+    ],
+  },
+  'rel-work-items': {
+    summary: 'Work Item Universal (§9 do Plano Mestre v4): tarefa, atendimento, alerta e decisão numa régua só.',
+    tips: [
+      'Não é uma tabela nova -- une os 4 subsistemas reais já existentes só pra visão, cada um continua sendo editado na própria tela.',
+    ],
+  },
   'rel-sla-atendimento': {
     summary: 'Tempo real de primeira resposta, tempo de resolução e taxa de resposta por canal.',
     tips: [

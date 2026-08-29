@@ -5,11 +5,12 @@ import { listAlertas } from '../../services/alertas';
 import { listTenantCredentials, type ConnectorProviderCode } from '../../services/tenantCredentials';
 import { listGithubInstallations } from '../../services/githubApp';
 import { listAuditLogs } from '../../services/auditLog';
+import { listWorkItemsUniversal } from '../../services/decisions';
 import { OPERACAO_LABELS } from '../../lib/auditLabels';
 import { STATUS_CATEGORY_LABELS } from '../../lib/statusCategory';
 import type { StandardReportColumn, StandardReportRow } from './StandardReportPage';
 
-export type ReportDatasetKey = 'tarefas' | 'conhecimentos' | 'atendimentos' | 'alertas' | 'integracoes' | 'auditoria';
+export type ReportDatasetKey = 'tarefas' | 'conhecimentos' | 'atendimentos' | 'alertas' | 'integracoes' | 'auditoria' | 'work-items';
 
 export type ReportLoadCtx = { clienteId: string | null; isSupport: boolean };
 
@@ -190,6 +191,31 @@ async function loadAuditoriaReport({ isSupport }: ReportLoadCtx): Promise<{ rows
   };
 }
 
+const workItemsColumns: StandardReportColumn[] = [
+  { key: 'tipo', label: 'Tipo' },
+  { key: 'titulo', label: 'Título' },
+  { key: 'status', label: 'Status' },
+  { key: 'prioridade', label: 'Prioridade' },
+  { key: 'responsavel', label: 'Responsável' },
+  { key: 'criado_em', label: 'Criado em' },
+];
+
+/** Work Item Universal (§9 do Plano Mestre v4) -- vw_work_items_universal (migration 160), une tarefa/atendimento/alerta/decisão numa régua só. */
+async function loadWorkItemsReport({ clienteId }: ReportLoadCtx): Promise<{ rows: StandardReportRow[] }> {
+  if (!clienteId) return { rows: [] };
+  const items = await listWorkItemsUniversal(clienteId);
+  return {
+    rows: items.map((item) => ({
+      tipo: item.tipo,
+      titulo: item.titulo,
+      status: STATUS_CATEGORY_LABELS[item.categoria_status] || item.status_bruto,
+      prioridade: item.prioridade || '-',
+      responsavel: item.responsavel || '-',
+      criado_em: item.criado_em,
+    })),
+  };
+}
+
 export const REPORT_DATASETS: ReportDataset[] = [
   {
     key: 'tarefas',
@@ -259,6 +285,18 @@ export const REPORT_DATASETS: ReportDataset[] = [
     ],
     dateColumnKey: 'data',
     load: loadAuditoriaReport,
+  },
+  {
+    key: 'work-items',
+    label: 'Trabalho (Work Item Universal)',
+    columns: workItemsColumns,
+    filters: [
+      { key: 'tipo', label: 'Tipo' },
+      { key: 'status', label: 'Status' },
+      { key: 'prioridade', label: 'Prioridade' },
+    ],
+    dateColumnKey: 'criado_em',
+    load: loadWorkItemsReport,
   },
 ];
 

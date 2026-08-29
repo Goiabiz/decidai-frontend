@@ -12,6 +12,7 @@ import {
   Contact,
   FileBarChart2,
   Gauge,
+  Gavel,
   Headphones,
   Boxes,
   Home,
@@ -20,6 +21,7 @@ import {
   LibraryBig,
   LifeBuoy,
   ListChecks,
+  ListTree,
   Megaphone,
   PanelLeftClose,
   PanelLeftOpen,
@@ -129,7 +131,10 @@ const navGroups: NavGroup[] = [
     label: 'Roadmap',
     icon: <ChartNoAxesCombined size={22} />,
     defaultPage: 'analise',
-    children: [{ key: 'analise', label: 'Tarefas', icon: <ClipboardList size={18} /> }],
+    children: [
+      { key: 'analise', label: 'Tarefas', icon: <ClipboardList size={18} /> },
+      { key: 'decisoes', label: 'Decisões', icon: <Gavel size={18} /> },
+    ],
   },
   {
     key: 'parametrizacao',
@@ -165,6 +170,7 @@ const navGroups: NavGroup[] = [
       { key: 'rel-conhecimentos', label: 'Conhecimentos', icon: <BookOpen size={18} /> },
       { key: 'rel-integracoes', label: 'Integrações', icon: <Plug size={18} /> },
       { key: 'rel-tarefas', label: 'Tarefas', icon: <ClipboardList size={18} /> },
+      { key: 'rel-work-items', label: 'Trabalho (todos os tipos)', icon: <ListTree size={18} /> },
     ],
   },
   {
