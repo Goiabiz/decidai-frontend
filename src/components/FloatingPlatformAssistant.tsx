@@ -61,6 +61,11 @@ const MAX_RECORDING_MS = 60_000;
 // Falsos positivos do VAD (ruído breve cruzando o limiar) viram gravações muito curtas --
 // descarta sem nem chamar o backend em vez de gastar uma chamada de STT numa transcrição vazia.
 const MIN_UTTERANCE_MS = 350;
+// Manter o MediaRecorder sempre "aquecido" (armado antes da fala começar, ver armRecorder())
+// resolve o corte de início de fala, mas o blob acumula silêncio de liderança enquanto ninguém
+// fala -- sem limite, uma pausa longa vira um áudio desnecessariamente longo (custo de STT e
+// latência). Rearma silenciosamente (sem mandar nada) se ninguém falar por esse tempo.
+const IDLE_REARM_MS = 8_000;
 
 // 'processing' -- achado real testando ao vivo (usuário, 28/08): sem esse estado, o ícone
 // ficava vermelho ("gravando") do fim da fala até a resposta chegar (pode passar de 20-60s),
@@ -122,6 +127,7 @@ export function FloatingPlatformAssistant({ pageTitle }: FloatingPlatformAssista
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const recordingTimeoutRef = useRef<number | undefined>(undefined);
+  const idleRearmTimeoutRef = useRef<number | undefined>(undefined);
   const recordingStartedAtRef = useRef<number>(0);
   const micStreamRef = useRef<MediaStream | null>(null);
   const vadHandleRef = useRef<VoiceActivityHandle | null>(null);
@@ -451,20 +457,22 @@ export function FloatingPlatformAssistant({ pageTitle }: FloatingPlatformAssista
     }
   };
 
-  // VAD detectou início de fala -- se o assistente estava falando, isso é barge-in (interrompe
-  // a resposta na hora); em seguida (ou já em escuta normal) começa a gravar o novo turno.
-  const handleSpeechStart = () => {
-    if (voiceModeRef.current === 'recording' || voiceModeRef.current === 'processing' || voiceModeRef.current === 'off') return;
-
-    if (voiceModeRef.current === 'speaking') stopSpeaking();
-
+  // Achado real (missão "investigar erros de STT em turnos curtos", 29/08/2026): criar e
+  // iniciar o MediaRecorder só reativamente, no exato instante em que o VAD detecta fala,
+  // perdia ~150ms do início de CADA turno (latência real de start-up do encoder Opus/muxer
+  // WebM -- confirmada empiricamente: capturei o áudio real que o navegador mandava pro
+  // backend e transcrevi ele isolado -- "Vou te ensinar..." virava "Te ensinar..." sem o
+  // "Vou", mesmo com o áudio de origem limpo e correto). Corrigido mantendo o gravador sempre
+  // "aquecido": arma um novo assim que o anterior termina (ou ao começar a escutar), em vez de
+  // criar um na hora que a fala começa -- silêncio de liderança no início do blob não atrapalha
+  // o STT (testado real), só o corte de fala de verdade que atrapalhava.
+  const armRecorder = () => {
     const stream = micStreamRef.current;
     if (!stream) return;
 
     const mimeType = mimeTypeRef.current;
     const recorder = new MediaRecorder(stream, { mimeType });
     audioChunksRef.current = [];
-    recordingStartedAtRef.current = Date.now();
 
     recorder.ondataavailable = (event) => {
       if (event.data.size > 0) audioChunksRef.current.push(event.data);
@@ -472,11 +480,19 @@ export function FloatingPlatformAssistant({ pageTitle }: FloatingPlatformAssista
 
     recorder.onstop = () => {
       window.clearTimeout(recordingTimeoutRef.current);
-      const elapsedMs = Date.now() - recordingStartedAtRef.current;
+      window.clearTimeout(idleRearmTimeoutRef.current);
+      const elapsedMs = recordingStartedAtRef.current ? Date.now() - recordingStartedAtRef.current : 0;
       const blob = new Blob(audioChunksRef.current, { type: mimeType });
       audioChunksRef.current = [];
+      recordingStartedAtRef.current = 0;
+      const wasRealUtterance = blob.size > 0 && elapsedMs >= MIN_UTTERANCE_MS;
+
+      // Rearma já, antes de decidir o que fazer com o blob -- o próximo turno não deve pagar
+      // o custo de start-up de novo, mesmo enquanto esta resposta ainda está sendo processada.
+      if (voiceModeRef.current !== 'off') armRecorder();
+
       // Ruído breve confundido com fala pelo VAD -- descarta sem chamar o backend.
-      if (blob.size > 0 && elapsedMs >= MIN_UTTERANCE_MS) {
+      if (wasRealUtterance) {
         void sendVoiceMessage(blob, mimeType);
       } else if (voiceModeRef.current === 'recording') {
         updateVoiceMode('listening');
@@ -485,6 +501,28 @@ export function FloatingPlatformAssistant({ pageTitle }: FloatingPlatformAssista
 
     mediaRecorderRef.current = recorder;
     recorder.start();
+
+    // Ninguém falou ainda nesta "armada" -- se passar IDLE_REARM_MS sem a fala começar
+    // (voiceMode nunca vira 'recording'), rearma silenciosamente pra não deixar o silêncio de
+    // liderança crescer sem limite numa pausa longa do usuário.
+    idleRearmTimeoutRef.current = window.setTimeout(() => {
+      if (voiceModeRef.current === 'listening' && mediaRecorderRef.current === recorder) {
+        recorder.stop();
+      }
+    }, IDLE_REARM_MS);
+  };
+
+  // VAD detectou início de fala -- se o assistente estava falando, isso é barge-in (interrompe
+  // a resposta na hora). O gravador já está rodando (armado desde startListening ou desde o
+  // fim do turno anterior) -- só marca o instante real da fala, pra medir duração de verdade
+  // (MIN_UTTERANCE_MS), e liga o teto de segurança.
+  const handleSpeechStart = () => {
+    if (voiceModeRef.current === 'recording' || voiceModeRef.current === 'processing' || voiceModeRef.current === 'off') return;
+
+    if (voiceModeRef.current === 'speaking') stopSpeaking();
+
+    window.clearTimeout(idleRearmTimeoutRef.current);
+    recordingStartedAtRef.current = Date.now();
     updateVoiceMode('recording');
     recordingTimeoutRef.current = window.setTimeout(() => mediaRecorderRef.current?.stop(), MAX_RECORDING_MS);
   };
@@ -500,6 +538,7 @@ export function FloatingPlatformAssistant({ pageTitle }: FloatingPlatformAssista
     vadHandleRef.current?.stop();
     vadHandleRef.current = null;
     window.clearTimeout(recordingTimeoutRef.current);
+    window.clearTimeout(idleRearmTimeoutRef.current);
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
       mediaRecorderRef.current.onstop = null;
       mediaRecorderRef.current.stop();
@@ -527,6 +566,9 @@ export function FloatingPlatformAssistant({ pageTitle }: FloatingPlatformAssista
       micStreamRef.current = stream;
       mimeTypeRef.current = pickSupportedAudioMimeType();
       updateVoiceMode('listening');
+      // Arma o gravador já de saída (aquecido antes da 1ª fala) -- ver achado real no
+      // comentário de armRecorder() acima.
+      armRecorder();
       vadHandleRef.current = startVoiceActivityDetector(stream, {
         onSpeechStart: handleSpeechStart,
         onSpeechEnd: handleSpeechEnd,
