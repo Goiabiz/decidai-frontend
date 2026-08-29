@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
-import { Bot, ChevronDown, Loader2, Maximize2, Mic, Minimize2, Send, Sparkles, Square, User, Waves, X } from 'lucide-react';
+import { Bot, ChevronDown, Loader2, Maximize2, Mic, Minimize2, Send, Square, User, Waves, X } from 'lucide-react';
 import { useSession } from '../contexts/SessionContext';
 import { runAgent, runAgentStream, runAgentVoice } from '../services/agentClient';
 import { startVoiceActivityDetector, type VoiceActivityHandle } from '../services/voiceActivityDetector';
 import { VoiceWaveVisualizer } from './VoiceWaveVisualizer';
+import assistantIcon from '../assets/assistant-icon.png';
 
 // Missão "voz mais natural" (28/08/2026): preferência de animação de ondas de voz é por
 // navegador/usuário (localStorage), não por tenant -- cada pessoa decide se quer ver, sem
@@ -491,7 +492,7 @@ export function FloatingPlatformAssistant({ pageTitle }: FloatingPlatformAssista
             </div>
           )}
           <button className="v363-assistant-fab" onClick={openAssistant} aria-label="Abrir assistente">
-            <Sparkles size={24} />
+            <img src={assistantIcon} alt="" className="v363-assistant-mark" />
           </button>
         </div>
       )}
@@ -500,7 +501,7 @@ export function FloatingPlatformAssistant({ pageTitle }: FloatingPlatformAssista
         <div className="v363-assistant-panel">
           <header>
             <div>
-              <strong><Bot size={18} /> Assistente</strong>
+              <strong><img src={assistantIcon} alt="" className="v363-assistant-mark v363-assistant-mark-small" /> Assistente</strong>
               <small>Lendo: {context}</small>
             </div>
             <div>

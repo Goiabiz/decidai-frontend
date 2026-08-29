@@ -383,6 +383,23 @@
   background: var(--primary, #00875a);
   box-shadow: 0 16px 40px rgba(0, 135, 90, .35);
   cursor: pointer;
+  display: grid;
+  place-items: center;
+}
+
+/* Marca do agente (DecidAI) -- substitui o ícone genérico (Sparkles/Bot) na FAB e no
+   cabeçalho do painel. PNG com fundo transparente, pensado pra sentar sobre um fundo escuro
+   (a própria FAB já é verde-escura) -- por isso não precisa de background/filtro próprio. */
+.v363-assistant-mark {
+  width: 40px;
+  height: 40px;
+  object-fit: contain;
+  display: block;
+}
+
+.v363-assistant-mark-small {
+  width: 20px;
+  height: 20px;
 }
 
 .v363-assistant-fab-wrap {
