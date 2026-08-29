@@ -13,6 +13,7 @@ import { FilaChamados } from './pages/central-atendimento/FilaChamados';
 import { PortalConfiguracao } from './pages/parametrizacao/PortalConfiguracao';
 import { Marketplace } from './pages/parametrizacao/Marketplace';
 import { Creditos } from './pages/parametrizacao/Creditos';
+import { PlanosPrecificacao } from './pages/parametrizacao/PlanosPrecificacao';
 import { Configuracoes } from './pages/Configuracoes';
 import { Integracoes } from './pages/Integracoes';
 import { Agentes } from './pages/parametrizacao/Agentes';
@@ -85,6 +86,7 @@ export type PageKey =
   | 'param-portal'
   | 'param-marketplace'
   | 'param-creditos'
+  | 'param-planos'
   | 'param-preferencias'
   | 'param-seguranca'
   | 'rel-personalizado'
@@ -129,6 +131,7 @@ const rightPanelByPage: Record<PageKey, React.ComponentProps<typeof RightPanel>[
   'param-portal': 'config',
   'param-marketplace': 'config',
   'param-creditos': 'config',
+  'param-planos': 'config',
   'param-preferencias': 'config',
   'param-seguranca': 'config',
   'rel-personalizado': 'config',
@@ -213,7 +216,7 @@ export function App() {
     'cad-unidades': <UnidadesCentrosCusto />,
     'cad-campos': <CamposContexto />,
     'cad-formularios': <FormulariosTelas />,
-    base: <BaseConhecimento />,
+    base: <BaseConhecimento onSelectDetail={handleSelectDetail} onOpenDetail={setExpandedDetail} />,
     atendimento: <CentralAtendimento onSelectDetail={handleSelectDetail} onOpenDetail={setExpandedDetail} />,
     'atendimento-fila': <FilaChamados />,
     alertas: <Alertas />,
@@ -235,6 +238,7 @@ export function App() {
     'param-portal': <PortalConfiguracao />,
     'param-marketplace': <Marketplace />,
     'param-creditos': <Creditos />,
+    'param-planos': <PlanosPrecificacao />,
     'param-preferencias': <Preferencias />,
     'param-seguranca': <SegurancaAuditoria />,
     'rel-personalizado': <RelatorioPersonalizado />,

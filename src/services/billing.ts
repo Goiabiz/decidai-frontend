@@ -46,6 +46,15 @@ export type PlanPricing = {
   overagePricePerUsdBrl: number | null;
 };
 
+export type AdminPlanPricing = {
+  code: string;
+  name: string;
+  monthlyPriceBrl: number | null;
+  includedCreditsUsd: number;
+  overagePricePerUsdBrl: number | null;
+  updatedAt: string;
+};
+
 function requireClient() {
   if (!universoSupabase) throw new Error('Supabase não configurado neste ambiente.');
   return universoSupabase;
@@ -127,6 +136,28 @@ export async function getPlanPricing(clienteId: string): Promise<PlanPricing | n
   };
 }
 
+// Tela de admin de preço dos planos (missão 29/08, frente F) -- leitura é direto contra
+// platform_plans (RLS libera SELECT pra qualquer authenticated, mesma política de sempre pra
+// dado de referência global). Escrita é só basic/pro/enterprise, staff-only -- ver
+// updatePlanPricing() mais abaixo, que passa pela Edge Function billing-admin.
+export async function listAdminPlanPricing(): Promise<AdminPlanPricing[]> {
+  const client = requireClient();
+  const { data, error } = await client
+    .from('platform_plans')
+    .select('code, name, monthly_price_brl, included_credits_usd, overage_price_per_usd_brl, updated_at')
+    .in('code', ['basic', 'pro', 'enterprise'])
+    .order('code');
+  if (error) throw error;
+  return (data ?? []).map((row) => ({
+    code: row.code as string,
+    name: row.name as string,
+    monthlyPriceBrl: row.monthly_price_brl === null ? null : Number(row.monthly_price_brl),
+    includedCreditsUsd: Number(row.included_credits_usd),
+    overagePricePerUsdBrl: row.overage_price_per_usd_brl === null ? null : Number(row.overage_price_per_usd_brl),
+    updatedAt: row.updated_at as string,
+  }));
+}
+
 // Troca de plano (§36, migration 123) -- via função SECURITY DEFINER, não update direto: ela
 // checa autorização real (staff OU admin do próprio cliente) e bloqueia downgrade que estouraria
 // limite já em uso. Chamável tanto pelo staff (impersonando um cliente) quanto pelo próprio
@@ -206,6 +237,29 @@ export async function runDunningNow(invoiceId: string, clienteId?: string | null
     const payload = data as BillingAdminResult<{ message: string }>;
     if (!payload || payload.ok !== true) return { error: (payload as BillingAdminErr)?.message || (payload as BillingAdminErr)?.error || 'Resposta vazia.' };
     return { message: payload.message };
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : 'Falha ao chamar billing-admin.' };
+  }
+}
+
+// Edição de preço de plano (missão 29/08, frente F) -- staff-only, checado de verdade dentro da
+// Edge Function (fn_is_staff_sem_tenant), igual runDunningNow. platform_plans não tem GRANT de
+// UPDATE nenhum pra authenticated (só service_role) -- não dá pra fazer isso com supabase.rpc
+// direto do frontend, precisa passar pela Edge Function.
+export async function updatePlanPricing(
+  planCode: string,
+  monthlyPriceBrl: number,
+  overagePricePerUsdBrl: number,
+): Promise<{ ok: true } | { error: string }> {
+  const client = requireClient();
+  try {
+    const { data, error } = await client.functions.invoke('billing-admin', {
+      body: { action: 'updatePlanPricing', planCode, monthlyPriceBrl, overagePricePerUsdBrl },
+    });
+    if (error) return { error: await extractBillingFunctionErrorMessage(error) };
+    const payload = data as BillingAdminResult<{ plan: unknown }>;
+    if (!payload || payload.ok !== true) return { error: (payload as BillingAdminErr)?.message || (payload as BillingAdminErr)?.error || 'Resposta vazia.' };
+    return { ok: true };
   } catch (error) {
     return { error: error instanceof Error ? error.message : 'Falha ao chamar billing-admin.' };
   }

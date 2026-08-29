@@ -24,6 +24,48 @@ Deno.serve(async (request) => {
     const body = await request.json();
     const action = body.action;
 
+    // Preço dos planos (migration 125, monthly_price_brl/overage_price_per_usd_brl) -- ação
+    // administrativa cross-tenant de propósito (platform_plans não pertence a nenhum cliente),
+    // então fica ANTES da resolução de clienteId abaixo (que existe pra ações de UM tenant
+    // específico). RLS de platform_plans não dá UPDATE nem pra authenticated nem pra staff --
+    // só service_role tem GRANT (migration 020) -- por isso precisa passar por Edge Function,
+    // não dá pra fazer com supabase.rpc/direct update do frontend.
+    if (action === 'updatePlanPricing') {
+      const { data: isStaff, error: staffError } = await supabase.rpc('fn_is_staff_sem_tenant', { p_auth_user_id: user.id });
+      if (staffError) return jsonResponse({ ok: false, error: staffError.message }, 500);
+      if (!isStaff) return jsonResponse({ ok: false, error: 'Apenas suporte/administrador da operadora pode editar preço de plano.' }, 403);
+
+      const planCode = body.planCode;
+      const monthlyPriceBrl = body.monthlyPriceBrl;
+      const overagePricePerUsdBrl = body.overagePricePerUsdBrl;
+
+      if (!['basic', 'pro', 'enterprise'].includes(planCode)) {
+        return jsonResponse({ ok: false, error: `planCode inválido: "${planCode}". Só basic/pro/enterprise são editáveis aqui (trial é sempre R$0).` }, 400);
+      }
+      if (typeof monthlyPriceBrl !== 'number' || !Number.isFinite(monthlyPriceBrl) || monthlyPriceBrl < 0) {
+        return jsonResponse({ ok: false, error: 'monthlyPriceBrl precisa ser um número >= 0.' }, 400);
+      }
+      if (typeof overagePricePerUsdBrl !== 'number' || !Number.isFinite(overagePricePerUsdBrl) || overagePricePerUsdBrl < 0) {
+        return jsonResponse({ ok: false, error: 'overagePricePerUsdBrl precisa ser um número >= 0.' }, 400);
+      }
+
+      const { data: updated, error: updateError } = await supabase
+        .from('platform_plans')
+        .update({
+          monthly_price_brl: monthlyPriceBrl,
+          overage_price_per_usd_brl: overagePricePerUsdBrl,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('code', planCode)
+        .select('code, name, monthly_price_brl, overage_price_per_usd_brl')
+        .maybeSingle();
+
+      if (updateError) return jsonResponse({ ok: false, error: updateError.message }, 500);
+      if (!updated) return jsonResponse({ ok: false, error: `Plano "${planCode}" não encontrado.` }, 404);
+
+      return jsonResponse({ ok: true, plan: updated });
+    }
+
     const { data: clienteId, error: resolveError } = await supabase.rpc(
       'fn_resolve_platform_client_id_by_auth_user',
       { p_auth_user_id: user.id, p_requested_cliente_id: body.clienteId ?? null },
@@ -103,7 +145,7 @@ Deno.serve(async (request) => {
 
     return jsonResponse({
       ok: false,
-      error: `action desconhecida: "${action}". Use "createGatewayCharge" ou "runDunningNow".`,
+      error: `action desconhecida: "${action}". Use "createGatewayCharge", "runDunningNow" ou "updatePlanPricing".`,
     }, 400);
   } catch (error) {
     return jsonResponse({

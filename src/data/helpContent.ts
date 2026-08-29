@@ -231,6 +231,14 @@ export const helpContent: Record<PageKey, HelpEntry> = {
       '"Pagar agora (Pix)" gera uma cobrança real via C6 Bank — cole o código no app do seu banco. A confirmação de pagamento é automática assim que o banco avisar.',
     ],
   },
+  'param-planos': {
+    summary: 'Mensalidade e preço do excedente de uso de IA para cada plano comercial (basic/pro/enterprise).',
+    tips: [
+      'Só suporte/administrador da operadora vê e edita esta tela — plano trial é sempre R$0 e não aparece aqui.',
+      'O valor salvo aqui é o mesmo usado pelo fechamento de período e pela troca de plano self-service — não existe outro lugar que defina preço.',
+      'Um plano com "não confirmado" ainda não tem preço comercial real — o fechamento de fatura trata como R$0 até alguém salvar um valor aqui.',
+    ],
+  },
   'rel-personalizado': {
     summary: 'Relatório configurável: escolha origem, colunas e filtros para montar uma visão sob medida.',
     tips: [

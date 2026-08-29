@@ -54,6 +54,7 @@ type NavChild = {
   key: PageKey;
   label: string;
   icon?: React.ReactNode;
+  staffOnly?: boolean;
 };
 
 type NavGroup = {
@@ -152,6 +153,7 @@ const navGroups: NavGroup[] = [
       { key: 'param-integracoes', label: 'Integrações', icon: <Plug size={18} /> },
       { key: 'param-marketplace', label: 'Marketplace', icon: <Store size={18} /> },
       { key: 'param-creditos', label: 'Créditos e Consumo', icon: <Coins size={18} /> },
+      { key: 'param-planos', label: 'Preço dos Planos', icon: <Coins size={18} />, staffOnly: true },
       { key: 'param-preferencias', label: 'Preferências', icon: <SlidersHorizontal size={18} /> },
       { key: 'param-seguranca', label: 'Auditoria', icon: <ShieldAlert size={18} /> },
     ],
@@ -354,7 +356,7 @@ export function Layout({ activePage, onNavigate, children, rightPanel }: { activ
 
                 {isOpen && (
                   <div className="nav-submenu">
-                    {group.children.map((child) => (
+                    {group.children.filter((child) => !child.staffOnly || isSupport).map((child) => (
                       <button
                         key={child.key}
                         type="button"
