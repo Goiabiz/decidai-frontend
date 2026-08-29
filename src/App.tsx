@@ -15,7 +15,7 @@ import { Marketplace } from './pages/parametrizacao/Marketplace';
 import { Creditos } from './pages/parametrizacao/Creditos';
 import { PlanosPrecificacao } from './pages/parametrizacao/PlanosPrecificacao';
 import { Configuracoes } from './pages/Configuracoes';
-import { Integracoes } from './pages/Integracoes';
+import { Integracoes } from './pages/parametrizacao/Integracoes';
 import { Agentes, CLIENT_AGENT_STATUS_EVENT } from './pages/parametrizacao/Agentes';
 import { getActiveClientAgent, type AgentRecord } from './services/canaisAgentes';
 import { ConectoresCredenciais } from './pages/parametrizacao/ConectoresCredenciais';

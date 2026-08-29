@@ -12023,3 +12023,17 @@ td small {
   font-size: 11.5px;
   font-weight: 700;
 }
+
+/* Reforma de arquitetura 29/08 (pedido do usuário): título de módulo (h1 dentro de
+   .page-header) grande demais, atrapalhava leitura. Nenhuma das definições anteriores de
+   `.page-header h1`/`.page-header-compact h1` (linhas ~1120-1201, ~4081) define font-size pra
+   .page-header h1 -- só a `h1` genérica (linha 70, 22px) valia; .page-header-compact h1 tinha
+   26px próprio. Mesmo truque de cascata do `.sidebar nav button` acima: mesmo seletor, por
+   último no arquivo, pra vencer sem precisar !important nem tocar nas regras antigas. */
+.page-header h1 {
+  font-size: 19px;
+}
+
+.page-header-compact h1 {
+  font-size: 21px;
+}
