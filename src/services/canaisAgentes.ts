@@ -44,6 +44,13 @@ export type AgentRecord = {
    * por cima dessa cor (`object-fit: contain`, não `cover`), estilo avatar do Discord: dá pra
    * subir uma imagem com fundo transparente e escolher a cor por trás dela. */
   color: string;
+  /** Tom de voz -- descrição livre (coluna real `voice_tone`), ex.: "voz feminina e suave,
+   * tom acolhedor". Já era lido pelo runtime (client-agent-identity.ts) mas a tela nunca
+   * deixava editar. */
+  voiceTone: string;
+  /** Voz do TTS -- ID real da OpenAI (nova/shimmer/alloy/echo/fable/onyx), gravado em
+   * `config.ttsVoice`. Sobrepõe a voz global só na conversa deste agente (voice-tts.ts). */
+  ttsVoice: string;
 };
 
 export type ChannelType = { id: string; code: string; name: string };
@@ -228,9 +235,11 @@ export async function updateChannel(clienteId: string, id: string, input: Channe
 // Agentes (client_agents)
 // ---------------------------------------------------------------------------
 
-type AgentConfig = { flows: string; usage: string; providers: string; prompt: string };
+type AgentConfig = { flows: string; usage: string; providers: string; prompt: string; ttsVoice?: string };
 
-function mapAgentRow(row: { id: string; name: string; description: string | null; status: string; config: unknown; avatar_url: string | null; color: string | null }): AgentRecord {
+const AGENT_SELECT = 'id, name, description, status, config, avatar_url, color, voice_tone';
+
+function mapAgentRow(row: { id: string; name: string; description: string | null; status: string; config: unknown; avatar_url: string | null; color: string | null; voice_tone: string | null }): AgentRecord {
   const config = (row.config || {}) as Partial<AgentConfig>;
   return {
     id: row.id,
@@ -243,7 +252,28 @@ function mapAgentRow(row: { id: string; name: string; description: string | null
     prompt: config.prompt || '',
     avatarUrl: row.avatar_url || '',
     color: row.color || '',
+    voiceTone: row.voice_tone || '',
+    ttsVoice: config.ttsVoice || '',
   };
+}
+
+/** Agente de cliente ativado (status='ativo', escrito de verdade por Agentes.tsx ao clicar
+ * "Ativar agente") -- usado pelo App.tsx pra decidir se mostra o ícone dele GLOBALMENTE, em
+ * qualquer tela, pra qualquer usuário do ambiente (não só enquanto alguém está na tela
+ * Agentes -- pedido direto do usuário, "isso não é funcional" testando ao vivo). */
+export async function getActiveClientAgent(clienteId: string): Promise<AgentRecord | null> {
+  const client = getClient();
+  if (!client) return null;
+  const { data, error } = await client
+    .from('client_agents')
+    .select(AGENT_SELECT)
+    .eq('cliente_id', clienteId)
+    .eq('status', 'ativo')
+    .order('updated_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error || !data) return null;
+  return mapAgentRow(data);
 }
 
 export async function listAgents(clienteId: string): Promise<{ items: AgentRecord[]; source: CanaisAgentesLoadState }> {
@@ -251,7 +281,7 @@ export async function listAgents(clienteId: string): Promise<{ items: AgentRecor
   if (client) {
     const { data, error } = await client
       .from('client_agents')
-      .select('id, name, description, status, config, avatar_url, color')
+      .select(AGENT_SELECT)
       .eq('cliente_id', clienteId)
       .order('created_at', { ascending: false });
     if (!error) {
@@ -262,16 +292,16 @@ export async function listAgents(clienteId: string): Promise<{ items: AgentRecor
   return { items: store.agents, source: 'local' };
 }
 
-type AgentInput = { name: string; purpose: string; status: string; flows: string; usage: string; providers: string; prompt: string; avatarUrl: string; color: string };
+type AgentInput = { name: string; purpose: string; status: string; flows: string; usage: string; providers: string; prompt: string; avatarUrl: string; color: string; voiceTone: string; ttsVoice: string };
 
 export async function createAgent(clienteId: string, input: AgentInput): Promise<{ item: AgentRecord; source: CanaisAgentesLoadState }> {
   const client = getClient();
   if (client) {
-    const config: AgentConfig = { flows: input.flows, usage: input.usage, providers: input.providers, prompt: input.prompt };
+    const config: AgentConfig = { flows: input.flows, usage: input.usage, providers: input.providers, prompt: input.prompt, ttsVoice: input.ttsVoice };
     const { data, error } = await client
       .from('client_agents')
-      .insert({ cliente_id: clienteId, name: input.name, description: input.purpose, status: input.status, config, avatar_url: input.avatarUrl || null, color: input.color || null })
-      .select('id, name, description, status, config, avatar_url, color')
+      .insert({ cliente_id: clienteId, name: input.name, description: input.purpose, status: input.status, config, avatar_url: input.avatarUrl || null, color: input.color || null, voice_tone: input.voiceTone || null })
+      .select(AGENT_SELECT)
       .single();
     if (!error && data) {
       return { item: mapAgentRow(data), source: 'supabase' };
@@ -287,13 +317,13 @@ export async function createAgent(clienteId: string, input: AgentInput): Promise
 export async function updateAgent(clienteId: string, id: string, input: AgentInput): Promise<{ item: AgentRecord; source: CanaisAgentesLoadState }> {
   const client = getClient();
   if (client && !id.startsWith('agente-local-')) {
-    const config: AgentConfig = { flows: input.flows, usage: input.usage, providers: input.providers, prompt: input.prompt };
+    const config: AgentConfig = { flows: input.flows, usage: input.usage, providers: input.providers, prompt: input.prompt, ttsVoice: input.ttsVoice };
     const { data, error } = await client
       .from('client_agents')
-      .update({ name: input.name, description: input.purpose, status: input.status, config, avatar_url: input.avatarUrl || null, color: input.color || null })
+      .update({ name: input.name, description: input.purpose, status: input.status, config, avatar_url: input.avatarUrl || null, color: input.color || null, voice_tone: input.voiceTone || null })
       .eq('id', id)
       .eq('cliente_id', clienteId)
-      .select('id, name, description, status, config, avatar_url, color')
+      .select(AGENT_SELECT)
       .single();
     if (!error && data) {
       return { item: mapAgentRow(data), source: 'supabase' };

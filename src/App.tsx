@@ -16,7 +16,8 @@ import { Creditos } from './pages/parametrizacao/Creditos';
 import { PlanosPrecificacao } from './pages/parametrizacao/PlanosPrecificacao';
 import { Configuracoes } from './pages/Configuracoes';
 import { Integracoes } from './pages/Integracoes';
-import { Agentes } from './pages/parametrizacao/Agentes';
+import { Agentes, CLIENT_AGENT_STATUS_EVENT } from './pages/parametrizacao/Agentes';
+import { getActiveClientAgent, type AgentRecord } from './services/canaisAgentes';
 import { ConectoresCredenciais } from './pages/parametrizacao/ConectoresCredenciais';
 import { Canais } from './pages/parametrizacao/Canais';
 import { CamposContexto } from './pages/cadastros/CamposContexto';
@@ -160,6 +161,7 @@ export function App() {
   const [selectedDetail, setSelectedDetail] = useState<PanelDetail | null>(null);
   const [expandedDetail, setExpandedDetail] = useState<PanelDetail | null>(null);
   const [isRightPanelVisible, setIsRightPanelVisible] = useState(false);
+  const [activeClientAgent, setActiveClientAgent] = useState<AgentRecord | null>(null);
 
   const handleSelectDetail = (detail: PanelDetail) => {
     setSelectedDetail(detail);
@@ -169,6 +171,21 @@ export function App() {
   useEffect(() => {
     applyWorkspacePreferences(loadWorkspacePreferences());
   }, []);
+
+  // Ícone do agente de cliente ativado (Parametrização > Agentes) precisa ficar disponível em
+  // QUALQUER tela pra QUALQUER usuário do ambiente, não só enquanto alguém está na tela
+  // Agentes -- achado real testando ao vivo (usuário: "isso não é funcional"). Busca 1x por
+  // troca de tenant + reage na hora quando alguém ativa/desativa em Agentes (mesma aba),
+  // via CLIENT_AGENT_STATUS_EVENT -- sem precisar de reload.
+  const clientId = session?.activeClientId;
+  useEffect(() => {
+    if (!clientId) { setActiveClientAgent(null); return; }
+    let cancelled = false;
+    const refresh = () => { void getActiveClientAgent(clientId).then((agent) => { if (!cancelled) setActiveClientAgent(agent); }); };
+    refresh();
+    window.addEventListener(CLIENT_AGENT_STATUS_EVENT, refresh);
+    return () => { cancelled = true; window.removeEventListener(CLIENT_AGENT_STATUS_EVENT, refresh); };
+  }, [clientId]);
 
   if (window.location.pathname.startsWith('/portal')) {
     return <PortalCliente />;
@@ -265,6 +282,16 @@ export function App() {
       <DetailModal detail={expandedDetail} onClose={() => setExpandedDetail(null)} />
       <AppConfirmModal />
       <FloatingPlatformAssistant />
+      {activeClientAgent && (
+        <FloatingPlatformAssistant
+          mode="usuario-cliente"
+          iconUrl={activeClientAgent.avatarUrl || undefined}
+          iconBackground={activeClientAgent.color || undefined}
+          enableFirstContact={false}
+          instanceId="client-agent-live"
+          pageTitle={activeClientAgent.name}
+        />
+      )}
     </Layout>
   );
 }

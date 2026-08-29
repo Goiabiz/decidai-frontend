@@ -12013,3 +12013,13 @@ td small {
 }
 
 .help-guide-footer svg { color: var(--green-700); flex-shrink: 0; }
+
+/* Achado real (usuário testando ao vivo): rótulo de módulo/funcionalidade no menu lateral
+   ficava grande/pesado demais (font-display + font-weight 800 herdados de v13.3/v12.3 acima
+   somam num texto visualmente maior do que o px sozinho sugere) -- "parece que deixa a tela
+   pequena". Mesmo seletor (.sidebar nav button) das regras anteriores, só que por último no
+   arquivo pra realmente vencer a cascata (especificidade igual, ordem de origem decide). */
+.sidebar nav button {
+  font-size: 11.5px;
+  font-weight: 700;
+}

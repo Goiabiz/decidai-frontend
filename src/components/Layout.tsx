@@ -311,7 +311,13 @@ export function Layout({ activePage, onNavigate, children, rightPanel }: { activ
         <nav className="sidebar-nav">
           {navGroups.filter((group) => !group.staffOnly || isSupport).map((group) => {
             const isActiveGroup = activeGroupKey === group.key;
-            const isOpen = isSidebarExpanded && (openGroups[group.key] || isActiveGroup);
+            // Achado real (usuário): o "|| isActiveGroup" aqui forçava o grupo a ficar sempre
+            // aberto enquanto uma página dele estivesse ativa -- clicar pra recolher não
+            // tinha efeito nenhum nesse caso (só funcionava em grupos sem página ativa). O
+            // useEffect abaixo (setOpenGroups ao trocar de activeGroupKey) já cuida de abrir
+            // o grupo sozinho quando o usuário navega pra dentro dele -- então isOpen só
+            // precisa respeitar o toggle manual, sem sobrepor a escolha de recolher.
+            const isOpen = isSidebarExpanded && Boolean(openGroups[group.key]);
             const singleChild = group.children.length === 1;
 
             if (singleChild) {

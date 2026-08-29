@@ -205,3 +205,108 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* Tela Agentes (parametrização): fluxos multi-seleção + conectores como ícone clicável +
+   tooltip de orientação de campo (mesmo padrão "?" já usado em Cadastros). */
+
+.form-label-text {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.field-info-tip {
+  display: inline-flex;
+  color: var(--v3464-muted);
+  cursor: help;
+  position: relative;
+}
+
+.field-info-tip:hover::after,
+.field-info-tip:focus-visible::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: 130%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--v3464-text);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.4;
+  padding: 8px 10px;
+  border-radius: 8px;
+  width: max-content;
+  max-width: 240px;
+  white-space: normal;
+  z-index: 20;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, .18);
+}
+
+.v36-checkbox-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin-top: 6px;
+}
+
+.v36-checkbox-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 400;
+  cursor: pointer;
+}
+
+.v36-checkbox-item input {
+  width: auto;
+  cursor: pointer;
+}
+
+.v36-connector-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.v36-connector-toggle {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  width: 76px;
+  padding: 8px 4px;
+  border: 1px solid var(--v3464-border);
+  border-radius: 10px;
+  background: var(--v3464-input);
+  cursor: pointer;
+  opacity: .5;
+}
+
+.v36-connector-toggle span {
+  font-size: 10px;
+  color: var(--v3464-muted);
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+.v36-connector-toggle.active {
+  opacity: 1;
+  border-color: var(--v3464-green);
+  background: var(--v3464-green-soft);
+}
+
+/* Achado real testando (Playwright): o modal de editar agente ganhou campos novos (tom de
+   voz, voz do agente, fluxos, conectores) e passou a ficar mais alto que a viewport --
+   .v3464-system-modal não tinha limite de altura nem rolagem própria, então o rodapé
+   (Cancelar/Salvar) ficava inacessível, fora da tela, sem nenhuma barra de rolagem visível.
+   28px vem do padding do .v3464-modal-backdrop (place-items:center) dos dois lados. */
+.v3464-system-modal {
+  max-height: calc(100vh - 56px);
+  overflow-y: auto;
+}

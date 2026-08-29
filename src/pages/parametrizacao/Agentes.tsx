@@ -1,20 +1,57 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Bot, Camera, Plus, Search, SlidersHorizontal, X } from 'lucide-react';
+import { Bot, Camera, Info, Plus, Search, SlidersHorizontal, X } from 'lucide-react';
 import { showAppToast } from '../../lib/appToast';
-import { filterAgentEnabledProviders, listV35IntegrationCatalog, type V35IntegrationCatalogItem } from '../../services/v35Supabase';
+import { filterAgentEnabledProviders, listV35IntegrationCatalog, providerDomain, type V35IntegrationCatalogItem } from '../../services/v35Supabase';
 import { useSession } from '../../contexts/SessionContext';
 import { createAgent, listAgents, updateAgent, type AgentRecord } from '../../services/canaisAgentes';
 import { uploadAvatar } from '../../services/storage';
-import { FloatingPlatformAssistant } from '../../components/FloatingPlatformAssistant';
+import { BrandIcon } from '../../components/BrandIcon';
 
 export type AgentesProps = { onSelectDetail?: (detail: any) => void; onOpenDetail?: (detail: any) => void };
 
-const emptyAgent: AgentRecord = { id: '', name: '', purpose: '', status: 'Em configuração', flows: 'Atendimento padrão', usage: 'Atendimento', providers: '', prompt: '', avatarUrl: '', color: '#00875a' };
+const emptyAgent: AgentRecord = { id: '', name: '', purpose: '', status: 'Em configuração', flows: 'Atendimento padrão', usage: 'Atendimento', providers: '', prompt: '', avatarUrl: '', color: '#00875a', voiceTone: '', ttsVoice: '' };
 
 // Sem padrão de tamanho/formato ainda em nenhum outro upload de avatar do app (usuário,
 // "minha conta") -- fixando um aqui porque o ícone do agente vale pra todos os clientes finais
 // que falarem com ele, não só pra quem fez o upload.
 const AVATAR_MAX_BYTES = 2 * 1024 * 1024;
+
+const FLOW_OPTIONS = ['Atendimento padrão', 'Geração de alerta', 'Criação de tarefa', 'API guiada', 'Onboarding inicial'];
+
+// IDs reais da voz da OpenAI TTS (voice-tts.ts) -- mesmo catálogo fixo que a API aceita, sem
+// endpoint de listagem pra consultar dinamicamente.
+const TTS_VOICE_OPTIONS: Array<{ value: string; label: string }> = [
+  { value: '', label: 'Padrão da plataforma' },
+  { value: 'nova', label: 'Nova (feminina)' },
+  { value: 'shimmer', label: 'Shimmer (feminina, suave)' },
+  { value: 'alloy', label: 'Alloy (neutra)' },
+  { value: 'echo', label: 'Echo (masculina)' },
+  { value: 'fable', label: 'Fable (narrativa)' },
+  { value: 'onyx', label: 'Onyx (masculina, grave)' },
+];
+
+function InfoTip({ text }: { text: string }) {
+  return <span className="field-info-tip" data-tooltip={text}><Info size={14} /></span>;
+}
+
+function FieldLabel({ children, info }: { children: React.ReactNode; info: string }) {
+  return <span className="form-label-text">{children} <InfoTip text={info} /></span>;
+}
+
+function toggleInCommaList(list: string, value: string): string {
+  const current = list.split(',').map((item) => item.trim()).filter(Boolean);
+  const next = current.includes(value) ? current.filter((item) => item !== value) : [...current, value];
+  return next.join(', ');
+}
+
+// Achado real testando ao vivo (usuário): ativar o agente só mostrava o ícone enquanto a
+// pessoa ficava na própria tela Agentes -- saía da tela, o ícone sumia (React desmontava o
+// componente). Não é funcional -- "ativo" precisa sobreviver a navegação e valer pra
+// qualquer usuário do ambiente, não só a sessão de quem ativou. Por isso a ativação agora
+// escreve de verdade em `client_agents.status` (App.tsx lê isso pra montar o ícone GLOBAL,
+// fora desta tela) em vez de só um state local -- e avisa o App.tsx pra reagir na hora, sem
+// precisar de reload, via este evento.
+export const CLIENT_AGENT_STATUS_EVENT = 'client-agent-status-changed';
 
 // Ícone estilo avatar do Discord: cor de fundo escolhida pelo tenant, imagem em cima
 // (`object-fit: contain`, não corta) -- funciona bem tanto com imagem de fundo transparente
@@ -48,8 +85,23 @@ export function Agentes(_props: AgentesProps) {
   const [form, setForm] = useState<AgentRecord>(emptyAgent);
   const [selected, setSelected] = useState<AgentRecord | null>(null);
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
-  const [agentAtivo, setAgentAtivo] = useState(false);
   const avatarInputRef = useRef<HTMLInputElement>(null);
+  const panelAreaRef = useRef<HTMLDivElement>(null);
+
+  // Clicar fora da lista/painel oculta o painel lateral junto (pedido direto do usuário) --
+  // ignora clique enquanto o modal de edição está aberto, senão editar o agente selecionado
+  // desmarcaria ele por baixo do modal. Nunca mexe em ativação -- isso é persistido de
+  // verdade (status no banco), não deve reagir a navegação/clique na tela.
+  useEffect(() => {
+    if (modal) return;
+    const handleClickOutside = (event: MouseEvent) => {
+      if (panelAreaRef.current && !panelAreaRef.current.contains(event.target as Node)) {
+        setSelected(null);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [modal]);
 
   // Só carrega o catálogo de conectores pra sugerir defaults em "Novo agente" -- não expõe
   // fonte/contagem/catálogo na tela (informação interna de motor, não do agente do cliente).
@@ -81,9 +133,16 @@ export function Agentes(_props: AgentesProps) {
 
   const update = <K extends keyof AgentRecord>(key: K, value: AgentRecord[K]) => setForm((current) => ({ ...current, [key]: value }));
 
-  const selectAgent = (agent: AgentRecord) => {
-    setSelected(agent);
-    setAgentAtivo(false);
+  const selectAgent = (agent: AgentRecord) => setSelected(agent);
+
+  const toggleAgentStatus = async (agent: AgentRecord) => {
+    if (!clienteId) return;
+    const nextStatus = agent.status === 'ativo' ? 'configurando' : 'ativo';
+    const { item } = await updateAgent(clienteId, agent.id, { ...agent, status: nextStatus });
+    setAgents((current) => current.map((entry) => entry.id === agent.id ? item : entry));
+    setSelected(item);
+    window.dispatchEvent(new CustomEvent(CLIENT_AGENT_STATUS_EVENT, { detail: { clienteId } }));
+    showAppToast(nextStatus === 'ativo' ? 'Agente ativado -- ícone disponível em todo o ambiente.' : 'Agente desativado.', 'success');
   };
 
   const openNew = () => {
@@ -109,7 +168,7 @@ export function Agentes(_props: AgentesProps) {
       return;
     }
     if (file.size > AVATAR_MAX_BYTES) {
-      showAppToast('Imagem muito grande -- até 2 MB.', 'warning');
+      showAppToast('Imagem muito grande. Até 2 MB.', 'warning');
       return;
     }
     setAvatarFile(file);
@@ -118,7 +177,7 @@ export function Agentes(_props: AgentesProps) {
     reader.readAsDataURL(file);
   };
 
-  const save = async () => {
+  const save = async (activateAfter: boolean) => {
     if (!form.name.trim()) {
       showAppToast('Informe o nome do agente.', 'warning');
       return;
@@ -129,22 +188,26 @@ export function Agentes(_props: AgentesProps) {
     }
     setSalvando(true);
     try {
+      // "Salvar e ativar" poupa o clique extra em "Ativar agente" logo depois de configurar
+      // (pedido direto do usuário) -- grava status='ativo' na mesma chamada.
+      const status = activateAfter ? 'ativo' : form.status;
       if (editingId) {
         const avatarUrl = avatarFile ? await uploadAvatar(clienteId, `agente-${editingId}`, avatarFile) : form.avatarUrl;
-        const { item } = await updateAgent(clienteId, editingId, { ...form, avatarUrl });
+        const { item } = await updateAgent(clienteId, editingId, { ...form, avatarUrl, status });
         setAgents((current) => current.map((entry) => entry.id === editingId ? item : entry));
         setSelected(item);
         showAppToast('Agente atualizado.', 'success');
       } else {
-        const { item: created } = await createAgent(clienteId, { ...form, avatarUrl: '' });
+        const { item: created } = await createAgent(clienteId, { ...form, avatarUrl: '', status });
         const item = avatarFile
-          ? (await updateAgent(clienteId, created.id, { ...form, avatarUrl: await uploadAvatar(clienteId, `agente-${created.id}`, avatarFile) })).item
+          ? (await updateAgent(clienteId, created.id, { ...form, status, avatarUrl: await uploadAvatar(clienteId, `agente-${created.id}`, avatarFile) })).item
           : created;
         setAgents((current) => [item, ...current]);
         setSelected(item);
         showAppToast('Agente criado.', 'success');
       }
       setModal(false);
+      if (activateAfter) window.dispatchEvent(new CustomEvent(CLIENT_AGENT_STATUS_EVENT, { detail: { clienteId } }));
     } finally {
       setSalvando(false);
     }
@@ -173,12 +236,12 @@ export function Agentes(_props: AgentesProps) {
       <div className="v3464-page-head">
         <div>
           <h1>Agentes</h1>
-          <p className="v36-muted">Crie e configure o agente que atende os clientes do seu ambiente -- nome, comportamento, ícone e tom de voz.</p>
+          <p className="v36-muted">Crie e configure o agente que atende os clientes do seu ambiente: nome, comportamento, ícone e tom de voz.</p>
         </div>
         <button className="v3464-btn primary" onClick={openNew}><Plus size={16} /> Novo agente</button>
       </div>
 
-      <div className="v3464-two">
+      <div className="v3464-two" ref={panelAreaRef}>
         <section className="v3464-card">
           <div className="v3464-search"><Search size={18} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar agente, fluxo, uso, canal ou conector..." /></div>
           <table className="v3464-table"><tbody>{filteredAgents.map((agent) => <tr key={agent.id} onClick={() => selectAgent(agent)}><td><AgentIcon agent={agent} size={22} /></td><td><strong>{agent.name}</strong><small>{agent.purpose} • {agent.flows}</small></td><td><button className="v3464-icon" onClick={(event) => { event.stopPropagation(); edit(agent); }}><SlidersHorizontal size={16} /></button></td></tr>)}</tbody></table>
@@ -189,29 +252,18 @@ export function Agentes(_props: AgentesProps) {
             <AgentIcon agent={selected} size={28} />
             <h2>{selected.name}</h2>
             <p>{selected.purpose}</p>
-            <button className="v3464-btn secondary" onClick={() => setAgentAtivo((current) => !current)}>{agentAtivo ? 'Desativar agente' : 'Ativar agente'}</button> <button className="v3464-btn secondary" onClick={() => edit(selected)}><SlidersHorizontal size={16} /> Configurar</button>
+            <button className="v3464-btn secondary" onClick={() => void toggleAgentStatus(selected)}>{selected.status === 'ativo' ? 'Desativar agente' : 'Ativar agente'}</button> <button className="v3464-btn secondary" onClick={() => edit(selected)}><SlidersHorizontal size={16} /> Configurar</button>
             {[
               ['Prompt / Contexto', selected.prompt],
               ['Fluxos do agente', selected.flows],
               ['Pontos de uso', selected.usage],
+              ['Tom de voz', selected.voiceTone || 'Não definido ainda.'],
               ['Conectores vinculados', selected.providers || 'Nenhum conector configurado ainda.'],
               ['Autonomia', 'Sugere ações, cria rascunhos e solicita confirmação quando a ação exigir validação.'],
             ].map(([title, body]) => <div className="v3464-side-box" key={title}><strong>{title}</strong><p>{body}</p></div>)}
           </aside>
         )}
       </div>
-
-      {agentAtivo && selected && (
-        <FloatingPlatformAssistant
-          mode="usuario-cliente"
-          iconUrl={selected.avatarUrl || undefined}
-          iconBackground={selected.color || undefined}
-          enableFirstContact={false}
-          initialOpen
-          instanceId="test-client-agent"
-          pageTitle={`Teste: ${selected.name}`}
-        />
-      )}
 
       {modal && (
         <div className="v3464-modal-backdrop">
@@ -221,7 +273,7 @@ export function Agentes(_props: AgentesProps) {
             <p>Defina comportamento, contexto, fluxos e conectores autorizados para o agente.</p>
             <div className="v3464-modal-form">
               <label>
-                Ícone
+                <FieldLabel info="Imagem que representa o agente pra quem fala com ele. Escolha também uma cor de fundo ao lado.">Ícone</FieldLabel>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                   <button
                     type="button"
@@ -237,16 +289,63 @@ export function Agentes(_props: AgentesProps) {
                     <input type="color" value={form.color || '#64748b'} onChange={(event) => update('color', event.target.value)} style={{ width: 30, height: 30, padding: 0, border: 'none', background: 'none', cursor: 'pointer' }} />
                     <span>Cor de fundo</span>
                   </div>
-                  <small className="v36-muted">Imagem com fundo transparente fica melhor -- a cor ao lado aparece por trás dela. Vale para todos os clientes finais que falarem com este agente.</small>
+                  <small className="v36-muted">PNG ou JPG, até 2 MB.</small>
                 </div>
               </label>
-              <label>Nome<input value={form.name} onChange={(event) => update('name', event.target.value)} placeholder="Ex.: Assistente de Atendimento" /></label>
-              <label>Finalidade<input value={form.purpose} onChange={(event) => update('purpose', event.target.value)} placeholder="Ex.: Atendimento operacional" /></label>
-              <label>Prompt / contexto<textarea value={form.prompt} onChange={(event) => update('prompt', event.target.value)} placeholder="Defina como o agente deve orientar, responder e sugerir ações." /></label>
-              <label>Fluxos<select value={form.flows} onChange={(event) => update('flows', event.target.value)}><option>Atendimento padrão</option><option>Geração de alerta</option><option>Criação de tarefa</option><option>API guiada</option><option>Onboarding inicial</option></select></label>
-              <label>Conectores permitidos<input value={form.providers} onChange={(event) => update('providers', event.target.value)} placeholder="Ex.: Gmail, WhatsApp, Jira, API personalizada" /></label>
+              <label><FieldLabel info="Como o agente se identifica ao falar com o cliente.">Nome</FieldLabel><input value={form.name} onChange={(event) => update('name', event.target.value)} placeholder="Ex.: Assistente de Atendimento" /></label>
+              <label><FieldLabel info="Frase curta que resume o papel do agente. Aparece na lista.">Finalidade</FieldLabel><input value={form.purpose} onChange={(event) => update('purpose', event.target.value)} placeholder="Ex.: Atendimento operacional" /></label>
+              <label><FieldLabel info="Instruções de comportamento que o agente segue em toda conversa -- pode ser bem detalhado.">Prompt / contexto</FieldLabel><textarea value={form.prompt} onChange={(event) => update('prompt', event.target.value)} placeholder="Defina como o agente deve orientar, responder e sugerir ações." /></label>
+              <label>
+                <FieldLabel info="Estilo de comunicação do agente -- ex.: formal, descontraído, técnico.">Tom de voz</FieldLabel>
+                <input value={form.voiceTone} onChange={(event) => update('voiceTone', event.target.value)} placeholder="Ex.: Voz feminina e suave, tom simpático e acolhedor." />
+              </label>
+              <label>
+                <FieldLabel info="Voz usada quando o agente responde falando (texto-pra-voz). Sem escolha, usa a voz padrão da plataforma.">Voz do agente</FieldLabel>
+                <select value={form.ttsVoice} onChange={(event) => update('ttsVoice', event.target.value)}>
+                  {TTS_VOICE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                </select>
+              </label>
+              <label>
+                <FieldLabel info="Situações em que o agente atua. Pode marcar mais de uma.">Fluxos</FieldLabel>
+                <div className="v36-checkbox-grid">
+                  {FLOW_OPTIONS.map((flow) => (
+                    <label key={flow} className="v36-checkbox-item">
+                      <input type="checkbox" checked={form.flows.split(',').map((f) => f.trim()).includes(flow)} onChange={() => update('flows', toggleInCommaList(form.flows, flow))} />
+                      {flow}
+                    </label>
+                  ))}
+                </div>
+              </label>
+              <label>
+                <FieldLabel info="Conectores que o agente pode consultar. Clique num ícone pra ativar ou desativar o uso dele por este agente.">Conectores</FieldLabel>
+                {providers.length === 0 ? (
+                  <small className="v36-muted">Nenhum conector ativo no ambiente ainda -- ative em Parametrização &gt; Integrações.</small>
+                ) : (
+                  <div className="v36-connector-grid">
+                    {providers.map((provider) => {
+                      const active = form.providers.split(',').map((p) => p.trim()).includes(provider.name);
+                      return (
+                        <button
+                          type="button"
+                          key={provider.id}
+                          className={`v36-connector-toggle ${active ? 'active' : ''}`}
+                          title={provider.name}
+                          onClick={() => update('providers', toggleInCommaList(form.providers, provider.name))}
+                        >
+                          <BrandIcon label={provider.name} domain={providerDomain(provider)} size={26} />
+                          <span>{provider.name}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </label>
             </div>
-            <footer><button className="v3464-secondary-btn" onClick={() => setModal(false)}>Cancelar</button><button className="v3464-primary-btn" disabled={salvando} onClick={() => void save()}>{salvando ? 'Salvando...' : 'Salvar agente'}</button></footer>
+            <footer>
+              <button className="v3464-secondary-btn" onClick={() => setModal(false)}>Cancelar</button>
+              <button className="v3464-secondary-btn" disabled={salvando} onClick={() => void save(false)}>{salvando ? 'Salvando...' : 'Salvar'}</button>
+              <button className="v3464-primary-btn" disabled={salvando} onClick={() => void save(true)}>{salvando ? 'Salvando...' : 'Salvar e ativar'}</button>
+            </footer>
           </section>
         </div>
       )}
