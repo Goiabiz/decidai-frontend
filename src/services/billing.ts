@@ -1,4 +1,5 @@
 import { universoSupabase } from '../lib/supabase';
+import { callEdgeFunction, isEdgeFunctionOk } from '../lib/edgeFunction';
 
 // DecidAI Core / Billing v1 (Plano Mestre v4 §29-36) -- Frente F. Fatura como documento real
 // (Pricing + Billing Engine), sem gateway de pagamento ainda. Chamadas diretas via
@@ -187,40 +188,19 @@ export async function markInvoicePaid(invoiceId: string): Promise<{ ok: true } |
   return { ok: true };
 }
 
-type BillingAdminOk<T> = { ok: true } & T;
-type BillingAdminErr = { ok: false; error?: string; message?: string };
-type BillingAdminResult<T> = BillingAdminOk<T> | BillingAdminErr;
-
-async function extractBillingFunctionErrorMessage(error: { message: string; context?: unknown }): Promise<string> {
-  const context = error.context;
-  if (context && typeof (context as Response).clone === 'function') {
-    try {
-      const body = await (context as Response).clone().json();
-      if (body && typeof body === 'object' && typeof (body as { error?: unknown }).error === 'string') {
-        return (body as { error: string }).error;
-      }
-    } catch {
-      // corpo não é JSON válido -- cai no fallback abaixo
-    }
-  }
-  return error.message;
-}
+// extractBillingFunctionErrorMessage/callEdgeFunction moraram aqui até a reforma de 29/08 --
+// agora vêm de lib/edgeFunction.ts, mesmo helper usado por baseConhecimento.ts e qualquer
+// serviço novo que chame Edge Function (elimina a duplicação do contorno pro bug real de
+// `functions.invoke()` só devolver mensagem de erro genérica).
 
 export async function createGatewayCharge(invoiceId: string, clienteId?: string | null): Promise<
   { chargeId: string; qrCode: string; expiresAt: string } | { error: string }
 > {
-  const client = requireClient();
-  try {
-    const { data, error } = await client.functions.invoke('billing-admin', {
-      body: { action: 'createGatewayCharge', invoiceId, clienteId: clienteId || null },
-    });
-    if (error) return { error: await extractBillingFunctionErrorMessage(error) };
-    const payload = data as BillingAdminResult<{ chargeId: string; qrCode: string; expiresAt: string }>;
-    if (!payload || payload.ok !== true) return { error: (payload as BillingAdminErr)?.message || (payload as BillingAdminErr)?.error || 'Resposta vazia.' };
-    return { chargeId: payload.chargeId, qrCode: payload.qrCode, expiresAt: payload.expiresAt };
-  } catch (error) {
-    return { error: error instanceof Error ? error.message : 'Falha ao chamar billing-admin.' };
-  }
+  const result = await callEdgeFunction<{ chargeId: string; qrCode: string; expiresAt: string }>('billing-admin', {
+    action: 'createGatewayCharge', invoiceId, clienteId: clienteId || null,
+  });
+  if (!isEdgeFunctionOk(result)) return { error: result.error };
+  return { chargeId: result.data.chargeId, qrCode: result.data.qrCode, expiresAt: result.data.expiresAt };
 }
 
 // Gatilho manual de dunning (§35, migration 125) -- staff-only, checado de verdade dentro da
@@ -228,18 +208,11 @@ export async function createGatewayCharge(invoiceId: string, clienteId?: string 
 // poller agendado (AGENT_DUNNING_ENABLED) usaria -- prova o mecanismo sem depender de confirmar
 // a env var no Railway.
 export async function runDunningNow(invoiceId: string, clienteId?: string | null): Promise<{ message: string } | { error: string }> {
-  const client = requireClient();
-  try {
-    const { data, error } = await client.functions.invoke('billing-admin', {
-      body: { action: 'runDunningNow', invoiceId, clienteId: clienteId || null },
-    });
-    if (error) return { error: await extractBillingFunctionErrorMessage(error) };
-    const payload = data as BillingAdminResult<{ message: string }>;
-    if (!payload || payload.ok !== true) return { error: (payload as BillingAdminErr)?.message || (payload as BillingAdminErr)?.error || 'Resposta vazia.' };
-    return { message: payload.message };
-  } catch (error) {
-    return { error: error instanceof Error ? error.message : 'Falha ao chamar billing-admin.' };
-  }
+  const result = await callEdgeFunction<{ message: string }>('billing-admin', {
+    action: 'runDunningNow', invoiceId, clienteId: clienteId || null,
+  });
+  if (!isEdgeFunctionOk(result)) return { error: result.error };
+  return { message: result.data.message };
 }
 
 // Edição de preço de plano (missão 29/08, frente F) -- staff-only, checado de verdade dentro da
@@ -251,16 +224,9 @@ export async function updatePlanPricing(
   monthlyPriceBrl: number,
   overagePricePerUsdBrl: number,
 ): Promise<{ ok: true } | { error: string }> {
-  const client = requireClient();
-  try {
-    const { data, error } = await client.functions.invoke('billing-admin', {
-      body: { action: 'updatePlanPricing', planCode, monthlyPriceBrl, overagePricePerUsdBrl },
-    });
-    if (error) return { error: await extractBillingFunctionErrorMessage(error) };
-    const payload = data as BillingAdminResult<{ plan: unknown }>;
-    if (!payload || payload.ok !== true) return { error: (payload as BillingAdminErr)?.message || (payload as BillingAdminErr)?.error || 'Resposta vazia.' };
-    return { ok: true };
-  } catch (error) {
-    return { error: error instanceof Error ? error.message : 'Falha ao chamar billing-admin.' };
-  }
+  const result = await callEdgeFunction('billing-admin', {
+    action: 'updatePlanPricing', planCode, monthlyPriceBrl, overagePricePerUsdBrl,
+  });
+  if (!isEdgeFunctionOk(result)) return { error: result.error };
+  return { ok: true };
 }

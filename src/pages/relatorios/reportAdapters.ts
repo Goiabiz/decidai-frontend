@@ -7,6 +7,7 @@ import { listGithubInstallations } from '../../services/githubApp';
 import { listAuditLogs } from '../../services/auditLog';
 import { listWorkItemsUniversal } from '../../services/decisions';
 import { OPERACAO_LABELS } from '../../lib/auditLabels';
+import { queryWithAccessGate } from '../../lib/accessGatedQuery';
 import { STATUS_CATEGORY_LABELS } from '../../lib/statusCategory';
 import type { StandardReportColumn, StandardReportRow } from './StandardReportPage';
 
@@ -178,10 +179,10 @@ const auditoriaColumns: StandardReportColumn[] = [
  * restrito. Mesma disciplina de SegurancaAuditoria.tsx.
  */
 async function loadAuditoriaReport({ isSupport }: ReportLoadCtx): Promise<{ rows: StandardReportRow[]; gated?: boolean }> {
-  if (!isSupport) return { rows: [], gated: true };
-  const { items } = await listAuditLogs();
+  const gated = await queryWithAccessGate(isSupport, async () => (await listAuditLogs()).items);
+  if (gated.status !== 'ok') return { rows: [], gated: gated.status === 'sem_permissao' };
   return {
-    rows: items.map((log) => ({
+    rows: gated.data.map((log) => ({
       data: log.data,
       usuario: log.usuario,
       modulo: log.modulo,

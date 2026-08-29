@@ -1,4 +1,4 @@
-import { universoSupabase } from '../lib/supabase';
+import { callEdgeFunction, isEdgeFunctionOk } from '../lib/edgeFunction';
 
 export type KnowledgeSourceType = 'agente_extraido' | 'manual' | 'documento';
 
@@ -46,40 +46,13 @@ function isKnowledgeAdminOk<T>(result: KnowledgeAdminResult<T>): result is Knowl
   return result.ok === true;
 }
 
-/**
- * `functions.invoke()` só devolve uma mensagem genérica ("Edge Function returned a
- * non-2xx status code") em `error.message` -- o corpo JSON real que a função escreveu
- * (`{ ok: false, error: "..." }`) fica em `error.context`, um Response não lido por
- * padrão. Sem isso, todo erro real (401/403/500) aparece igual pro usuário.
- */
-async function extractFunctionErrorMessage(error: { message: string; context?: unknown }): Promise<string> {
-  const context = error.context;
-  if (context && typeof (context as Response).clone === 'function') {
-    try {
-      const body = await (context as Response).clone().json();
-      if (body && typeof body === 'object' && typeof (body as { error?: unknown }).error === 'string') {
-        return (body as { error: string }).error;
-      }
-    } catch {
-      // corpo não é JSON válido -- cai no fallback abaixo
-    }
-  }
-  return error.message;
-}
-
+// Extração de mensagem real de erro (o `.clone().json()` que `functions.invoke()` exige)
+// e a chamada em si moraram aqui até a reforma de 29/08 -- agora vêm de lib/edgeFunction.ts,
+// mesmo helper usado por billing.ts e qualquer serviço novo que chame Edge Function.
 async function callKnowledgeAdmin<T = Record<string, never>>(body: Record<string, unknown>): Promise<KnowledgeAdminResult<T>> {
-  const client = universoSupabase;
-  if (!client) return { ok: false, error: 'Supabase não configurado.' };
-
-  try {
-    const { data, error } = await client.functions.invoke('knowledge-admin', { body });
-    if (error) return { ok: false, error: await extractFunctionErrorMessage(error) };
-    const payload = data as { ok?: boolean; error?: string } & T;
-    if (!payload || payload.ok !== true) return { ok: false, error: payload?.error || 'Resposta vazia.' };
-    return { ok: true, data: payload };
-  } catch (error) {
-    return { ok: false, error: error instanceof Error ? error.message : 'Falha ao chamar knowledge-admin.' };
-  }
+  const result = await callEdgeFunction<T>('knowledge-admin', body);
+  if (!isEdgeFunctionOk(result)) return { ok: false, error: result.error };
+  return { ok: true, data: result.data };
 }
 
 /**
