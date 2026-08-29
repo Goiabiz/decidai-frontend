@@ -11,6 +11,31 @@ import assistantIcon from '../assets/assistant-icon.png';
 // precisar de schema/backend novo pra uma preferência puramente visual.
 const VOICE_WAVE_PREFERENCE_KEY = 'assistant-voice-wave-enabled';
 
+// Missão "assistente flutuante de verdade" (29/08/2026, madrugada, pedido direto do usuário):
+// posição arrastável persistida por navegador -- cada pessoa decide onde a Imya fica na tela
+// dela, sem precisar de schema/backend novo (mesmo raciocínio já usado pra
+// VOICE_WAVE_PREFERENCE_KEY).
+const FAB_POSITION_KEY = 'assistant-fab-position';
+const FAB_SIZE = 60;
+const FAB_MARGIN = 8;
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(Math.max(value, min), max);
+}
+
+function loadFabPosition(): { x: number; y: number } | null {
+  try {
+    const raw = window.localStorage.getItem(FAB_POSITION_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (typeof parsed?.x === 'number' && typeof parsed?.y === 'number') return parsed;
+  } catch {
+    // localStorage corrompido/indisponível -- cai no posicionamento padrão (canto inferior
+    // direito, via CSS), sem quebrar o widget por causa de uma preferência de posição.
+  }
+  return null;
+}
+
 function getAudioContextCtor(): typeof AudioContext {
   return window.AudioContext
     || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext!;
@@ -100,6 +125,8 @@ export function FloatingPlatformAssistant({ pageTitle }: FloatingPlatformAssista
   const [micAnalyser, setMicAnalyser] = useState<AnalyserNode | null>(null);
   const [ttsAnalyser, setTtsAnalyser] = useState<AnalyserNode | null>(null);
   const [voiceWaveEnabled, setVoiceWaveEnabled] = useState(() => window.localStorage.getItem(VOICE_WAVE_PREFERENCE_KEY) !== '0');
+  const [fabPosition, setFabPosition] = useState<{ x: number; y: number } | null>(() => loadFabPosition());
+  const fabDragRef = useRef<{ startX: number; startY: number; originLeft: number; originTop: number; moved: boolean } | null>(null);
 
   const toggleVoiceWave = () => {
     setVoiceWaveEnabled((current) => {
@@ -481,18 +508,120 @@ export function FloatingPlatformAssistant({ pageTitle }: FloatingPlatformAssista
     setOpen(true);
   };
 
+  // Arrastar a FAB pra qualquer canto da tela (pedido do usuário, 29/08 madrugada) -- o
+  // wrapper inteiro (.v363-assistant) é o elemento fixed único que posiciona tanto a FAB
+  // recolhida quanto o painel aberto, então mover ele move os dois juntos: o painel sempre
+  // abre onde a FAB estiver. Distingue clique de arraste por distância percorrida (limiar de
+  // 6px) -- abaixo disso é clique (abre o assistente), acima é arraste (reposiciona, não abre).
+  const handleFabPointerDown = (event: React.PointerEvent<HTMLButtonElement>) => {
+    if (event.button !== undefined && event.button !== 0) return;
+    const wrap = event.currentTarget.closest('.v363-assistant') as HTMLElement | null;
+    if (!wrap) return;
+    const rect = wrap.getBoundingClientRect();
+    fabDragRef.current = {
+      startX: event.clientX,
+      startY: event.clientY,
+      originLeft: rect.left,
+      originTop: rect.top,
+      moved: false,
+    };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+
+  const handleFabPointerMove = (event: React.PointerEvent<HTMLButtonElement>) => {
+    const drag = fabDragRef.current;
+    if (!drag) return;
+    const dx = event.clientX - drag.startX;
+    const dy = event.clientY - drag.startY;
+    if (!drag.moved && Math.hypot(dx, dy) < 6) return;
+    drag.moved = true;
+
+    const next = {
+      x: clamp(drag.originLeft + dx, FAB_MARGIN, window.innerWidth - FAB_SIZE - FAB_MARGIN),
+      y: clamp(drag.originTop + dy, FAB_MARGIN, window.innerHeight - FAB_SIZE - FAB_MARGIN),
+    };
+    setFabPosition(next);
+    window.localStorage.setItem(FAB_POSITION_KEY, JSON.stringify(next));
+  };
+
+  const handleFabPointerUp = (event: React.PointerEvent<HTMLButtonElement>) => {
+    const drag = fabDragRef.current;
+    fabDragRef.current = null;
+    event.currentTarget.releasePointerCapture(event.pointerId);
+    if (!drag?.moved) openAssistant();
+  };
+
+  // .v363-assistant.open.expanded já tem um dock fixo (tela cheia à direita) via CSS -- nesse
+  // caso especial não aplica a posição arrastada por cima (senão o dock "esquece" de ir até a
+  // borda).
+  const dockedFullScreen = open && expanded;
+
+  // Achado real testando (Playwright, 29/08 madrugada): usar o mesmo canto (x,y) da FAB como
+  // canto do painel aberto empurra o painel pra fora da tela sempre que a FAB é arrastada perto
+  // de uma borda (painel é bem maior que a FAB, 360x620 contra 60x60). Em vez de fixar sempre
+  // top-left, o painel cresce em direção ao CENTRO da tela a partir de onde a FAB estiver --
+  // mesmo princípio de um tooltip/popover que nunca deixa o próprio conteúdo vazar da viewport.
+  const assistantPositionStyle = (() => {
+    if (!fabPosition || dockedFullScreen) return undefined;
+    if (!open) return { left: fabPosition.x, top: fabPosition.y, right: 'auto', bottom: 'auto' };
+
+    const fabCenterX = fabPosition.x + FAB_SIZE / 2;
+    const fabCenterY = fabPosition.y + FAB_SIZE / 2;
+    const style: Record<string, string | number> = {};
+
+    if (fabCenterX > window.innerWidth / 2) {
+      style.right = Math.max(FAB_MARGIN, window.innerWidth - (fabPosition.x + FAB_SIZE));
+      style.left = 'auto';
+    } else {
+      style.left = Math.max(FAB_MARGIN, fabPosition.x);
+      style.right = 'auto';
+    }
+
+    if (fabCenterY > window.innerHeight / 2) {
+      style.bottom = Math.max(FAB_MARGIN, window.innerHeight - (fabPosition.y + FAB_SIZE));
+      style.top = 'auto';
+    } else {
+      style.top = Math.max(FAB_MARGIN, fabPosition.y);
+      style.bottom = 'auto';
+    }
+
+    return style;
+  })();
+
   return (
-    <aside className={`v363-assistant ${open ? 'open' : ''} ${expanded ? 'expanded' : ''}`} aria-label="Assistente da plataforma">
+    <aside
+      className={`v363-assistant ${open ? 'open' : ''} ${expanded ? 'expanded' : ''}`}
+      aria-label="Assistente da plataforma"
+      style={assistantPositionStyle}
+    >
       {!open && (
-        <div className="v363-assistant-fab-wrap">
+        <div className={`v363-assistant-fab-wrap ${voiceMode !== 'off' ? `voice-${voiceMode}` : ''}`}>
           {showTour && (
             <div className="v363-assistant-tour" role="status">
-              <p>Esse é o assistente da plataforma — clique se precisar de ajuda com esta tela.</p>
+              <p>Esse é o assistente da plataforma — clique, ou arraste pra outro canto da tela se preferir.</p>
               <button onClick={dismissTour}>Entendi</button>
             </div>
           )}
-          <button className="v363-assistant-fab" onClick={openAssistant} aria-label="Abrir assistente">
+          <button
+            className="v363-assistant-fab"
+            onPointerDown={handleFabPointerDown}
+            onPointerMove={handleFabPointerMove}
+            onPointerUp={handleFabPointerUp}
+            aria-label="Abrir assistente (arraste pra reposicionar)"
+          >
             <img src={assistantIcon} alt="" className="v363-assistant-mark" />
+          </button>
+          {/* Escuta contínua sem precisar abrir o painel (pedido do usuário, 29/08 madrugada) --
+              fechar o painel nunca desliga o VAD (stopListening só roda no unmount ou aqui),
+              então este badge é a única forma de ligar/desligar a escuta com a FAB recolhida. */}
+          <button
+            type="button"
+            className={`v363-assistant-fab-mic ${voiceMode !== 'off' ? voiceMode : ''}`}
+            onClick={(event) => { event.stopPropagation(); toggleVoiceMode(); }}
+            aria-label={voiceMode === 'off' ? 'Ativar escuta de voz' : 'Desativar escuta de voz'}
+            title={voiceMode === 'off' ? 'Ativar escuta de voz' : `Escutando (${voiceMode}) — clique pra parar`}
+          >
+            {voiceMode === 'off' ? <Mic size={12} /> : voiceMode === 'processing' ? <Loader2 size={12} className="v363-spin" /> : <Square size={12} />}
           </button>
         </div>
       )}
