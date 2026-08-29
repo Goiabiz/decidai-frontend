@@ -46,7 +46,7 @@ button, input { font: inherit; }
 .brand strong { color: #b9fff0; }
 .radar-mark { width: 24px; height: 24px; object-fit: contain; }
 .sidebar nav { display: flex; flex-direction: column; gap: 4px; }
-.sidebar nav button, .collapse-btn { color: rgba(255,255,255,.9); display: flex; align-items: center; gap: 11px; border: 0; background: transparent; border-radius: 9px; padding: 9px 12px; cursor: pointer; text-align: left; font-size: 13.5px; }
+.sidebar nav button, .collapse-btn { color: rgba(255,255,255,.9); display: flex; align-items: center; gap: 11px; border: 0; background: transparent; border-radius: 9px; padding: 9px 12px; cursor: pointer; text-align: left; font-size: 12.5px; }
 .sidebar nav button.active { background: linear-gradient(90deg, #008b5b, #006b3f); box-shadow: 0 10px 25px rgba(0,0,0,.18); }
 .collapse-btn { margin-top: auto; border-top: 1px solid rgba(255,255,255,.1); border-radius: 0; }
 .workspace { flex: 1; min-width: 0; }
@@ -4453,7 +4453,7 @@ td small {
   padding: 8px 10px !important;
   border-radius: 10px !important;
   gap: 8px !important;
-  font-size: 13px;
+  font-size: 12px;
   opacity: .92;
 }
 

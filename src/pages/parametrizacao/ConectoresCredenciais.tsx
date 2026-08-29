@@ -196,7 +196,7 @@ export function ConectoresCredenciais() {
             <h3>Conectores do agente</h3>
             <p className="section-description">
               <KeyRound size={14} style={{ verticalAlign: 'text-bottom', marginRight: 4 }} />
-              Credenciais que os agentes (Bel/Kinho/Biel) usam em nome do seu tenant. Guardadas encriptadas --
+              Credenciais que a Imya usa em nome do seu tenant. Guardadas encriptadas --
               depois de salva, a credencial nunca é mostrada de novo, só o status.
             </p>
           </div>

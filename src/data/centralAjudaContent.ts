@@ -147,7 +147,7 @@ export const helpGuides: HelpGuide[] = [
     sections: [
       {
         heading: 'Quem publica',
-        body: 'Ao contrário do que o nome pode sugerir, você não cadastra conhecimento manualmente em Base de Conhecimento. É o próprio agente (Bel/Kinho/Biel) que decide publicar uma solução ali, a partir de uma conversa real — por exemplo, depois de resolver um problema técnico que pode se repetir.',
+        body: 'Ao contrário do que o nome pode sugerir, você não cadastra conhecimento manualmente em Base de Conhecimento. É a própria Imya que decide publicar uma solução ali, a partir de uma conversa real — por exemplo, depois de resolver um problema técnico que pode se repetir.',
       },
       {
         heading: 'O que você faz nessa tela',
