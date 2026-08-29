@@ -145,7 +145,7 @@ export async function listAdminPlanPricing(): Promise<AdminPlanPricing[]> {
   const { data, error } = await client
     .from('platform_plans')
     .select('code, name, monthly_price_brl, included_credits_usd, overage_price_per_usd_brl, updated_at')
-    .in('code', ['basic', 'pro', 'enterprise'])
+    .neq('code', 'trial')
     .order('code');
   if (error) throw error;
   return (data ?? []).map((row) => ({

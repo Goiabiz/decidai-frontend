@@ -39,8 +39,8 @@ Deno.serve(async (request) => {
       const monthlyPriceBrl = body.monthlyPriceBrl;
       const overagePricePerUsdBrl = body.overagePricePerUsdBrl;
 
-      if (!['basic', 'pro', 'enterprise'].includes(planCode)) {
-        return jsonResponse({ ok: false, error: `planCode inválido: "${planCode}". Só basic/pro/enterprise são editáveis aqui (trial é sempre R$0).` }, 400);
+      if (!['basic', 'team', 'pro', 'business', 'scale', 'enterprise'].includes(planCode)) {
+        return jsonResponse({ ok: false, error: `planCode inválido: "${planCode}". Trial é sempre R$0 e não é editável aqui.` }, 400);
       }
       if (typeof monthlyPriceBrl !== 'number' || !Number.isFinite(monthlyPriceBrl) || monthlyPriceBrl < 0) {
         return jsonResponse({ ok: false, error: 'monthlyPriceBrl precisa ser um número >= 0.' }, 400);

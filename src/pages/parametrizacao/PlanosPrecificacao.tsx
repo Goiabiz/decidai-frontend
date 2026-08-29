@@ -8,8 +8,6 @@ import { formatDateTime } from '../../lib/formatDate';
 import { formatCurrencyBrl as formatBrl } from '../../lib/formatCurrency';
 import { listAdminPlanPricing, updatePlanPricing, type AdminPlanPricing } from '../../services/billing';
 
-const PLAN_LABELS: Record<string, string> = { basic: 'Basic', pro: 'Pro', enterprise: 'Enterprise' };
-
 type DraftValue = { monthlyPriceBrl: string; overagePricePerUsdBrl: string };
 
 function toDraft(plan: AdminPlanPricing): DraftValue {
@@ -69,7 +67,7 @@ export function PlanosPrecificacao() {
     try {
       const result = await updatePlanPricing(plan.code, monthlyPriceBrl, overagePricePerUsdBrl);
       if ('error' in result) { showAppToast(result.error, 'warning'); return; }
-      showAppToast(`Preço do plano ${PLAN_LABELS[plan.code] || plan.code} atualizado.`, 'success');
+      showAppToast(`Preço do plano ${plan.name} atualizado.`, 'success');
       load();
     } finally {
       setSavingCode(null);
@@ -94,7 +92,7 @@ export function PlanosPrecificacao() {
     <>
       <PageHeader
         title="Preço dos Planos"
-        subtitle="Mensalidade e preço do excedente de uso de IA para basic/pro/enterprise. O plano trial é sempre R$0 e não é editável aqui."
+        subtitle="Mensalidade e preço do excedente de uso de IA para Starter/Team/Professional/Business/Scale/Enterprise. O plano trial é sempre R$0 e não é editável aqui."
       />
 
       <section className="card audit-clean-card">
@@ -130,7 +128,7 @@ export function PlanosPrecificacao() {
                 const saving = savingCode === plan.code;
                 return (
                   <tr key={plan.code}>
-                    <td><strong>{PLAN_LABELS[plan.code] || plan.name}</strong></td>
+                    <td><strong>{plan.name}</strong></td>
                     <td>
                       <input
                         type="number"
