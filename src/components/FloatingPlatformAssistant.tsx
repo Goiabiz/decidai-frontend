@@ -285,13 +285,25 @@ export function FloatingPlatformAssistant({ pageTitle }: FloatingPlatformAssista
     };
 
     try {
+      // mode: 'administrador-cliente' -- este widget só existe dentro do portal
+      // administrativo (Layout, autenticado), nunca é acessado por um cliente final do
+      // tenant. Achado real (missão "criar a SUSi de verdade", 29-30/08/2026): sem isso, o
+      // caminho real (agent-run/runAgentVoice) caía no default 'usuario-cliente' -- faria
+      // qualquer funcionário do ConectaSUS usando este widget receber a identidade do agente
+      // de CLIENTE (SUSi), não a Imya interna. É esse sinal que distingue "funcionário
+      // falando com a Imya" de "cliente final falando com o agente que o tenant configurou".
       let result = await runAgentStream(
         {
           question: trimmed,
           clienteId: activeClientId,
           userId: activeUserId,
           conversationId,
-          context: { screen: context },
+          mode: 'administrador-cliente',
+          // Achado real (missão "foco voz/contexto/aprendizado", 29/08/2026): o backend só lê
+          // context.telaAtual (buildPrompt/business-context-resolver.ts) -- nunca existiu
+          // nenhum mapeamento de `screen` pra `telaAtual`, então a tela atual nunca chegava
+          // no prompt de verdade, mesmo aparecendo certo na legenda "Lendo: ..." da UI.
+          context: { telaAtual: context },
         },
         appendDelta,
       );
@@ -304,7 +316,12 @@ export function FloatingPlatformAssistant({ pageTitle }: FloatingPlatformAssista
           clienteId: activeClientId,
           userId: activeUserId,
           conversationId,
-          context: { screen: context },
+          mode: 'administrador-cliente',
+          // Achado real (missão "foco voz/contexto/aprendizado", 29/08/2026): o backend só lê
+          // context.telaAtual (buildPrompt/business-context-resolver.ts) -- nunca existiu
+          // nenhum mapeamento de `screen` pra `telaAtual`, então a tela atual nunca chegava
+          // no prompt de verdade, mesmo aparecendo certo na legenda "Lendo: ..." da UI.
+          context: { telaAtual: context },
         });
       }
 
@@ -367,7 +384,9 @@ export function FloatingPlatformAssistant({ pageTitle }: FloatingPlatformAssista
         clienteId: activeSession.activeClientId,
         userId: activeSession.user.authUserId,
         conversationId: conversationIdRef.current,
-        context: { screen: contextRef.current },
+        mode: 'administrador-cliente',
+        // Mesmo achado do sendMessage acima -- backend só lê context.telaAtual.
+        context: { telaAtual: contextRef.current },
       });
 
       if (result.ok && result.conversationId) {
