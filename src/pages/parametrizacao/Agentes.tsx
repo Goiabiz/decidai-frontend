@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Bot, Camera, Database, Plus, RefreshCcw, Search, SlidersHorizontal, X } from 'lucide-react';
+import { Bot, Camera, Plus, Search, SlidersHorizontal, X } from 'lucide-react';
 import { showAppToast } from '../../lib/appToast';
-import { filterAgentEnabledProviders, listV35IntegrationCatalog, listV35ProviderActions, type V35IntegrationCatalogItem, type V35ProviderAction, type V35LoadState } from '../../services/v35Supabase';
+import { filterAgentEnabledProviders, listV35IntegrationCatalog, type V35IntegrationCatalogItem } from '../../services/v35Supabase';
 import { useSession } from '../../contexts/SessionContext';
 import { createAgent, listAgents, updateAgent, type AgentRecord } from '../../services/canaisAgentes';
 import { uploadAvatar } from '../../services/storage';
+import { FloatingPlatformAssistant } from '../../components/FloatingPlatformAssistant';
 
 export type AgentesProps = { onSelectDetail?: (detail: any) => void; onOpenDetail?: (detail: any) => void };
 
@@ -21,8 +22,6 @@ export function Agentes(_props: AgentesProps) {
 
   const [agents, setAgents] = useState<AgentRecord[]>([]);
   const [providers, setProviders] = useState<V35IntegrationCatalogItem[]>([]);
-  const [actions, setActions] = useState<V35ProviderAction[]>([]);
-  const [source, setSource] = useState<V35LoadState>('empty');
   const [loading, setLoading] = useState(true);
   const [salvando, setSalvando] = useState(false);
   const [query, setQuery] = useState('');
@@ -31,18 +30,14 @@ export function Agentes(_props: AgentesProps) {
   const [form, setForm] = useState<AgentRecord>(emptyAgent);
   const [selected, setSelected] = useState<AgentRecord | null>(null);
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [testing, setTesting] = useState(false);
   const avatarInputRef = useRef<HTMLInputElement>(null);
 
+  // Só carrega o catálogo de conectores pra sugerir defaults em "Novo agente" -- não expõe
+  // fonte/contagem/catálogo na tela (informação interna de motor, não do agente do cliente).
   const loadV35 = async () => {
     const catalog = await listV35IntegrationCatalog();
-    const agentProviders = filterAgentEnabledProviders(catalog.data);
-    setProviders(agentProviders);
-    setSource(catalog.source);
-    const providerWithActions = agentProviders.find((item) => item.can_create_tasks || item.can_feed_knowledge || item.can_open_attendance) || agentProviders[0];
-    if (providerWithActions) {
-      const actionResult = await listV35ProviderActions(providerWithActions.id);
-      setActions(actionResult.data);
-    }
+    setProviders(filterAgentEnabledProviders(catalog.data));
   };
 
   useEffect(() => { void loadV35(); }, []);
@@ -53,7 +48,10 @@ export function Agentes(_props: AgentesProps) {
     listAgents(clienteId)
       .then((result) => {
         setAgents(result.items);
-        setSelected(result.items[0] ?? null);
+        // Não seleciona nenhum agente sozinho -- a tela mostrava o painel de detalhe (com
+        // "Testar agente"/"Configurar") assim que abria, mesmo sem o usuário ter clicado em
+        // nada. Só mostra depois de um clique real na lista (pedido direto do usuário).
+        setSelected(null);
       })
       .finally(() => setLoading(false));
   }, [clienteId]);
@@ -64,6 +62,11 @@ export function Agentes(_props: AgentesProps) {
   }, [agents, query]);
 
   const update = <K extends keyof AgentRecord>(key: K, value: AgentRecord[K]) => setForm((current) => ({ ...current, [key]: value }));
+
+  const selectAgent = (agent: AgentRecord) => {
+    setSelected(agent);
+    setTesting(false);
+  };
 
   const openNew = () => {
     setEditingId(null);
@@ -152,44 +155,44 @@ export function Agentes(_props: AgentesProps) {
       <div className="v3464-page-head">
         <div>
           <h1>Agentes</h1>
-          <p className="v36-muted">Agentes usam conhecimento, conectores e ações liberadas no catálogo v35. Tokens e execução ficam no backend/plano.</p>
+          <p className="v36-muted">Crie e configure o agente que atende os clientes do seu ambiente -- nome, comportamento, ícone e tom de voz.</p>
         </div>
         <button className="v3464-btn primary" onClick={openNew}><Plus size={16} /> Novo agente</button>
       </div>
 
       <div className="v3464-two">
         <section className="v3464-card">
-          <div className="v36-status-strip">
-            <span><Database size={15} /> Fonte: {source === 'supabase' ? 'Supabase v35' : 'local/fallback'}</span>
-            <span>{providers.length} conectores utilizáveis por agentes</span>
-            <span>{actions.length} ações carregadas</span>
-            <button className="v36-link-button" onClick={loadV35}><RefreshCcw size={14} /> Atualizar</button>
-          </div>
           <div className="v3464-search"><Search size={18} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar agente, fluxo, uso, canal ou conector..." /></div>
-          <table className="v3464-table"><tbody>{filteredAgents.map((agent) => <tr key={agent.id} onClick={() => setSelected(agent)}><td>{agent.avatarUrl ? <img src={agent.avatarUrl} alt={agent.name} style={{ width: 22, height: 22, borderRadius: '50%', objectFit: 'cover' }} /> : <Bot size={22} />}</td><td><strong>{agent.name}</strong><small>{agent.purpose} • {agent.flows}</small></td><td><span className="v3464-badge">{agent.status}</span></td><td><button className="v3464-icon" onClick={(event) => { event.stopPropagation(); edit(agent); }}><SlidersHorizontal size={16} /></button></td></tr>)}</tbody></table>
+          <table className="v3464-table"><tbody>{filteredAgents.map((agent) => <tr key={agent.id} onClick={() => selectAgent(agent)}><td>{agent.avatarUrl ? <img src={agent.avatarUrl} alt={agent.name} style={{ width: 22, height: 22, borderRadius: '50%', objectFit: 'cover' }} /> : <Bot size={22} />}</td><td><strong>{agent.name}</strong><small>{agent.purpose} • {agent.flows}</small></td><td><button className="v3464-icon" onClick={(event) => { event.stopPropagation(); edit(agent); }}><SlidersHorizontal size={16} /></button></td></tr>)}</tbody></table>
         </section>
 
-        <aside className="v3464-side-panel">
-          {selected?.avatarUrl ? <img src={selected.avatarUrl} alt={selected.name} style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover' }} /> : <Bot size={28} />}
-          {selected ? (
-            <>
-              <h2>{selected.name}</h2>
-              <p>{selected.purpose}</p>
-              <button className="v3464-btn secondary" onClick={() => showAppToast('Teste do agente preparado para a v36.1/backend.', 'info')}>Testar agente</button> <button className="v3464-btn secondary" onClick={() => edit(selected)}><SlidersHorizontal size={16} /> Configurar</button>
-              {[
-                ['Prompt / Contexto', selected.prompt],
-                ['Fluxos do agente', selected.flows],
-                ['Pontos de uso', selected.usage],
-                ['Conectores v35 vinculados', selected.providers || providers.slice(0, 5).map((item) => item.name).join(', ')],
-                ['Ações disponíveis', actions.length ? actions.map((item) => item.action_name).slice(0, 4).join(', ') : 'Nenhuma ação carregada para o conector selecionado.'],
-                ['Autonomia', 'Sugere ações, cria rascunhos e solicita confirmação quando a ação exigir validação.'],
-              ].map(([title, body]) => <div className="v3464-side-box" key={title}><strong>{title}</strong><p>{body}</p></div>)}
-            </>
-          ) : (
-            <p className="v36-muted">Nenhum agente cadastrado ainda. Clique em "Novo agente" para começar.</p>
-          )}
-        </aside>
+        {selected && (
+          <aside className="v3464-side-panel">
+            {selected.avatarUrl ? <img src={selected.avatarUrl} alt={selected.name} style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover' }} /> : <Bot size={28} />}
+            <h2>{selected.name}</h2>
+            <p>{selected.purpose}</p>
+            <button className="v3464-btn secondary" onClick={() => setTesting((current) => !current)}>{testing ? 'Fechar teste' : 'Testar agente'}</button> <button className="v3464-btn secondary" onClick={() => edit(selected)}><SlidersHorizontal size={16} /> Configurar</button>
+            {[
+              ['Prompt / Contexto', selected.prompt],
+              ['Fluxos do agente', selected.flows],
+              ['Pontos de uso', selected.usage],
+              ['Conectores vinculados', selected.providers || 'Nenhum conector configurado ainda.'],
+              ['Autonomia', 'Sugere ações, cria rascunhos e solicita confirmação quando a ação exigir validação.'],
+            ].map(([title, body]) => <div className="v3464-side-box" key={title}><strong>{title}</strong><p>{body}</p></div>)}
+          </aside>
+        )}
       </div>
+
+      {testing && selected && (
+        <FloatingPlatformAssistant
+          mode="usuario-cliente"
+          iconUrl={selected.avatarUrl || undefined}
+          enableFirstContact={false}
+          initialOpen
+          instanceId="test-client-agent"
+          pageTitle={`Teste: ${selected.name}`}
+        />
+      )}
 
       {modal && (
         <div className="v3464-modal-backdrop">

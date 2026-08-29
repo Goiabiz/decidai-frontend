@@ -30,9 +30,9 @@ function clamp(value: number, min: number, max: number): number {
 // nova só pra isso; se algum dia precisar sobreviver a limpar o navegador, vira coluna real.
 const FIRST_CONTACT_KEY_PREFIX = 'imya-first-contact-seen-';
 
-function loadFabPosition(): { x: number; y: number } | null {
+function loadFabPosition(storageKey: string): { x: number; y: number } | null {
   try {
-    const raw = window.localStorage.getItem(FAB_POSITION_KEY);
+    const raw = window.localStorage.getItem(storageKey);
     if (!raw) return null;
     const parsed = JSON.parse(raw);
     if (typeof parsed?.x === 'number' && typeof parsed?.y === 'number') return parsed;
@@ -95,6 +95,26 @@ function blobToBase64(blob: Blob): Promise<string> {
 
 type FloatingPlatformAssistantProps = {
   pageTitle?: string;
+  /** 'administrador-cliente' (padrão) -- widget real da Imya, staff usando o portal.
+   * 'usuario-cliente' -- usado só pelo teste embutido em Agentes.tsx, resolve a identidade
+   * do agente de cliente configurado (SUSi) em vez da Imya (client-agent-identity.ts,
+   * server-side, ver provider-fallback-executor.ts). */
+  mode?: 'administrador-cliente' | 'usuario-cliente';
+  /** Ícone customizado (ex.: avatar_url do agente de cliente sendo testado). Sem isso, usa o
+   * ícone fixo da Imya (assistantIcon), igual sempre foi. */
+  iconUrl?: string;
+  /** Saudação de 1º contato (localStorage por usuário, "Eu sou a Imya...") só faz sentido pro
+   * widget real e único da plataforma -- desligada por padrão em qualquer instância extra
+   * (teste de agente de cliente), senão soaria como a Imya se apresentando dentro do teste da
+   * SUSi. */
+  enableFirstContact?: boolean;
+  /** Distingue as chaves de localStorage (posição arrastada, tour visto, onda de voz) entre
+   * instâncias -- sem isso, o widget de teste e o widget real da Imya (ambos podem estar
+   * montados ao mesmo tempo) brigariam pela mesma posição/preferência salva. */
+  instanceId?: string;
+  /** Abre o painel já expandido pro chat, sem exigir clique na FAB primeiro -- usado só pela
+   * instância de teste (clicar em "Testar agente" já deve mostrar a conversa, não só a FAB). */
+  initialOpen?: boolean;
 };
 
 type AssistantMessage = {
@@ -113,9 +133,21 @@ function slugify(text: string) {
     .replace(/^-|-$/g, '');
 }
 
-export function FloatingPlatformAssistant({ pageTitle }: FloatingPlatformAssistantProps) {
+export function FloatingPlatformAssistant({
+  pageTitle,
+  mode = 'administrador-cliente',
+  iconUrl,
+  enableFirstContact = true,
+  instanceId = '',
+  initialOpen = false,
+}: FloatingPlatformAssistantProps) {
+  const keySuffix = instanceId ? `-${instanceId}` : '';
+  const fabPositionKey = `${FAB_POSITION_KEY}${keySuffix}`;
+  const voiceWavePreferenceKey = `${VOICE_WAVE_PREFERENCE_KEY}${keySuffix}`;
+  const resolvedIconUrl = iconUrl || assistantIcon;
+
   const { session } = useSession();
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(initialOpen);
   const [expanded, setExpanded] = useState(false);
   const [message, setMessage] = useState('');
   const [messages, setMessages] = useState<AssistantMessage[]>([]);
@@ -137,8 +169,8 @@ export function FloatingPlatformAssistant({ pageTitle }: FloatingPlatformAssista
   const ttsAudioContextRef = useRef<AudioContext | null>(null);
   const [micAnalyser, setMicAnalyser] = useState<AnalyserNode | null>(null);
   const [ttsAnalyser, setTtsAnalyser] = useState<AnalyserNode | null>(null);
-  const [voiceWaveEnabled, setVoiceWaveEnabled] = useState(() => window.localStorage.getItem(VOICE_WAVE_PREFERENCE_KEY) !== '0');
-  const [fabPosition, setFabPosition] = useState<{ x: number; y: number } | null>(() => loadFabPosition());
+  const [voiceWaveEnabled, setVoiceWaveEnabled] = useState(() => window.localStorage.getItem(voiceWavePreferenceKey) !== '0');
+  const [fabPosition, setFabPosition] = useState<{ x: number; y: number } | null>(() => loadFabPosition(fabPositionKey));
   const fabDragRef = useRef<{ startX: number; startY: number; originLeft: number; originTop: number; moved: boolean } | null>(null);
   const [firstContactActive, setFirstContactActive] = useState(false);
 
@@ -147,6 +179,7 @@ export function FloatingPlatformAssistant({ pageTitle }: FloatingPlatformAssista
   // não reabrir se a pessoa navegar pra outra tela no meio -- o efeito de troca de tela abaixo
   // limpa `messages`, mas a saudação de 1o contato não mora em `messages` justamente por isso.
   useEffect(() => {
+    if (!enableFirstContact) return;
     const authUserId = session?.user.authUserId;
     if (!authUserId) return;
     const key = `${FIRST_CONTACT_KEY_PREFIX}${authUserId}`;
@@ -154,7 +187,7 @@ export function FloatingPlatformAssistant({ pageTitle }: FloatingPlatformAssista
     window.localStorage.setItem(key, '1');
     setFirstContactActive(true);
     setOpen(true);
-  }, [session?.user.authUserId]);
+  }, [session?.user.authUserId, enableFirstContact]);
 
   const firstContactName = session?.user.displayName?.trim().split(/\s+/)[0] || '';
 
@@ -177,7 +210,7 @@ export function FloatingPlatformAssistant({ pageTitle }: FloatingPlatformAssista
   const toggleVoiceWave = () => {
     setVoiceWaveEnabled((current) => {
       const next = !current;
-      window.localStorage.setItem(VOICE_WAVE_PREFERENCE_KEY, next ? '1' : '0');
+      window.localStorage.setItem(voiceWavePreferenceKey, next ? '1' : '0');
       return next;
     });
   };
@@ -291,20 +324,20 @@ export function FloatingPlatformAssistant({ pageTitle }: FloatingPlatformAssista
     };
 
     try {
-      // mode: 'administrador-cliente' -- este widget só existe dentro do portal
-      // administrativo (Layout, autenticado), nunca é acessado por um cliente final do
-      // tenant. Achado real (missão "criar a SUSi de verdade", 29-30/08/2026): sem isso, o
-      // caminho real (agent-run/runAgentVoice) caía no default 'usuario-cliente' -- faria
-      // qualquer funcionário do ConectaSUS usando este widget receber a identidade do agente
-      // de CLIENTE (SUSi), não a Imya interna. É esse sinal que distingue "funcionário
-      // falando com a Imya" de "cliente final falando com o agente que o tenant configurou".
+      // mode vem da prop (padrão 'administrador-cliente' -- widget real, dentro do portal
+      // administrativo, nunca acessado por um cliente final do tenant). Achado real (missão
+      // "criar a SUSi de verdade", 29-30/08/2026): sem passar mode explicitamente, o caminho
+      // real (agent-run/runAgentVoice) caía no default 'usuario-cliente' -- faria qualquer
+      // funcionário do ConectaSUS usando este widget receber a identidade do agente de
+      // CLIENTE (SUSi), não a Imya interna. Único lugar que passa 'usuario-cliente' de
+      // propósito é a instância de teste embutida em Agentes.tsx (testar o agente configurado).
       let result = await runAgentStream(
         {
           question: trimmed,
           clienteId: activeClientId,
           userId: activeUserId,
           conversationId,
-          mode: 'administrador-cliente',
+          mode,
           // Achado real (missão "foco voz/contexto/aprendizado", 29/08/2026): o backend só lê
           // context.telaAtual (buildPrompt/business-context-resolver.ts) -- nunca existiu
           // nenhum mapeamento de `screen` pra `telaAtual`, então a tela atual nunca chegava
@@ -322,7 +355,7 @@ export function FloatingPlatformAssistant({ pageTitle }: FloatingPlatformAssista
           clienteId: activeClientId,
           userId: activeUserId,
           conversationId,
-          mode: 'administrador-cliente',
+          mode,
           // Achado real (missão "foco voz/contexto/aprendizado", 29/08/2026): o backend só lê
           // context.telaAtual (buildPrompt/business-context-resolver.ts) -- nunca existiu
           // nenhum mapeamento de `screen` pra `telaAtual`, então a tela atual nunca chegava
@@ -390,7 +423,11 @@ export function FloatingPlatformAssistant({ pageTitle }: FloatingPlatformAssista
         clienteId: activeSession.activeClientId,
         userId: activeSession.user.authUserId,
         conversationId: conversationIdRef.current,
-        mode: 'administrador-cliente',
+        mode,
+        // mode nunca muda durante a vida desta instância do widget (prop fixa por uso --
+        // real vs teste de agente de cliente), então referenciar direto aqui é seguro mesmo
+        // dentro do closure de voz continua (sem precisar de ref, ao contrário de
+        // conversationId/context/session, que mudam de verdade turno a turno).
         // Mesmo achado do sendMessage acima -- backend só lê context.telaAtual.
         context: { telaAtual: contextRef.current },
       });
@@ -642,7 +679,7 @@ export function FloatingPlatformAssistant({ pageTitle }: FloatingPlatformAssista
       y: clamp(drag.originTop + dy, FAB_MARGIN, window.innerHeight - FAB_SIZE - FAB_MARGIN),
     };
     setFabPosition(next);
-    window.localStorage.setItem(FAB_POSITION_KEY, JSON.stringify(next));
+    window.localStorage.setItem(fabPositionKey, JSON.stringify(next));
   };
 
   const handleFabPointerUp = (event: React.PointerEvent<HTMLButtonElement>) => {
@@ -710,7 +747,7 @@ export function FloatingPlatformAssistant({ pageTitle }: FloatingPlatformAssista
             onPointerUp={handleFabPointerUp}
             aria-label="Abrir assistente (arraste pra reposicionar)"
           >
-            <img src={assistantIcon} alt="" className="v363-assistant-mark" />
+            <img src={resolvedIconUrl} alt="" className="v363-assistant-mark" />
           </button>
           {/* Escuta contínua sem precisar abrir o painel (pedido do usuário, 29/08 madrugada) --
               fechar o painel nunca desliga o VAD (stopListening só roda no unmount ou aqui),
@@ -731,7 +768,7 @@ export function FloatingPlatformAssistant({ pageTitle }: FloatingPlatformAssista
         <div className="v363-assistant-panel">
           <header>
             <div>
-              <strong><img src={assistantIcon} alt="" className="v363-assistant-mark v363-assistant-mark-small" /> Assistente</strong>
+              <strong><img src={resolvedIconUrl} alt="" className="v363-assistant-mark v363-assistant-mark-small" /> Assistente</strong>
               <small>Lendo: {context}</small>
             </div>
             <div>
@@ -744,7 +781,7 @@ export function FloatingPlatformAssistant({ pageTitle }: FloatingPlatformAssista
             {firstContactActive ? (
               <div className="v363-assistant-first-contact">
                 <div className="v363-assistant-bubble assistant">
-                  <img src={assistantIcon} alt="" className="v363-assistant-mark v363-assistant-mark-small" />
+                  <img src={resolvedIconUrl} alt="" className="v363-assistant-mark v363-assistant-mark-small" />
                   <span>
                     {firstContactName ? `Oi, ${firstContactName}! ` : 'Oi! '}
                     Eu sou a Imya, a assistente da DecidAI. Posso te acompanhar por aqui, ou você
