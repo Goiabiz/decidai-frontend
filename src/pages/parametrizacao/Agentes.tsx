@@ -1,13 +1,19 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Bot, Database, Plus, RefreshCcw, Search, SlidersHorizontal, X } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Bot, Camera, Database, Plus, RefreshCcw, Search, SlidersHorizontal, X } from 'lucide-react';
 import { showAppToast } from '../../lib/appToast';
 import { filterAgentEnabledProviders, listV35IntegrationCatalog, listV35ProviderActions, type V35IntegrationCatalogItem, type V35ProviderAction, type V35LoadState } from '../../services/v35Supabase';
 import { useSession } from '../../contexts/SessionContext';
 import { createAgent, listAgents, updateAgent, type AgentRecord } from '../../services/canaisAgentes';
+import { uploadAvatar } from '../../services/storage';
 
 export type AgentesProps = { onSelectDetail?: (detail: any) => void; onOpenDetail?: (detail: any) => void };
 
-const emptyAgent: AgentRecord = { id: '', name: '', purpose: '', status: 'Em configuração', flows: 'Atendimento padrão', usage: 'Atendimento', providers: '', prompt: '' };
+const emptyAgent: AgentRecord = { id: '', name: '', purpose: '', status: 'Em configuração', flows: 'Atendimento padrão', usage: 'Atendimento', providers: '', prompt: '', avatarUrl: '' };
+
+// Sem padrão de tamanho/formato ainda em nenhum outro upload de avatar do app (usuário,
+// "minha conta") -- fixando um aqui porque o ícone do agente vale pra todos os clientes finais
+// que falarem com ele, não só pra quem fez o upload.
+const AVATAR_MAX_BYTES = 2 * 1024 * 1024;
 
 export function Agentes(_props: AgentesProps) {
   const { session } = useSession();
@@ -24,6 +30,8 @@ export function Agentes(_props: AgentesProps) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<AgentRecord>(emptyAgent);
   const [selected, setSelected] = useState<AgentRecord | null>(null);
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
 
   const loadV35 = async () => {
     const catalog = await listV35IntegrationCatalog();
@@ -59,14 +67,34 @@ export function Agentes(_props: AgentesProps) {
 
   const openNew = () => {
     setEditingId(null);
+    setAvatarFile(null);
     setForm({ ...emptyAgent, providers: providers.slice(0, 3).map((item) => item.name).join(', ') });
     setModal(true);
   };
 
   const edit = (agent: AgentRecord) => {
     setEditingId(agent.id);
+    setAvatarFile(null);
     setForm(agent);
     setModal(true);
+  };
+
+  const handleAvatarChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      showAppToast('Envie uma imagem (PNG, JPG ou SVG).', 'warning');
+      return;
+    }
+    if (file.size > AVATAR_MAX_BYTES) {
+      showAppToast('Imagem muito grande -- até 2 MB.', 'warning');
+      return;
+    }
+    setAvatarFile(file);
+    const reader = new FileReader();
+    reader.onload = () => update('avatarUrl', String(reader.result || ''));
+    reader.readAsDataURL(file);
   };
 
   const save = async () => {
@@ -81,12 +109,16 @@ export function Agentes(_props: AgentesProps) {
     setSalvando(true);
     try {
       if (editingId) {
-        const { item } = await updateAgent(clienteId, editingId, form);
+        const avatarUrl = avatarFile ? await uploadAvatar(clienteId, `agente-${editingId}`, avatarFile) : form.avatarUrl;
+        const { item } = await updateAgent(clienteId, editingId, { ...form, avatarUrl });
         setAgents((current) => current.map((entry) => entry.id === editingId ? item : entry));
         setSelected(item);
         showAppToast('Agente atualizado.', 'success');
       } else {
-        const { item } = await createAgent(clienteId, form);
+        const { item: created } = await createAgent(clienteId, { ...form, avatarUrl: '' });
+        const item = avatarFile
+          ? (await updateAgent(clienteId, created.id, { ...form, avatarUrl: await uploadAvatar(clienteId, `agente-${created.id}`, avatarFile) })).item
+          : created;
         setAgents((current) => [item, ...current]);
         setSelected(item);
         showAppToast('Agente criado.', 'success');
@@ -134,11 +166,11 @@ export function Agentes(_props: AgentesProps) {
             <button className="v36-link-button" onClick={loadV35}><RefreshCcw size={14} /> Atualizar</button>
           </div>
           <div className="v3464-search"><Search size={18} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar agente, fluxo, uso, canal ou conector..." /></div>
-          <table className="v3464-table"><tbody>{filteredAgents.map((agent) => <tr key={agent.id} onClick={() => setSelected(agent)}><td><Bot size={22} /></td><td><strong>{agent.name}</strong><small>{agent.purpose} • {agent.flows}</small></td><td><span className="v3464-badge">{agent.status}</span></td><td><button className="v3464-icon" onClick={(event) => { event.stopPropagation(); edit(agent); }}><SlidersHorizontal size={16} /></button></td></tr>)}</tbody></table>
+          <table className="v3464-table"><tbody>{filteredAgents.map((agent) => <tr key={agent.id} onClick={() => setSelected(agent)}><td>{agent.avatarUrl ? <img src={agent.avatarUrl} alt={agent.name} style={{ width: 22, height: 22, borderRadius: '50%', objectFit: 'cover' }} /> : <Bot size={22} />}</td><td><strong>{agent.name}</strong><small>{agent.purpose} • {agent.flows}</small></td><td><span className="v3464-badge">{agent.status}</span></td><td><button className="v3464-icon" onClick={(event) => { event.stopPropagation(); edit(agent); }}><SlidersHorizontal size={16} /></button></td></tr>)}</tbody></table>
         </section>
 
         <aside className="v3464-side-panel">
-          <Bot size={28} />
+          {selected?.avatarUrl ? <img src={selected.avatarUrl} alt={selected.name} style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover' }} /> : <Bot size={28} />}
           {selected ? (
             <>
               <h2>{selected.name}</h2>
@@ -166,6 +198,22 @@ export function Agentes(_props: AgentesProps) {
             <h2>{editingId ? 'Editar agente' : 'Novo agente'}</h2>
             <p>Defina comportamento, contexto, fluxos e conectores autorizados para o agente.</p>
             <div className="v3464-modal-form">
+              <label>
+                Ícone
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <button
+                    type="button"
+                    className="v3464-icon"
+                    onClick={() => avatarInputRef.current?.click()}
+                    title="Escolher ícone"
+                    style={{ width: 48, height: 48, borderRadius: '50%', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                  >
+                    {form.avatarUrl ? <img src={form.avatarUrl} alt={form.name || 'Ícone do agente'} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <Camera size={18} />}
+                  </button>
+                  <input ref={avatarInputRef} type="file" accept="image/*" hidden onChange={handleAvatarChange} />
+                  <small className="v36-muted">Imagem quadrada, até 2 MB. Vale para todos os clientes finais que falarem com este agente.</small>
+                </div>
+              </label>
               <label>Nome<input value={form.name} onChange={(event) => update('name', event.target.value)} placeholder="Ex.: Assistente de Atendimento" /></label>
               <label>Finalidade<input value={form.purpose} onChange={(event) => update('purpose', event.target.value)} placeholder="Ex.: Atendimento operacional" /></label>
               <label>Prompt / contexto<textarea value={form.prompt} onChange={(event) => update('prompt', event.target.value)} placeholder="Defina como o agente deve orientar, responder e sugerir ações." /></label>
