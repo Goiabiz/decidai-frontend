@@ -649,6 +649,35 @@
   gap: 8px;
 }
 
+/* Saudação de 1o contato (29/08/2026) -- mesmo visual de bolha/sugestão que o resto do
+   painel já usa, só com 3 escolhas em vez de perguntas prontas. */
+.v363-assistant-first-contact {
+  display: grid;
+  gap: 12px;
+}
+
+.v363-assistant-first-contact-actions {
+  display: grid;
+  gap: 8px;
+}
+
+.v363-assistant-first-contact-actions button {
+  border: 1px solid var(--slate-200);
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: var(--surface-soft);
+  text-align: left;
+  color: var(--slate-950);
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.v363-assistant-first-contact-actions button:first-child {
+  background: var(--primary, #00875a);
+  border-color: transparent;
+  color: #fff;
+}
+
 .v363-assistant-suggestions button {
   border: 1px solid var(--slate-200);
   border-radius: 12px;

@@ -23,6 +23,13 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
 }
 
+// Ativação/primeiro contato (29/08/2026, item 5 das prioridades pro teste ao vivo -- v0 do
+// corte da Imya). Chave por usuário (não global) pra não suprimir a saudação de outra pessoa
+// numa máquina compartilhada, e pra sobreviver a troca de aba/reload sem repetir. Guardado no
+// navegador (mesmo padrão de VOICE_WAVE_PREFERENCE_KEY/tour) -- v0 não justifica migration
+// nova só pra isso; se algum dia precisar sobreviver a limpar o navegador, vira coluna real.
+const FIRST_CONTACT_KEY_PREFIX = 'imya-first-contact-seen-';
+
 function loadFabPosition(): { x: number; y: number } | null {
   try {
     const raw = window.localStorage.getItem(FAB_POSITION_KEY);
@@ -127,6 +134,39 @@ export function FloatingPlatformAssistant({ pageTitle }: FloatingPlatformAssista
   const [voiceWaveEnabled, setVoiceWaveEnabled] = useState(() => window.localStorage.getItem(VOICE_WAVE_PREFERENCE_KEY) !== '0');
   const [fabPosition, setFabPosition] = useState<{ x: number; y: number } | null>(() => loadFabPosition());
   const fabDragRef = useRef<{ startX: number; startY: number; originLeft: number; originTop: number; moved: boolean } | null>(null);
+  const [firstContactActive, setFirstContactActive] = useState(false);
+
+  // Dispara uma única vez por usuário (não por tela -- por isso não depende de `context`, ao
+  // contrário do tour). Marca a chave como vista IMEDIATAMENTE (antes de qualquer escolha) pra
+  // não reabrir se a pessoa navegar pra outra tela no meio -- o efeito de troca de tela abaixo
+  // limpa `messages`, mas a saudação de 1o contato não mora em `messages` justamente por isso.
+  useEffect(() => {
+    const authUserId = session?.user.authUserId;
+    if (!authUserId) return;
+    const key = `${FIRST_CONTACT_KEY_PREFIX}${authUserId}`;
+    if (window.localStorage.getItem(key) === '1') return;
+    window.localStorage.setItem(key, '1');
+    setFirstContactActive(true);
+    setOpen(true);
+  }, [session?.user.authUserId]);
+
+  const firstContactName = session?.user.displayName?.trim().split(/\s+/)[0] || '';
+
+  const dismissFirstContact = () => setFirstContactActive(false);
+
+  const chooseFirstContactVoice = () => {
+    dismissFirstContact();
+    void startListening();
+  };
+
+  const chooseFirstContactText = () => {
+    dismissFirstContact();
+  };
+
+  const chooseFirstContactExplore = () => {
+    dismissFirstContact();
+    setOpen(false);
+  };
 
   const toggleVoiceWave = () => {
     setVoiceWaveEnabled((current) => {
@@ -640,7 +680,23 @@ export function FloatingPlatformAssistant({ pageTitle }: FloatingPlatformAssista
           </header>
 
           <section className="v363-assistant-body">
-            {messages.length === 0 ? (
+            {firstContactActive ? (
+              <div className="v363-assistant-first-contact">
+                <div className="v363-assistant-bubble assistant">
+                  <img src={assistantIcon} alt="" className="v363-assistant-mark v363-assistant-mark-small" />
+                  <span>
+                    {firstContactName ? `Oi, ${firstContactName}! ` : 'Oi! '}
+                    Eu sou a Imya, a assistente da DecidAI. Posso te acompanhar por aqui, ou você
+                    pode explorar sozinho e me chamar quando quiser.
+                  </span>
+                </div>
+                <div className="v363-assistant-first-contact-actions">
+                  <button onClick={chooseFirstContactVoice}>Falar por voz</button>
+                  <button onClick={chooseFirstContactText}>Prefiro digitar</button>
+                  <button onClick={chooseFirstContactExplore}>Vou explorar sozinho</button>
+                </div>
+              </div>
+            ) : messages.length === 0 ? (
               <p>Posso orientar o uso desta tela, explicar campos, sugerir filtros ou indicar o próximo passo sem bloquear seu trabalho.</p>
             ) : (
               <div className="v363-assistant-thread">
@@ -658,11 +714,13 @@ export function FloatingPlatformAssistant({ pageTitle }: FloatingPlatformAssista
                 )}
               </div>
             )}
-            <div className="v363-assistant-suggestions">
-              {suggestions.map((item) => (
-                <button key={item} disabled={sending} onClick={() => void sendMessage(item)}>{item}</button>
-              ))}
-            </div>
+            {!firstContactActive && (
+              <div className="v363-assistant-suggestions">
+                {suggestions.map((item) => (
+                  <button key={item} disabled={sending} onClick={() => void sendMessage(item)}>{item}</button>
+                ))}
+              </div>
+            )}
           </section>
 
           {voiceMode !== 'off' && (
