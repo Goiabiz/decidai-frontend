@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus, X, Settings, AlertTriangle } from 'lucide-react';
 import { PageHeader } from '../../components/PageHeader';
 import { KanbanBoard, type KanbanItem } from '../../components/KanbanBoard';
@@ -26,6 +27,15 @@ import {
 } from '../../services/crm';
 
 type CasoKanbanItem = KanbanItem & { caso: CrmCaso };
+
+// Formato do cache da consulta do pipeline -- nomeado porque a mutação otimista do drag-and-drop
+// precisa ler e reescrever esse mesmo objeto no cache (getQueryData/setQueryData tipados).
+type PipelineData = {
+  estagios: CrmEstagio[];
+  casos: CrmCaso[];
+  contatos: CrmContato[];
+  responsaveis: UsuarioCliente[];
+};
 
 const TONE_BY_INDEX = ['blue', 'purple', 'orange', 'green', 'red'];
 
@@ -58,44 +68,46 @@ export function CrmPipeline() {
   const podeVer = usePermission('crm.acessar.visualizar');
   const podeEditar = usePermission('crm.acessar.editar');
 
-  const [estagios, setEstagios] = useState<CrmEstagio[]>([]);
-  const [casos, setCasos] = useState<CrmCaso[]>([]);
-  const [contatos, setContatos] = useState<CrmContato[]>([]);
-  const [responsaveis, setResponsaveis] = useState<UsuarioCliente[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
+  const PIPELINE_KEY = ['crm-pipeline', clienteId];
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [form, setForm] = useState<CrmCasoInput>(emptyForm);
-  const [salvando, setSalvando] = useState(false);
 
   const [detalheCaso, setDetalheCaso] = useState<CrmCaso | null>(null);
-  const [atividades, setAtividades] = useState<CrmAtividade[]>([]);
-  const [loadingAtividades, setLoadingAtividades] = useState(false);
   const [followupInput, setFollowupInput] = useState('');
-  const [savingFollowup, setSavingFollowup] = useState(false);
   const [novaAtividadeTipo, setNovaAtividadeTipo] = useState<CrmAtividadeTipo>('nota');
   const [novaAtividadeDescricao, setNovaAtividadeDescricao] = useState('');
-  const [savingAtividade, setSavingAtividade] = useState(false);
 
   const [configOpen, setConfigOpen] = useState(false);
   const [probInputs, setProbInputs] = useState<Record<string, string>>({});
-  const [savingConfig, setSavingConfig] = useState(false);
 
-  const carregarTudo = () => {
-    if (!clienteId) { setLoading(false); return; }
-    setLoading(true);
-    Promise.all([ensureEstagiosPadrao(clienteId), listCasos(clienteId), listContatos(clienteId), listUsuariosCliente(clienteId)])
-      .then(([estagiosResult, casosResult, contatosResult, responsaveisResult]) => {
-        setEstagios(estagiosResult);
-        setCasos(casosResult);
-        setContatos(contatosResult);
-        setResponsaveis(responsaveisResult);
-      })
-      .catch((error) => showAppToast(error instanceof Error ? error.message : 'Não foi possível carregar o pipeline.', 'error'))
-      .finally(() => setLoading(false));
-  };
+  const pipelineQuery = useQuery({
+    queryKey: PIPELINE_KEY,
+    queryFn: async () => {
+      const [estagios, casos, contatos, responsaveis] = await Promise.all([
+        ensureEstagiosPadrao(clienteId as string),
+        listCasos(clienteId as string),
+        listContatos(clienteId as string),
+        listUsuariosCliente(clienteId as string),
+      ]);
+      return { estagios, casos, contatos, responsaveis };
+    },
+    enabled: !!clienteId,
+  });
 
-  useEffect(carregarTudo, [clienteId]);
+  const estagios: CrmEstagio[] = pipelineQuery.data?.estagios ?? [];
+  const casos: CrmCaso[] = pipelineQuery.data?.casos ?? [];
+  const contatos: CrmContato[] = pipelineQuery.data?.contatos ?? [];
+  const responsaveis: UsuarioCliente[] = pipelineQuery.data?.responsaveis ?? [];
+  const loading = pipelineQuery.isLoading;
+  const invalidarPipeline = () => queryClient.invalidateQueries({ queryKey: PIPELINE_KEY });
+
+  useEffect(() => {
+    if (pipelineQuery.error) {
+      showAppToast(pipelineQuery.error instanceof Error ? pipelineQuery.error.message : 'Não foi possível carregar o pipeline.', 'error');
+    }
+  }, [pipelineQuery.error]);
 
   const items = useMemo<CasoKanbanItem[]>(() => casos.map((caso) => ({ id: caso.id, columnId: caso.estagioId, caso })), [casos]);
   const columns = useMemo(() => estagios.map((estagio, index) => ({ id: estagio.id, label: estagio.nome, tone: TONE_BY_INDEX[index % TONE_BY_INDEX.length] })), [estagios]);
@@ -114,96 +126,64 @@ export function CrmPipeline() {
   const casosEmAberto = useMemo(() => casos.filter((caso) => caso.status === 'aberto').length, [casos]);
   const atrasados = useMemo(() => casos.filter(isAtrasado).length, [casos]);
 
-  const handleMove = async (itemId: string, columnId: string) => {
-    const previous = casos;
-    setCasos((current) => current.map((caso) => caso.id === itemId ? { ...caso, estagioId: columnId } : caso));
-    try {
-      await moveCasoEstagio(itemId, columnId, estagios);
-    } catch (error) {
-      setCasos(previous);
+  // Drag-and-drop do Kanban: o card precisa mudar de coluna na hora, sem esperar a rede -- por
+  // isso mutação OTIMISTA (onMutate/onError/onSettled) em vez do onSuccess+invalidateQueries do
+  // resto da conversão. O código anterior já era otimista, só que com rollback escrito à mão
+  // (guardava `previous` e restaurava no catch); aqui o próprio React Query cuida do snapshot,
+  // do rollback e -- o que faltava antes -- da revalidação no final, garantindo que a tela
+  // termine igual ao banco em vez de confiar no estado otimista pra sempre.
+  const moveMutation = useMutation({
+    mutationFn: ({ itemId, columnId }: { itemId: string; columnId: string }) =>
+      moveCasoEstagio(itemId, columnId, estagios),
+    onMutate: async ({ itemId, columnId }) => {
+      await queryClient.cancelQueries({ queryKey: PIPELINE_KEY });
+      const previous = queryClient.getQueryData<PipelineData>(PIPELINE_KEY);
+      if (previous) {
+        queryClient.setQueryData<PipelineData>(PIPELINE_KEY, {
+          ...previous,
+          casos: previous.casos.map((caso) => (caso.id === itemId ? { ...caso, estagioId: columnId } : caso)),
+        });
+      }
+      return { previous };
+    },
+    onError: (error, _vars, context) => {
+      if (context?.previous) queryClient.setQueryData(PIPELINE_KEY, context.previous);
       showAppToast(error instanceof Error ? error.message : 'Não foi possível mover o caso.', 'error');
-    }
+    },
+    onSettled: () => invalidarPipeline(),
+  });
+
+  const handleMove = (itemId: string, columnId: string) => {
+    moveMutation.mutate({ itemId, columnId });
   };
 
-  const openForm = () => {
-    setForm({ ...emptyForm, estagioId: estagios[0]?.id ?? '' });
-    setIsFormOpen(true);
-  };
-
-  const saveCaso = async () => {
-    if (!form.titulo.trim()) { showAppToast('Informe o título do caso.', 'warning'); return; }
-    if (!form.contatoId) { showAppToast('Selecione o contato do caso.', 'warning'); return; }
-    if (!form.estagioId) { showAppToast('Selecione o estágio inicial.', 'warning'); return; }
-    if (!clienteId) return;
-
-    setSalvando(true);
-    try {
-      const contato = contatos.find((item) => item.id === form.contatoId);
-      const novo = await createCaso(clienteId, { ...form, empresaId: contato?.empresaId ?? null });
-      setCasos((current) => [novo, ...current]);
+  const createCasoMutation = useMutation({
+    mutationFn: (input: CrmCasoInput) => {
+      const contato = contatos.find((item) => item.id === input.contatoId);
+      return createCaso(clienteId as string, { ...input, empresaId: contato?.empresaId ?? null });
+    },
+    onSuccess: () => {
+      invalidarPipeline();
       setIsFormOpen(false);
       showAppToast('Caso criado.', 'success');
-    } catch (error) {
-      showAppToast(error instanceof Error ? error.message : 'Não foi possível salvar o caso.', 'error');
-    } finally {
-      setSalvando(false);
-    }
-  };
+    },
+    onError: (error) => showAppToast(error instanceof Error ? error.message : 'Não foi possível salvar o caso.', 'error'),
+  });
 
-  const abrirDetalhe = (caso: CrmCaso) => {
-    setDetalheCaso(caso);
-    setFollowupInput(toDateInputValue(caso.proximoFollowupEm));
-    setNovaAtividadeTipo('nota');
-    setNovaAtividadeDescricao('');
-    setLoadingAtividades(true);
-    listAtividades(caso.id)
-      .then(setAtividades)
-      .catch((error) => showAppToast(error instanceof Error ? error.message : 'Não foi possível carregar as atividades.', 'error'))
-      .finally(() => setLoadingAtividades(false));
-  };
-
-  const salvarFollowup = async () => {
-    if (!detalheCaso) return;
-    setSavingFollowup(true);
-    try {
-      const iso = followupInput ? new Date(`${followupInput}T09:00:00`).toISOString() : null;
-      await updateCasoFollowup(detalheCaso.id, iso);
-      setCasos((current) => current.map((caso) => caso.id === detalheCaso.id ? { ...caso, proximoFollowupEm: iso } : caso));
-      setDetalheCaso((current) => current ? { ...current, proximoFollowupEm: iso } : current);
+  const followupMutation = useMutation({
+    mutationFn: ({ casoId, iso }: { casoId: string; iso: string | null }) => updateCasoFollowup(casoId, iso),
+    onSuccess: (_data, { iso }) => {
+      invalidarPipeline();
+      // O painel de detalhe é estado local (não vem da query) -- precisa acompanhar na mão,
+      // senão a data some da tela aberta até fechar e reabrir o caso.
+      setDetalheCaso((current) => (current ? { ...current, proximoFollowupEm: iso } : current));
       showAppToast('Follow-up atualizado.', 'success');
-    } catch (error) {
-      showAppToast(error instanceof Error ? error.message : 'Não foi possível salvar o follow-up.', 'error');
-    } finally {
-      setSavingFollowup(false);
-    }
-  };
+    },
+    onError: (error) => showAppToast(error instanceof Error ? error.message : 'Não foi possível salvar o follow-up.', 'error'),
+  });
 
-  const registrarAtividade = async () => {
-    if (!detalheCaso || !clienteId) return;
-    if (!novaAtividadeDescricao.trim()) { showAppToast('Descreva a atividade.', 'warning'); return; }
-    setSavingAtividade(true);
-    try {
-      const nova = await createAtividade(clienteId, usuarioClienteId, { casoId: detalheCaso.id, tipo: novaAtividadeTipo, descricao: novaAtividadeDescricao.trim() });
-      setAtividades((current) => [nova, ...current]);
-      setNovaAtividadeDescricao('');
-      showAppToast('Atividade registrada.', 'success');
-    } catch (error) {
-      showAppToast(error instanceof Error ? error.message : 'Não foi possível registrar a atividade.', 'error');
-    } finally {
-      setSavingAtividade(false);
-    }
-  };
-
-  const abrirConfig = () => {
-    const initial: Record<string, string> = {};
-    estagios.forEach((estagio) => { initial[estagio.id] = estagio.probabilidade === null ? '' : String(estagio.probabilidade); });
-    setProbInputs(initial);
-    setConfigOpen(true);
-  };
-
-  const salvarConfig = async () => {
-    setSavingConfig(true);
-    try {
+  const salvarConfigMutation = useMutation({
+    mutationFn: async () => {
       const alterados = estagios.filter((estagio) => {
         const atual = estagio.probabilidade === null ? '' : String(estagio.probabilidade);
         return probInputs[estagio.id] !== atual;
@@ -213,16 +193,85 @@ export function CrmPipeline() {
         const valor = raw === '' ? null : Math.max(0, Math.min(100, Number(raw)));
         return updateEstagioProbabilidade(estagio.id, valor);
       }));
-      const atualizados = await ensureEstagiosPadrao(clienteId as string);
-      setEstagios(atualizados);
+    },
+    onSuccess: () => {
+      invalidarPipeline();
       setConfigOpen(false);
       showAppToast('Configuração do pipeline salva.', 'success');
-    } catch (error) {
-      showAppToast(error instanceof Error ? error.message : 'Não foi possível salvar a configuração.', 'error');
-    } finally {
-      setSavingConfig(false);
-    }
+    },
+    onError: (error) => showAppToast(error instanceof Error ? error.message : 'Não foi possível salvar a configuração.', 'error'),
+  });
+
+  const openForm = () => {
+    setForm({ ...emptyForm, estagioId: estagios[0]?.id ?? '' });
+    setIsFormOpen(true);
   };
+
+  const saveCaso = () => {
+    if (!form.titulo.trim()) { showAppToast('Informe o título do caso.', 'warning'); return; }
+    if (!form.contatoId) { showAppToast('Selecione o contato do caso.', 'warning'); return; }
+    if (!form.estagioId) { showAppToast('Selecione o estágio inicial.', 'warning'); return; }
+    if (!clienteId) return;
+    createCasoMutation.mutate(form);
+  };
+
+  const abrirDetalhe = (caso: CrmCaso) => {
+    setDetalheCaso(caso);
+    setFollowupInput(toDateInputValue(caso.proximoFollowupEm));
+    setNovaAtividadeTipo('nota');
+    setNovaAtividadeDescricao('');
+  };
+
+  // Atividades têm chave própria POR CASO -- não entram no cache do pipeline: são carregadas só
+  // quando um caso está aberto no painel, e registrar uma nova invalida só a lista daquele caso.
+  const atividadesQuery = useQuery({
+    queryKey: ['crm-atividades', detalheCaso?.id],
+    queryFn: () => listAtividades(detalheCaso?.id as string),
+    enabled: !!detalheCaso?.id,
+  });
+  const atividades: CrmAtividade[] = atividadesQuery.data ?? [];
+  const loadingAtividades = atividadesQuery.isLoading;
+
+  useEffect(() => {
+    if (atividadesQuery.error) {
+      showAppToast(atividadesQuery.error instanceof Error ? atividadesQuery.error.message : 'Não foi possível carregar as atividades.', 'error');
+    }
+  }, [atividadesQuery.error]);
+
+  const salvarFollowup = () => {
+    if (!detalheCaso) return;
+    const iso = followupInput ? new Date(`${followupInput}T09:00:00`).toISOString() : null;
+    followupMutation.mutate({ casoId: detalheCaso.id, iso });
+  };
+
+  const atividadeMutation = useMutation({
+    mutationFn: (descricao: string) => createAtividade(clienteId as string, usuarioClienteId, {
+      casoId: (detalheCaso as CrmCaso).id,
+      tipo: novaAtividadeTipo,
+      descricao,
+    }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['crm-atividades', detalheCaso?.id] });
+      setNovaAtividadeDescricao('');
+      showAppToast('Atividade registrada.', 'success');
+    },
+    onError: (error) => showAppToast(error instanceof Error ? error.message : 'Não foi possível registrar a atividade.', 'error'),
+  });
+
+  const registrarAtividade = () => {
+    if (!detalheCaso || !clienteId) return;
+    if (!novaAtividadeDescricao.trim()) { showAppToast('Descreva a atividade.', 'warning'); return; }
+    atividadeMutation.mutate(novaAtividadeDescricao.trim());
+  };
+
+  const abrirConfig = () => {
+    const initial: Record<string, string> = {};
+    estagios.forEach((estagio) => { initial[estagio.id] = estagio.probabilidade === null ? '' : String(estagio.probabilidade); });
+    setProbInputs(initial);
+    setConfigOpen(true);
+  };
+
+  const salvarConfig = () => salvarConfigMutation.mutate();
 
   if (!podeVer) {
     return (
@@ -334,7 +383,7 @@ export function CrmPipeline() {
                 </div>
               </section>
             </div>
-            <div className="unit-modal-footer"><button onClick={() => setIsFormOpen(false)}>Cancelar</button><button className="primary" disabled={salvando} onClick={() => void saveCaso()}>{salvando ? 'Salvando...' : 'Salvar caso'}</button></div>
+            <div className="unit-modal-footer"><button onClick={() => setIsFormOpen(false)}>Cancelar</button><button className="primary" disabled={createCasoMutation.isPending} onClick={() => void saveCaso()}>{createCasoMutation.isPending ? 'Salvando...' : 'Salvar caso'}</button></div>
           </div>
         </div>
       )}
@@ -352,7 +401,7 @@ export function CrmPipeline() {
                     <input type="date" value={followupInput} onChange={(event) => setFollowupInput(event.target.value)} />
                   </label>
                   <div style={{ display: 'flex', alignItems: 'flex-end' }}>
-                    <button className="secondary-btn" disabled={savingFollowup} onClick={() => void salvarFollowup()}>{savingFollowup ? 'Salvando...' : 'Salvar follow-up'}</button>
+                    <button className="secondary-btn" disabled={followupMutation.isPending} onClick={() => void salvarFollowup()}>{followupMutation.isPending ? 'Salvando...' : 'Salvar follow-up'}</button>
                   </div>
                 </div>
               </section>
@@ -369,7 +418,7 @@ export function CrmPipeline() {
                   <label><span className="form-label-text">Descrição</span><input value={novaAtividadeDescricao} onChange={(event) => setNovaAtividadeDescricao(event.target.value)} placeholder="O que aconteceu ou foi combinado" /></label>
                 </div>
                 <div style={{ marginTop: 8 }}>
-                  <button className="secondary-btn" disabled={savingAtividade} onClick={() => void registrarAtividade()}>{savingAtividade ? 'Registrando...' : 'Registrar atividade'}</button>
+                  <button className="secondary-btn" disabled={atividadeMutation.isPending} onClick={() => void registrarAtividade()}>{atividadeMutation.isPending ? 'Registrando...' : 'Registrar atividade'}</button>
                 </div>
               </section>
 
@@ -418,7 +467,7 @@ export function CrmPipeline() {
                 ))}
               </div>
             </div>
-            <div className="unit-modal-footer"><button onClick={() => setConfigOpen(false)}>Cancelar</button><button className="primary" disabled={savingConfig} onClick={() => void salvarConfig()}>{savingConfig ? 'Salvando...' : 'Salvar'}</button></div>
+            <div className="unit-modal-footer"><button onClick={() => setConfigOpen(false)}>Cancelar</button><button className="primary" disabled={salvarConfigMutation.isPending} onClick={() => void salvarConfig()}>{salvarConfigMutation.isPending ? 'Salvando...' : 'Salvar'}</button></div>
           </div>
         </div>
       )}
