@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { X } from 'lucide-react';
 import { PageHeader } from '../components/PageHeader';
 import { KpiCard } from '../components/KpiCard';
+import { CollapsibleKpiSection } from '../components/CollapsibleKpiSection';
 import { Badge } from '../components/Badge';
 import { showAppToast } from '../lib/appToast';
 import { useSession } from '../contexts/SessionContext';
@@ -139,12 +140,14 @@ export function EngajamentoSocial() {
     <>
       <PageHeader title="Engajamento Social" />
 
-      <div className="kpi-grid four">
-        <KpiCard label="Posts monitorados" value={String(stats.totalPosts)} trend={`${stats.last30Days} nos últimos 30 dias`} tone="green" />
-        <KpiCard label="Engajamento total" value={String(stats.totalEngagement)} trend="curtidas + comentários + compartilhamentos" tone="blue" />
-        <KpiCard label="Seguidores (última fonte)" value={stats.latestFollowers !== null ? String(stats.latestFollowers) : '—'} trend="retrato mais recente" tone="purple" />
-        <KpiCard label="Fontes ativas" value={String(activeSources)} trend={`${sources.length} cadastradas`} tone="orange" />
-      </div>
+      <CollapsibleKpiSection>
+        <div className="kpi-grid four">
+          <KpiCard label="Posts monitorados" value={String(stats.totalPosts)} trend={`${stats.last30Days} nos últimos 30 dias`} tone="green" />
+          <KpiCard label="Engajamento total" value={String(stats.totalEngagement)} trend="curtidas + comentários + compartilhamentos" tone="blue" />
+          <KpiCard label="Seguidores (última fonte)" value={stats.latestFollowers !== null ? String(stats.latestFollowers) : '—'} trend="retrato mais recente" tone="purple" />
+          <KpiCard label="Fontes ativas" value={String(activeSources)} trend={`${sources.length} cadastradas`} tone="orange" />
+        </div>
+      </CollapsibleKpiSection>
 
       <section className="workspace-settings-panel">
         <div className="workspace-settings-header">

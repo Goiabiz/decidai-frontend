@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, ChevronRight, ClipboardList, FileText, Globe2, ListChecks } from 'lucide-react';
 import { PageHeader } from '../components/PageHeader';
 import { KpiCard } from '../components/KpiCard';
+import { CollapsibleKpiSection } from '../components/CollapsibleKpiSection';
 import { Badge } from '../components/Badge';
 import { alertas, documentos, kpis } from '../data/mock';
 import { useAsyncData } from '../hooks/useAsyncData';
@@ -285,19 +286,21 @@ export function Dashboard({ onOpenDetail, onNavigate }: PageProps) {
     <>
       <PageHeader title="Área de Trabalho" subtitle={isDemoData ? 'Alguns indicadores estão exibindo dados locais de demonstração — não foi possível carregar do Supabase.' : undefined} />
 
-      <div className="kpi-grid five dashboard-kpis">
-        {cards.map((card) => (
-          <KpiCard
-            key={card.label}
-            label={card.label}
-            value={card.value}
-            tone={card.tone}
-            tooltip={card.title}
-            icon={card.icon}
-            onClick={onNavigate ? () => onNavigate(card.page) : undefined}
-          />
-        ))}
-      </div>
+      <CollapsibleKpiSection>
+        <div className="kpi-grid five dashboard-kpis">
+          {cards.map((card) => (
+            <KpiCard
+              key={card.label}
+              label={card.label}
+              value={card.value}
+              tone={card.tone}
+              tooltip={card.title}
+              icon={card.icon}
+              onClick={onNavigate ? () => onNavigate(card.page) : undefined}
+            />
+          ))}
+        </div>
+      </CollapsibleKpiSection>
 
       <div className="dashboard-executive-grid">
         <section className="card dashboard-donut-card">

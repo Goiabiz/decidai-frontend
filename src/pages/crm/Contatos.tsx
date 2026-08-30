@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Building2, Headphones, Plus, Search, Target, User, X } from 'lucide-react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Badge } from '../../components/Badge';
 import { PageHeader } from '../../components/PageHeader';
 import { normalizeFilterText } from '../../components/SmartFilters';
@@ -36,48 +37,68 @@ export function CrmContatos() {
   const clienteId = session?.activeClientId ?? null;
   const podeVer = usePermission('crm.acessar.visualizar');
   const podeEditar = usePermission('crm.acessar.editar');
+  const queryClient = useQueryClient();
 
   const [tab, setTab] = useState<'contatos' | 'empresas'>('contatos');
-  const [contatos, setContatos] = useState<CrmContato[]>([]);
-  const [empresas, setEmpresas] = useState<CrmEmpresa[]>([]);
-  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [detalhe, setDetalhe] = useState<CrmContato360 | null>(null);
-  const [detalheLoading, setDetalheLoading] = useState(false);
 
   const [isContatoFormOpen, setIsContatoFormOpen] = useState(false);
   const [contatoForm, setContatoForm] = useState<CrmContatoInput>(emptyContatoForm);
-  const [salvandoContato, setSalvandoContato] = useState(false);
 
   const [isEmpresaFormOpen, setIsEmpresaFormOpen] = useState(false);
   const [empresaForm, setEmpresaForm] = useState<CrmEmpresaInput>(emptyEmpresaForm);
-  const [salvandoEmpresa, setSalvandoEmpresa] = useState(false);
 
-  const carregarListas = () => {
-    if (!clienteId) { setLoading(false); return; }
-    setLoading(true);
-    Promise.all([listContatos(clienteId), listEmpresas(clienteId)])
-      .then(([contatosResult, empresasResult]) => {
-        setContatos(contatosResult);
-        setEmpresas(empresasResult);
-        setSelectedId((current) => current ?? contatosResult[0]?.id ?? null);
-      })
-      .catch((error) => showAppToast(error instanceof Error ? error.message : 'Não foi possível carregar o CRM.', 'error'))
-      .finally(() => setLoading(false));
-  };
+  const contatosQuery = useQuery({
+    queryKey: ['crm-contatos', clienteId],
+    queryFn: () => listContatos(clienteId as string),
+    enabled: !!clienteId,
+  });
+  const empresasQuery = useQuery({
+    queryKey: ['crm-empresas', clienteId],
+    queryFn: () => listEmpresas(clienteId as string),
+    enabled: !!clienteId,
+  });
+  const contatos = contatosQuery.data ?? [];
+  const empresas = empresasQuery.data ?? [];
+  const loading = contatosQuery.isLoading || empresasQuery.isLoading;
 
-  useEffect(carregarListas, [clienteId]);
-
+  // Seleciona o 1º contato automaticamente só na 1ª carga (sem selectedId ainda) -- mesmo
+  // comportamento de antes, sem sobrescrever uma seleção que o usuário já tenha feito.
   useEffect(() => {
-    if (!selectedId) { setDetalhe(null); return; }
-    setDetalheLoading(true);
-    getContato360(selectedId)
-      .then(setDetalhe)
-      .catch((error) => showAppToast(error instanceof Error ? error.message : 'Não foi possível carregar o perfil do contato.', 'error'))
-      .finally(() => setDetalheLoading(false));
-  }, [selectedId]);
+    if (selectedId || contatos.length === 0) return;
+    setSelectedId(contatos[0].id);
+  }, [contatos, selectedId]);
+
+  const detalheQuery = useQuery({
+    queryKey: ['crm-contato-360', selectedId],
+    queryFn: () => getContato360(selectedId as string),
+    enabled: !!selectedId,
+  });
+  const detalhe = detalheQuery.data ?? null;
+  const detalheLoading = detalheQuery.isLoading;
+
+  const createContatoMutation = useMutation({
+    mutationFn: (input: CrmContatoInput) => createContato(clienteId as string, input),
+    onSuccess: (novo) => {
+      queryClient.invalidateQueries({ queryKey: ['crm-contatos', clienteId] });
+      setSelectedId(novo.id);
+      setIsContatoFormOpen(false);
+      showAppToast('Contato criado.', 'success');
+    },
+    onError: (error) => showAppToast(error instanceof Error ? error.message : 'Não foi possível salvar o contato.', 'error'),
+  });
+
+  const createEmpresaMutation = useMutation({
+    mutationFn: (input: CrmEmpresaInput) => createEmpresa(clienteId as string, input),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['crm-empresas', clienteId] });
+      setEmpresaForm(emptyEmpresaForm);
+      setIsEmpresaFormOpen(false);
+      showAppToast('Empresa criada.', 'success');
+    },
+    onError: (error) => showAppToast(error instanceof Error ? error.message : 'Não foi possível salvar a empresa.', 'error'),
+  });
 
   const filtered = useMemo(() => {
     const query = normalizeFilterText(search);
@@ -87,38 +108,16 @@ export function CrmContatos() {
 
   const openContatoForm = () => { setContatoForm(emptyContatoForm); setIsContatoFormOpen(true); };
 
-  const saveContato = async () => {
+  const saveContato = () => {
     if (!contatoForm.nome.trim()) { showAppToast('Informe o nome do contato.', 'warning'); return; }
     if (!clienteId) return;
-    setSalvandoContato(true);
-    try {
-      const novo = await createContato(clienteId, contatoForm);
-      setContatos((current) => [novo, ...current]);
-      setSelectedId(novo.id);
-      setIsContatoFormOpen(false);
-      showAppToast('Contato criado.', 'success');
-    } catch (error) {
-      showAppToast(error instanceof Error ? error.message : 'Não foi possível salvar o contato.', 'error');
-    } finally {
-      setSalvandoContato(false);
-    }
+    createContatoMutation.mutate(contatoForm);
   };
 
-  const saveEmpresa = async () => {
+  const saveEmpresa = () => {
     if (!empresaForm.nome.trim()) { showAppToast('Informe o nome da empresa.', 'warning'); return; }
     if (!clienteId) return;
-    setSalvandoEmpresa(true);
-    try {
-      const nova = await createEmpresa(clienteId, empresaForm);
-      setEmpresas((current) => [nova, ...current].sort((a, b) => a.nome.localeCompare(b.nome)));
-      setEmpresaForm(emptyEmpresaForm);
-      setIsEmpresaFormOpen(false);
-      showAppToast('Empresa criada.', 'success');
-    } catch (error) {
-      showAppToast(error instanceof Error ? error.message : 'Não foi possível salvar a empresa.', 'error');
-    } finally {
-      setSalvandoEmpresa(false);
-    }
+    createEmpresaMutation.mutate(empresaForm);
   };
 
   if (!podeVer) {
@@ -266,7 +265,7 @@ export function CrmContatos() {
                 </div>
               </section>
             </div>
-            <div className="unit-modal-footer"><button onClick={() => setIsContatoFormOpen(false)}>Cancelar</button><button className="primary" disabled={salvandoContato} onClick={() => void saveContato()}>{salvandoContato ? 'Salvando...' : 'Salvar contato'}</button></div>
+            <div className="unit-modal-footer"><button onClick={() => setIsContatoFormOpen(false)}>Cancelar</button><button className="primary" disabled={createContatoMutation.isPending} onClick={saveContato}>{createContatoMutation.isPending ? 'Salvando...' : 'Salvar contato'}</button></div>
           </div>
         </div>
       )}
@@ -280,7 +279,7 @@ export function CrmContatos() {
               <label><span className="form-label-text">Documento</span><input value={empresaForm.documento} onChange={(event) => setEmpresaForm((current) => ({ ...current, documento: event.target.value }))} placeholder="CNPJ" /></label>
               <label><span className="form-label-text">Observação</span><input value={empresaForm.observacao} onChange={(event) => setEmpresaForm((current) => ({ ...current, observacao: event.target.value }))} placeholder="Observação livre" /></label>
             </div>
-            <div className="unit-modal-footer"><button onClick={() => setIsEmpresaFormOpen(false)}>Cancelar</button><button className="primary" disabled={salvandoEmpresa} onClick={() => void saveEmpresa()}>{salvandoEmpresa ? 'Salvando...' : 'Salvar empresa'}</button></div>
+            <div className="unit-modal-footer"><button onClick={() => setIsEmpresaFormOpen(false)}>Cancelar</button><button className="primary" disabled={createEmpresaMutation.isPending} onClick={saveEmpresa}>{createEmpresaMutation.isPending ? 'Salvando...' : 'Salvar empresa'}</button></div>
           </div>
         </div>
       )}

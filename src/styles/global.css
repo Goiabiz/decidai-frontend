@@ -12037,3 +12037,31 @@ td small {
 .page-header-compact h1 {
   font-size: 21px;
 }
+
+/* Missão "conversão React Query + ajustes visuais" (29/08, frente B, pedido direto do
+   usuário): menu lateral e título de topo já tinham sido reduzidos hoje mesmo (regras acima),
+   mas o usuário quer mais um pouco. Mesmo truque de cascata de sempre -- mesmo seletor, por
+   último no arquivo, pra vencer sem !important nem mexer nas regras anteriores. */
+.sidebar nav button {
+  font-size: 11px;
+}
+
+/* Achado real testando de verdade no navegador (Playwright + sessão real): a regra acima
+   NUNCA teve efeito visual nos botões de GRUPO do menu (ex.: "Área de Trabalho", "Cadastros")
+   -- o menu foi redesenhado em algum ponto pra grupos expansíveis (Layout.tsx, className
+   "nav-group-button") e essa classe tem `font-size: 17px !important` (linha ~4784). Uma regra
+   sem !important nunca vence uma com !important, não importa a especificidade nem a ordem --
+   as reduções anteriores desse texto, documentadas como aplicadas, nunca chegaram a valer pra
+   esses botões (só os itens de submenu, sem essa classe, refletiam a mudança). Forçado a
+   quebrar a convenção de "nunca usar !important" só aqui, porque a regra concorrente já usa. */
+.nav-group-button {
+  font-size: 11px !important;
+}
+
+.page-header h1 {
+  font-size: 17px;
+}
+
+.page-header-compact h1 {
+  font-size: 19px;
+}
