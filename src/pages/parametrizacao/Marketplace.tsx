@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ExternalLink, Handshake, LayoutGrid, ListChecks, Package } from 'lucide-react';
 import { PageHeader } from '../../components/PageHeader';
 import { Badge } from '../../components/Badge';
@@ -67,40 +68,47 @@ export function Marketplace() {
   const { isSupport, session } = useSession();
   const clienteId = session?.activeClientId ?? null;
   const [tab, setTab] = useState<'vitrine' | 'solicitacoes' | 'packs'>('vitrine');
-  const [items, setItems] = useState<MarketplaceItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [submissions, setSubmissions] = useState<PartnerSubmission[]>([]);
-  const [loadingSubmissions, setLoadingSubmissions] = useState(false);
-  const [packs, setPacks] = useState<BusinessPack[]>([]);
-  const [acquisitions, setAcquisitions] = useState<BusinessPackAcquisition[]>([]);
-  const [loadingPacks, setLoadingPacks] = useState(false);
+  const queryClient = useQueryClient();
   const [acquiringPackId, setAcquiringPackId] = useState<string | null>(null);
 
-  useEffect(() => {
-    setLoading(true);
-    listMarketplaceCatalog().then((result) => setItems(result.items)).finally(() => setLoading(false));
-  }, []);
+  const catalogQuery = useQuery({
+    queryKey: ['marketplace-catalogo'],
+    queryFn: () => listMarketplaceCatalog(),
+  });
+  const items = catalogQuery.data?.items ?? [];
+  const loading = catalogQuery.isLoading;
+
+  // `enabled` substitui os early-returns dos useEffect antigos: a consulta só roda na aba certa
+  // (e, no caso das solicitações, só pra staff) -- mesmo gate, agora declarativo.
+  const submissionsQuery = useQuery({
+    queryKey: ['marketplace-solicitacoes'],
+    queryFn: () => listPartnerSubmissions(),
+    enabled: tab === 'solicitacoes' && isSupport,
+  });
+  const submissions = submissionsQuery.data?.items ?? [];
+  const loadingSubmissions = submissionsQuery.isLoading;
+
+  const packsQuery = useQuery({
+    queryKey: ['marketplace-packs', clienteId],
+    queryFn: async () => {
+      const [packsResult, acquisitionsResult] = await Promise.all([
+        listPublishedBusinessPacks(),
+        clienteId ? listBusinessPackAcquisitions(clienteId) : Promise.resolve([]),
+      ]);
+      return { packs: packsResult, acquisitions: acquisitionsResult };
+    },
+    enabled: tab === 'packs',
+  });
+  const packs: BusinessPack[] = packsQuery.data?.packs ?? [];
+  const acquisitions: BusinessPackAcquisition[] = packsQuery.data?.acquisitions ?? [];
+  const loadingPacks = packsQuery.isLoading;
+  const loadPacks = () => queryClient.invalidateQueries({ queryKey: ['marketplace-packs', clienteId] });
 
   useEffect(() => {
-    if (tab !== 'solicitacoes' || !isSupport) return;
-    setLoadingSubmissions(true);
-    listPartnerSubmissions().then((result) => setSubmissions(result.items)).finally(() => setLoadingSubmissions(false));
-  }, [tab, isSupport]);
-
-  const loadPacks = () => {
-    if (tab !== 'packs') return;
-    setLoadingPacks(true);
-    const acquisitionsPromise = clienteId ? listBusinessPackAcquisitions(clienteId) : Promise.resolve([]);
-    Promise.all([listPublishedBusinessPacks(), acquisitionsPromise])
-      .then(([packsResult, acquisitionsResult]) => {
-        setPacks(packsResult);
-        setAcquisitions(acquisitionsResult);
-      })
-      .catch((error) => showAppToast(error instanceof Error ? error.message : 'Falha ao carregar packs.', 'warning'))
-      .finally(() => setLoadingPacks(false));
-  };
-
-  useEffect(loadPacks, [tab, clienteId]);
+    if (packsQuery.error) {
+      showAppToast(packsQuery.error instanceof Error ? packsQuery.error.message : 'Falha ao carregar packs.', 'warning');
+    }
+  }, [packsQuery.error]);
 
   const acquiredPackIds = useMemo(
     () => new Set(acquisitions.filter((a) => a.status === 'ativo').map((a) => a.packId)),
@@ -154,10 +162,18 @@ export function Marketplace() {
     return Array.from(map.entries());
   }, [items]);
 
-  const decideSubmission = async (submission: PartnerSubmission, status: 'aprovado' | 'rejeitado') => {
-    await updateSubmissionStatus(submission.id, status);
-    setSubmissions((current) => current.map((item) => (item.id === submission.id ? { ...item, status } : item)));
-    showAppToast(status === 'aprovado' ? 'Submissão aprovada.' : 'Submissão rejeitada.', 'success');
+  const decideMutation = useMutation({
+    mutationFn: ({ submission, status }: { submission: PartnerSubmission; status: 'aprovado' | 'rejeitado' }) =>
+      updateSubmissionStatus(submission.id, status),
+    onSuccess: (_data, { status }) => {
+      queryClient.invalidateQueries({ queryKey: ['marketplace-solicitacoes'] });
+      showAppToast(status === 'aprovado' ? 'Submissão aprovada.' : 'Submissão rejeitada.', 'success');
+    },
+    onError: (error) => showAppToast(error instanceof Error ? error.message : 'Não foi possível decidir a submissão.', 'error'),
+  });
+
+  const decideSubmission = (submission: PartnerSubmission, status: 'aprovado' | 'rejeitado') => {
+    decideMutation.mutate({ submission, status });
   };
 
   return (

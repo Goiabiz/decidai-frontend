@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Bot, Camera, Info, Plus, Search, SlidersHorizontal, X } from 'lucide-react';
 import { showAppToast } from '../../lib/appToast';
 import { filterAgentEnabledProviders, listV35IntegrationCatalog, providerDomain, type V35IntegrationCatalogItem } from '../../services/v35Supabase';
@@ -89,11 +90,8 @@ function AgentIcon({ agent, size }: { agent: Pick<AgentRecord, 'name' | 'avatarU
 export function Agentes(_props: AgentesProps) {
   const { session } = useSession();
   const clienteId = session?.activeClientId ?? null;
+  const queryClient = useQueryClient();
 
-  const [agents, setAgents] = useState<AgentRecord[]>([]);
-  const [providers, setProviders] = useState<V35IntegrationCatalogItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [salvando, setSalvando] = useState(false);
   const [query, setQuery] = useState('');
   const [modal, setModal] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -120,26 +118,63 @@ export function Agentes(_props: AgentesProps) {
 
   // Só carrega o catálogo de conectores pra sugerir defaults em "Novo agente" -- não expõe
   // fonte/contagem/catálogo na tela (informação interna de motor, não do agente do cliente).
-  const loadV35 = async () => {
-    const catalog = await listV35IntegrationCatalog();
-    setProviders(filterAgentEnabledProviders(catalog.data));
-  };
+  const providersQuery = useQuery({
+    queryKey: ['v35-integration-catalog-agentes'],
+    queryFn: async () => filterAgentEnabledProviders((await listV35IntegrationCatalog()).data),
+  });
+  const providers: V35IntegrationCatalogItem[] = providersQuery.data ?? [];
 
-  useEffect(() => { void loadV35(); }, []);
+  const agentsQuery = useQuery({
+    queryKey: ['agentes', clienteId],
+    queryFn: () => listAgents(clienteId as string),
+    enabled: !!clienteId,
+  });
+  const agents = agentsQuery.data?.items ?? [];
+  const loading = agentsQuery.isLoading;
 
-  useEffect(() => {
-    if (!clienteId) { setLoading(false); return; }
-    setLoading(true);
-    listAgents(clienteId)
-      .then((result) => {
-        setAgents(result.items);
-        // Não seleciona nenhum agente sozinho -- a tela mostrava o painel de detalhe (com
-        // "Testar agente"/"Configurar") assim que abria, mesmo sem o usuário ter clicado em
-        // nada. Só mostra depois de um clique real na lista (pedido direto do usuário).
-        setSelected(null);
-      })
-      .finally(() => setLoading(false));
-  }, [clienteId]);
+  // Não seleciona nenhum agente sozinho -- a tela mostrava o painel de detalhe (com "Testar
+  // agente"/"Configurar") assim que abria, mesmo sem clique do usuário (pedido direto dele).
+  // Com React Query a lista pode revalidar em background, então a limpeza é presa à troca de
+  // tenant, não à chegada dos dados -- senão o painel fecharia sozinho a cada refetch.
+  useEffect(() => { setSelected(null); }, [clienteId]);
+
+  const invalidarAgentes = () => queryClient.invalidateQueries({ queryKey: ['agentes', clienteId] });
+
+  const toggleStatusMutation = useMutation({
+    mutationFn: (agent: AgentRecord) => updateAgent(clienteId as string, agent.id, {
+      ...agent,
+      status: agent.status === 'ativo' ? 'configurando' : 'ativo',
+    }),
+    onSuccess: ({ item }) => {
+      invalidarAgentes();
+      setSelected(item);
+      window.dispatchEvent(new CustomEvent(CLIENT_AGENT_STATUS_EVENT, { detail: { clienteId } }));
+      showAppToast(item.status === 'ativo' ? 'Agente ativado -- ícone disponível em todo o ambiente.' : 'Agente desativado.', 'success');
+    },
+  });
+
+  const saveMutation = useMutation({
+    mutationFn: async ({ activateAfter }: { activateAfter: boolean }) => {
+      // "Salvar e ativar" poupa o clique extra em "Ativar agente" logo depois de configurar
+      // (pedido direto do usuário) -- grava status='ativo' na mesma chamada.
+      const status = activateAfter ? 'ativo' : form.status;
+      if (editingId) {
+        const avatarUrl = avatarFile ? await uploadAvatar(clienteId as string, `agente-${editingId}`, avatarFile) : form.avatarUrl;
+        return (await updateAgent(clienteId as string, editingId, { ...form, avatarUrl, status })).item;
+      }
+      const { item: created } = await createAgent(clienteId as string, { ...form, avatarUrl: '', status });
+      return avatarFile
+        ? (await updateAgent(clienteId as string, created.id, { ...form, status, avatarUrl: await uploadAvatar(clienteId as string, `agente-${created.id}`, avatarFile) })).item
+        : created;
+    },
+    onSuccess: (item, { activateAfter }) => {
+      invalidarAgentes();
+      setSelected(item);
+      showAppToast(editingId ? 'Agente atualizado.' : 'Agente criado.', 'success');
+      setModal(false);
+      if (activateAfter) window.dispatchEvent(new CustomEvent(CLIENT_AGENT_STATUS_EVENT, { detail: { clienteId } }));
+    },
+  });
 
   const filteredAgents = useMemo(() => {
     const normalized = query.trim().toLowerCase();
@@ -150,14 +185,9 @@ export function Agentes(_props: AgentesProps) {
 
   const selectAgent = (agent: AgentRecord) => setSelected(agent);
 
-  const toggleAgentStatus = async (agent: AgentRecord) => {
+  const toggleAgentStatus = (agent: AgentRecord) => {
     if (!clienteId) return;
-    const nextStatus = agent.status === 'ativo' ? 'configurando' : 'ativo';
-    const { item } = await updateAgent(clienteId, agent.id, { ...agent, status: nextStatus });
-    setAgents((current) => current.map((entry) => entry.id === agent.id ? item : entry));
-    setSelected(item);
-    window.dispatchEvent(new CustomEvent(CLIENT_AGENT_STATUS_EVENT, { detail: { clienteId } }));
-    showAppToast(nextStatus === 'ativo' ? 'Agente ativado -- ícone disponível em todo o ambiente.' : 'Agente desativado.', 'success');
+    toggleStatusMutation.mutate(agent);
   };
 
   const openNew = () => {
@@ -192,7 +222,7 @@ export function Agentes(_props: AgentesProps) {
     reader.readAsDataURL(file);
   };
 
-  const save = async (activateAfter: boolean) => {
+  const save = (activateAfter: boolean) => {
     if (!form.name.trim()) {
       showAppToast('Informe o nome do agente.', 'warning');
       return;
@@ -201,31 +231,7 @@ export function Agentes(_props: AgentesProps) {
       showAppToast('Acesse o contexto de um cliente antes de cadastrar.', 'warning');
       return;
     }
-    setSalvando(true);
-    try {
-      // "Salvar e ativar" poupa o clique extra em "Ativar agente" logo depois de configurar
-      // (pedido direto do usuário) -- grava status='ativo' na mesma chamada.
-      const status = activateAfter ? 'ativo' : form.status;
-      if (editingId) {
-        const avatarUrl = avatarFile ? await uploadAvatar(clienteId, `agente-${editingId}`, avatarFile) : form.avatarUrl;
-        const { item } = await updateAgent(clienteId, editingId, { ...form, avatarUrl, status });
-        setAgents((current) => current.map((entry) => entry.id === editingId ? item : entry));
-        setSelected(item);
-        showAppToast('Agente atualizado.', 'success');
-      } else {
-        const { item: created } = await createAgent(clienteId, { ...form, avatarUrl: '', status });
-        const item = avatarFile
-          ? (await updateAgent(clienteId, created.id, { ...form, status, avatarUrl: await uploadAvatar(clienteId, `agente-${created.id}`, avatarFile) })).item
-          : created;
-        setAgents((current) => [item, ...current]);
-        setSelected(item);
-        showAppToast('Agente criado.', 'success');
-      }
-      setModal(false);
-      if (activateAfter) window.dispatchEvent(new CustomEvent(CLIENT_AGENT_STATUS_EVENT, { detail: { clienteId } }));
-    } finally {
-      setSalvando(false);
-    }
+    saveMutation.mutate({ activateAfter });
   };
 
   if (!clienteId) {
@@ -358,8 +364,8 @@ export function Agentes(_props: AgentesProps) {
             </div>
             <footer>
               <button className="v3464-secondary-btn" onClick={() => setModal(false)}>Cancelar</button>
-              <button className="v3464-secondary-btn" disabled={salvando} onClick={() => void save(false)}>{salvando ? 'Salvando...' : 'Salvar'}</button>
-              <button className="v3464-primary-btn" disabled={salvando} onClick={() => void save(true)}>{salvando ? 'Salvando...' : 'Salvar e ativar'}</button>
+              <button className="v3464-secondary-btn" disabled={saveMutation.isPending} onClick={() => save(false)}>{saveMutation.isPending ? 'Salvando...' : 'Salvar'}</button>
+              <button className="v3464-primary-btn" disabled={saveMutation.isPending} onClick={() => save(true)}>{saveMutation.isPending ? 'Salvando...' : 'Salvar e ativar'}</button>
             </footer>
           </section>
         </div>
