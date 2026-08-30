@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { X } from 'lucide-react';
 import { PageHeader } from '../components/PageHeader';
 import { KpiCard } from '../components/KpiCard';
+import { CollapsibleKpiSection } from '../components/CollapsibleKpiSection';
 import { Badge } from '../components/Badge';
 import { showAppToast } from '../lib/appToast';
 import { useSession } from '../contexts/SessionContext';
@@ -124,12 +125,14 @@ export function Concorrentes() {
     <>
       <PageHeader title="Concorrentes" />
 
-      <div className="kpi-grid four">
-        <KpiCard label="Concorrentes monitorados" value={String(sources.length)} trend={`${activeSources} ativos`} tone="green" />
-        <KpiCard label="Leituras registradas" value={String(signals.length)} trend="páginas lidas até agora" tone="blue" />
-        <KpiCard label="Mudanças detectadas" value={String(changedSignals)} trend="resumidas por IA" tone="orange" />
-        <KpiCard label="Fontes ativas" value={String(activeSources)} trend={`${sources.length} cadastradas`} tone="purple" />
-      </div>
+      <CollapsibleKpiSection>
+        <div className="kpi-grid four">
+          <KpiCard label="Concorrentes monitorados" value={String(sources.length)} trend={`${activeSources} ativos`} tone="green" />
+          <KpiCard label="Leituras registradas" value={String(signals.length)} trend="páginas lidas até agora" tone="blue" />
+          <KpiCard label="Mudanças detectadas" value={String(changedSignals)} trend="resumidas por IA" tone="orange" />
+          <KpiCard label="Fontes ativas" value={String(activeSources)} trend={`${sources.length} cadastradas`} tone="purple" />
+        </div>
+      </CollapsibleKpiSection>
 
       <section className="workspace-settings-panel">
         <div className="workspace-settings-header">

@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { AlertTriangle, CheckCircle2, Clock, Gavel, Search, XCircle } from 'lucide-react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Badge } from '../components/Badge';
 import { showAppToast } from '../lib/appToast';
 import { formatDate } from '../lib/formatDate';
@@ -23,9 +24,16 @@ function asStringList(value: unknown[]): string[] {
 export function Decisoes() {
   const { session } = useSession();
   const clienteId = session?.activeClientId ?? null;
+  const queryClient = useQueryClient();
 
-  const [items, setItems] = useState<Decision[]>([]);
-  const [loading, setLoading] = useState(true);
+  const decisionsQuery = useQuery({
+    queryKey: ['decisions', clienteId],
+    queryFn: () => listDecisions(clienteId as string),
+    enabled: !!clienteId,
+  });
+  const items = decisionsQuery.data ?? [];
+  const loading = decisionsQuery.isLoading;
+
   const [query, setQuery] = useState('');
   const [selected, setSelected] = useState<Decision | null>(null);
   const [reviewForm, setReviewForm] = useState<{ status: DecisionStatus; decisaoTomada: string; justificativa: string; resultadoObservado: string }>({
@@ -34,13 +42,25 @@ export function Decisoes() {
     justificativa: '',
     resultadoObservado: '',
   });
-  const [salvando, setSalvando] = useState(false);
 
-  useEffect(() => {
-    if (!clienteId) { setLoading(false); return; }
-    setLoading(true);
-    listDecisions(clienteId).then((rows) => setItems(rows)).finally(() => setLoading(false));
-  }, [clienteId]);
+  const reviewMutation = useMutation({
+    mutationFn: (input: { id: string; status: DecisionStatus; decisaoTomada?: string; justificativa?: string; resultadoObservado?: string }) =>
+      reviewDecision(input.id, {
+        status: input.status,
+        decisaoTomada: input.decisaoTomada,
+        justificativa: input.justificativa,
+        resultadoObservado: input.resultadoObservado,
+      }),
+    onSuccess: (result) => {
+      if (!result.ok || !result.decision) {
+        showAppToast(result.error || 'Não foi possível salvar a revisão.', 'error');
+        return;
+      }
+      queryClient.invalidateQueries({ queryKey: ['decisions', clienteId] });
+      showAppToast('Revisão salva.', 'success');
+      closeReview();
+    },
+  });
 
   const filtered = useMemo(() => {
     const normalized = query.trim().toLowerCase();
@@ -67,26 +87,15 @@ export function Decisoes() {
 
   const closeReview = () => setSelected(null);
 
-  const salvarRevisao = async () => {
+  const salvarRevisao = () => {
     if (!selected) return;
-    setSalvando(true);
-    try {
-      const result = await reviewDecision(selected.id, {
-        status: reviewForm.status,
-        decisaoTomada: reviewForm.decisaoTomada.trim() || undefined,
-        justificativa: reviewForm.justificativa.trim() || undefined,
-        resultadoObservado: reviewForm.resultadoObservado.trim() || undefined,
-      });
-      if (!result.ok || !result.decision) {
-        showAppToast(result.error || 'Não foi possível salvar a revisão.', 'error');
-        return;
-      }
-      setItems((current) => current.map((item) => (item.id === selected.id ? (result.decision as Decision) : item)));
-      showAppToast('Revisão salva.', 'success');
-      closeReview();
-    } finally {
-      setSalvando(false);
-    }
+    reviewMutation.mutate({
+      id: selected.id,
+      status: reviewForm.status,
+      decisaoTomada: reviewForm.decisaoTomada.trim() || undefined,
+      justificativa: reviewForm.justificativa.trim() || undefined,
+      resultadoObservado: reviewForm.resultadoObservado.trim() || undefined,
+    });
   };
 
   if (!clienteId) {
@@ -192,7 +201,7 @@ export function Decisoes() {
 
             <footer>
               <button className="v3464-secondary-btn" onClick={closeReview}>Cancelar</button>
-              <button className="v3464-primary-btn" onClick={() => void salvarRevisao()} disabled={salvando}>{salvando ? 'Salvando...' : 'Salvar revisão'}</button>
+              <button className="v3464-primary-btn" onClick={salvarRevisao} disabled={reviewMutation.isPending}>{reviewMutation.isPending ? 'Salvando...' : 'Salvar revisão'}</button>
             </footer>
           </section>
         </div>

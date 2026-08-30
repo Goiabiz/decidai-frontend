@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { X } from 'lucide-react';
 import { PageHeader } from '../components/PageHeader';
 import { KpiCard } from '../components/KpiCard';
+import { CollapsibleKpiSection } from '../components/CollapsibleKpiSection';
 import { Badge } from '../components/Badge';
 import { showAppToast } from '../lib/appToast';
 import { useSession } from '../contexts/SessionContext';
@@ -151,12 +152,14 @@ export function CampanhasMarketing() {
     <>
       <PageHeader title="Campanhas de Marketing" />
 
-      <div className="kpi-grid four">
-        <KpiCard label="Campanhas monitoradas" value={String(stats.totalCampaigns)} trend="última sincronização" tone="green" />
-        <KpiCard label="Impressões" value={stats.totalImpressions.toLocaleString('pt-BR')} trend="soma de todas as fontes" tone="blue" />
-        <KpiCard label="Cliques" value={stats.totalClicks.toLocaleString('pt-BR')} trend="soma de todas as fontes" tone="purple" />
-        <KpiCard label="Gasto" value={formatCurrencyBrl(stats.totalSpend)} trend="Meta/Google Ads -- LinkedIn Ads sem métrica ainda" tone="orange" />
-      </div>
+      <CollapsibleKpiSection>
+        <div className="kpi-grid four">
+          <KpiCard label="Campanhas monitoradas" value={String(stats.totalCampaigns)} trend="última sincronização" tone="green" />
+          <KpiCard label="Impressões" value={stats.totalImpressions.toLocaleString('pt-BR')} trend="soma de todas as fontes" tone="blue" />
+          <KpiCard label="Cliques" value={stats.totalClicks.toLocaleString('pt-BR')} trend="soma de todas as fontes" tone="purple" />
+          <KpiCard label="Gasto" value={formatCurrencyBrl(stats.totalSpend)} trend="Meta/Google Ads -- LinkedIn Ads sem métrica ainda" tone="orange" />
+        </div>
+      </CollapsibleKpiSection>
 
       <section className="workspace-settings-panel">
         <div className="workspace-settings-header">

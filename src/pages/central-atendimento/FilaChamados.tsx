@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { LayoutGrid, List, Search } from 'lucide-react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Badge } from '../../components/Badge';
 import { PageHeader } from '../../components/PageHeader';
 import { KanbanBoard } from '../../components/KanbanBoard';
@@ -30,13 +31,22 @@ function tempoAberto(chamado: Atendimento): string {
   return formatDuracao(fim - inicio);
 }
 
+type FilaChamadosData = { chamados: Atendimento[]; source: AtendimentosLoadState };
+
 export function FilaChamados() {
   const { session } = useSession();
   const clienteId = session?.activeClientId ?? null;
+  const queryClient = useQueryClient();
 
-  const [chamados, setChamados] = useState<Atendimento[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [source, setSource] = useState<AtendimentosLoadState>('local');
+  const filaQuery = useQuery({
+    queryKey: ['fila-chamados', clienteId],
+    queryFn: () => listAtendimentosAdmin(clienteId as string),
+    enabled: !!clienteId,
+  });
+  const chamados = filaQuery.data?.chamados ?? [];
+  const loading = filaQuery.isLoading;
+  const source = filaQuery.data?.source ?? 'local';
+
   const [search, setSearch] = useState('');
   const [statusFiltro, setStatusFiltro] = useState('');
   const [, forceTick] = useState(0);
@@ -47,27 +57,38 @@ export function FilaChamados() {
     window.localStorage.setItem(VIEW_PREF_KEY, mode);
   };
 
-  const moveChamado = async (chamadoId: string, novoStatus: string) => {
+  // Drag-and-drop no Kanban precisa do card se mover na hora, sem esperar o round-trip de rede
+  // -- por isso usa o padrão de mutação otimista do React Query (onMutate/onError/onSettled)
+  // em vez do onSuccess+invalidateQueries simples do resto da conversão: aplica a mudança no
+  // cache antes da resposta do servidor, desfaz se a chamada falhar, revalida no final pra
+  // garantir consistência real (nunca fica com dado só otimista, sem confirmação do banco).
+  const moveChamadoMutation = useMutation({
+    mutationFn: ({ chamadoId, statusAnterior, novoStatus }: { chamadoId: string; statusAnterior: AtendimentoStatus; novoStatus: AtendimentoStatus }) =>
+      updateAtendimentoStatus(chamadoId, statusAnterior, novoStatus),
+    onMutate: async ({ chamadoId, novoStatus }) => {
+      await queryClient.cancelQueries({ queryKey: ['fila-chamados', clienteId] });
+      const previous = queryClient.getQueryData<FilaChamadosData>(['fila-chamados', clienteId]);
+      if (previous) {
+        queryClient.setQueryData<FilaChamadosData>(['fila-chamados', clienteId], {
+          ...previous,
+          chamados: previous.chamados.map((item) => (item.id === chamadoId ? { ...item, status: novoStatus } : item)),
+        });
+      }
+      return { previous };
+    },
+    onError: (_error, _variables, context) => {
+      if (context?.previous) queryClient.setQueryData(['fila-chamados', clienteId], context.previous);
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['fila-chamados', clienteId] });
+    },
+  });
+
+  const moveChamado = (chamadoId: string, novoStatus: string) => {
     const chamado = chamados.find((item) => item.id === chamadoId);
     if (!chamado || chamado.status === novoStatus) return;
-    setChamados((current) => current.map((item) => (item.id === chamadoId ? { ...item, status: novoStatus as AtendimentoStatus } : item)));
-    await updateAtendimentoStatus(chamadoId, chamado.status, novoStatus as AtendimentoStatus);
+    moveChamadoMutation.mutate({ chamadoId, statusAnterior: chamado.status, novoStatus: novoStatus as AtendimentoStatus });
   };
-
-  useEffect(() => {
-    if (!clienteId) {
-      setChamados([]);
-      setLoading(false);
-      return;
-    }
-    setLoading(true);
-    listAtendimentosAdmin(clienteId)
-      .then(({ chamados: lista, source: src }) => {
-        setChamados(lista);
-        setSource(src);
-      })
-      .finally(() => setLoading(false));
-  }, [clienteId]);
 
   // Recalcula "tempo aberto" a cada minuto para os chamados ainda abertos.
   useEffect(() => {
@@ -124,7 +145,7 @@ export function FilaChamados() {
           <KanbanBoard
             columns={filaColumns}
             items={filtrados.map((chamado) => ({ ...chamado, columnId: chamado.status }))}
-            onMove={(itemId, columnId) => void moveChamado(itemId, columnId)}
+            onMove={(itemId, columnId) => moveChamado(itemId, columnId)}
             renderCard={(chamado) => (
               <>
                 <strong>{chamado.assunto}</strong>

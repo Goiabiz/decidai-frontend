@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Clock3, Gauge, Inbox, MessageCircleReply, Target } from 'lucide-react';
 import { PageHeader } from '../../components/PageHeader';
 import { KpiCard } from '../../components/KpiCard';
+import { CollapsibleKpiSection } from '../../components/CollapsibleKpiSection';
 import { useSession } from '../../contexts/SessionContext';
 import { listAtendimentoSla, type AtendimentoSla } from '../../services/atendimentos';
 import StandardReportPage, { type StandardReportRow } from './StandardReportPage';
@@ -161,30 +162,32 @@ export default function RelatorioSLA() {
     <>
       <PageHeader title="SLA de Atendimento" subtitle="Tempo de primeira resposta, tempo de resolução e volume real por canal, medidos a partir dos atendimentos do Unified Inbox e da Central de Atendimento." />
 
-      <div className="kpi-grid four">
-        <KpiCard label="Atendimentos no período" value={String(resumo.total)} icon={<Inbox size={20} />} tone="blue" />
-        <KpiCard
-          label="Taxa de resposta"
-          value={resumo.taxaResposta === null ? '—' : `${resumo.taxaResposta.toFixed(0)}%`}
-          tooltip="Percentual de atendimentos com pelo menos uma resposta pública da equipe."
-          icon={<MessageCircleReply size={20} />}
-          tone="green"
-        />
-        <KpiCard
-          label="Tempo médio de 1ª resposta"
-          value={formatDuracao(resumo.mediaPrimeiraResposta)}
-          tooltip="Do momento em que o atendimento foi criado até a primeira resposta pública de um usuário da equipe."
-          icon={<Clock3 size={20} />}
-          tone="orange"
-        />
-        <KpiCard
-          label="Tempo médio de resolução"
-          value={formatDuracao(resumo.mediaResolucao)}
-          tooltip="Do momento em que o atendimento foi criado até ele entrar em status Concluído ou Cancelado."
-          icon={<Gauge size={20} />}
-          tone="purple"
-        />
-      </div>
+      <CollapsibleKpiSection>
+        <div className="kpi-grid four">
+          <KpiCard label="Atendimentos no período" value={String(resumo.total)} icon={<Inbox size={20} />} tone="blue" />
+          <KpiCard
+            label="Taxa de resposta"
+            value={resumo.taxaResposta === null ? '—' : `${resumo.taxaResposta.toFixed(0)}%`}
+            tooltip="Percentual de atendimentos com pelo menos uma resposta pública da equipe."
+            icon={<MessageCircleReply size={20} />}
+            tone="green"
+          />
+          <KpiCard
+            label="Tempo médio de 1ª resposta"
+            value={formatDuracao(resumo.mediaPrimeiraResposta)}
+            tooltip="Do momento em que o atendimento foi criado até a primeira resposta pública de um usuário da equipe."
+            icon={<Clock3 size={20} />}
+            tone="orange"
+          />
+          <KpiCard
+            label="Tempo médio de resolução"
+            value={formatDuracao(resumo.mediaResolucao)}
+            tooltip="Do momento em que o atendimento foi criado até ele entrar em status Concluído ou Cancelado."
+            icon={<Gauge size={20} />}
+            tone="purple"
+          />
+        </div>
+      </CollapsibleKpiSection>
 
       <section className="card roadmap-card">
         <div className="section-title-row">
@@ -237,22 +240,24 @@ export default function RelatorioSLA() {
           </p>
         ) : (
           <>
-            <div className="kpi-grid" style={{ gridTemplateColumns: 'repeat(2, 1fr)', marginBottom: 18 }}>
-              <KpiCard
-                label="Dentro da meta de 1ª resposta"
-                value={percentual(resumo.dentroPrimeiraResposta, resumo.avaliadosPrimeiraResposta)}
-                trend={`${resumo.dentroPrimeiraResposta} de ${resumo.avaliadosPrimeiraResposta} avaliados`}
-                icon={<Target size={20} />}
-                tone="green"
-              />
-              <KpiCard
-                label="Dentro da meta de resolução"
-                value={percentual(resumo.dentroResolucao, resumo.avaliadosResolucao)}
-                trend={`${resumo.dentroResolucao} de ${resumo.avaliadosResolucao} avaliados`}
-                icon={<Target size={20} />}
-                tone="purple"
-              />
-            </div>
+            <CollapsibleKpiSection>
+              <div className="kpi-grid" style={{ gridTemplateColumns: 'repeat(2, 1fr)', marginBottom: 18 }}>
+                <KpiCard
+                  label="Dentro da meta de 1ª resposta"
+                  value={percentual(resumo.dentroPrimeiraResposta, resumo.avaliadosPrimeiraResposta)}
+                  trend={`${resumo.dentroPrimeiraResposta} de ${resumo.avaliadosPrimeiraResposta} avaliados`}
+                  icon={<Target size={20} />}
+                  tone="green"
+                />
+                <KpiCard
+                  label="Dentro da meta de resolução"
+                  value={percentual(resumo.dentroResolucao, resumo.avaliadosResolucao)}
+                  trend={`${resumo.dentroResolucao} de ${resumo.avaliadosResolucao} avaliados`}
+                  icon={<Target size={20} />}
+                  tone="purple"
+                />
+              </div>
+            </CollapsibleKpiSection>
             <p className="small-muted" style={{ marginBottom: 12 }}>
               Comparação por tempo corrido (do momento em que o atendimento foi criado até o evento
               real) contra o prazo configurado em minutos. Réguas com calendário "comercial" (horário

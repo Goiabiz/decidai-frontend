@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Pencil, Plus, RefreshCcw, Search, X } from 'lucide-react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { showAppToast } from '../../lib/appToast';
 import { filterChannelProviders, listV35IntegrationCatalog, type V35IntegrationCatalogItem, type V35LoadState } from '../../services/v35Supabase';
 import { useSession } from '../../contexts/SessionContext';
@@ -30,39 +31,56 @@ const ROTEAMENTO_HELP: Record<UnifiedInboxCanal, string> = {
 export function Canais(_props: CanaisProps) {
   const { session } = useSession();
   const clienteId = session?.activeClientId ?? null;
+  const queryClient = useQueryClient();
 
-  const [providers, setProviders] = useState<V35IntegrationCatalogItem[]>([]);
-  const [source, setSource] = useState<V35LoadState>('empty');
-  const [channelTypes, setChannelTypes] = useState<ChannelType[]>([]);
-  const [channels, setChannels] = useState<ChannelRecord[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [salvando, setSalvando] = useState(false);
   const [query, setQuery] = useState('');
   const [modal, setModal] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<ChannelRecord>(emptyChannel);
   const [selected, setSelected] = useState<ChannelRecord | null>(null);
 
-  const loadProviders = async () => {
-    const result = await listV35IntegrationCatalog();
-    const channelProviders = filterChannelProviders(result.data);
-    setProviders(channelProviders);
-    setSource(result.source);
-  };
+  const providersQuery = useQuery({
+    queryKey: ['v35-integration-catalog-canais'],
+    queryFn: async () => {
+      const result = await listV35IntegrationCatalog();
+      return { providers: filterChannelProviders(result.data), source: result.source };
+    },
+  });
+  const providers = providersQuery.data?.providers ?? [];
+  const source: V35LoadState = providersQuery.data?.source ?? 'empty';
 
-  useEffect(() => { void loadProviders(); }, []);
+  const channelTypesQuery = useQuery({
+    queryKey: ['canal-tipos', clienteId],
+    queryFn: () => listChannelTypes(),
+    enabled: !!clienteId,
+  });
+  const channelTypes = channelTypesQuery.data?.items ?? [];
 
+  const channelsQuery = useQuery({
+    queryKey: ['canais', clienteId],
+    queryFn: () => listChannels(clienteId as string),
+    enabled: !!clienteId,
+  });
+  const channels = channelsQuery.data?.items ?? [];
+  const loading = channelTypesQuery.isLoading || channelsQuery.isLoading;
+
+  // Seleciona o 1º canal automaticamente só na 1ª carga (sem seleção ainda), mesmo
+  // comportamento de antes, sem sobrescrever uma seleção que o usuário já tenha feito.
   useEffect(() => {
-    if (!clienteId) { setLoading(false); return; }
-    setLoading(true);
-    Promise.all([listChannelTypes(), listChannels(clienteId)])
-      .then(([types, list]) => {
-        setChannelTypes(types.items);
-        setChannels(list.items);
-        setSelected(list.items[0] ?? null);
-      })
-      .finally(() => setLoading(false));
-  }, [clienteId]);
+    if (selected || channels.length === 0) return;
+    setSelected(channels[0]);
+  }, [channels, selected]);
+
+  const saveMutation = useMutation({
+    mutationFn: (payload: ChannelRecord) =>
+      editingId ? updateChannel(clienteId as string, editingId, payload) : createChannel(clienteId as string, payload),
+    onSuccess: ({ item }) => {
+      queryClient.invalidateQueries({ queryKey: ['canais', clienteId] });
+      setSelected(item);
+      setModal(false);
+      showAppToast(editingId ? 'Canal atualizado.' : 'Canal criado.', 'success');
+    },
+  });
 
   const filtered = useMemo(() => {
     const normalized = query.trim().toLowerCase();
@@ -83,7 +101,7 @@ export function Canais(_props: CanaisProps) {
     setModal(true);
   };
 
-  const save = async () => {
+  const save = () => {
     if (!form.nome.trim()) {
       showAppToast('Informe o nome do canal.', 'warning');
       return;
@@ -94,23 +112,7 @@ export function Canais(_props: CanaisProps) {
     }
     const provider = providers.find((item) => item.code === form.providerCode);
     const payload = { ...form, providerName: provider?.name || form.providerName || 'Integração não selecionada' };
-    setSalvando(true);
-    try {
-      if (editingId) {
-        const { item } = await updateChannel(clienteId, editingId, payload);
-        setChannels((current) => current.map((entry) => entry.id === editingId ? item : entry));
-        setSelected(item);
-        showAppToast('Canal atualizado.', 'success');
-      } else {
-        const { item } = await createChannel(clienteId, payload);
-        setChannels((current) => [item, ...current]);
-        setSelected(item);
-        showAppToast('Canal criado.', 'success');
-      }
-      setModal(false);
-    } finally {
-      setSalvando(false);
-    }
+    saveMutation.mutate(payload);
   };
 
   if (!clienteId) {
@@ -146,7 +148,7 @@ export function Canais(_props: CanaisProps) {
           <div className="v36-status-strip">
             <span>Fonte de provedores: {source === 'supabase' ? 'Supabase v35' : 'local/fallback'}</span>
             <span>{providers.length} provedores técnicos disponíveis</span>
-            <button className="v36-link-button" onClick={loadProviders}><RefreshCcw size={14} /> Atualizar</button>
+            <button className="v36-link-button" onClick={() => providersQuery.refetch()}><RefreshCcw size={14} /> Atualizar</button>
           </div>
 
           <div className="v3464-search">
@@ -224,7 +226,7 @@ export function Canais(_props: CanaisProps) {
                 </label>
               )}
             </div>
-            <footer><button className="v3464-secondary-btn" onClick={() => setModal(false)}>Cancelar</button><button className="v3464-primary-btn" disabled={salvando} onClick={() => void save()}>{salvando ? 'Salvando...' : 'Salvar canal'}</button></footer>
+            <footer><button className="v3464-secondary-btn" onClick={() => setModal(false)}>Cancelar</button><button className="v3464-primary-btn" disabled={saveMutation.isPending} onClick={save}>{saveMutation.isPending ? 'Salvando...' : 'Salvar canal'}</button></footer>
           </section>
         </div>
       )}

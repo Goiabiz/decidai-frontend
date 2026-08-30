@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { X } from 'lucide-react';
 import { PageHeader } from '../components/PageHeader';
 import { KpiCard } from '../components/KpiCard';
+import { CollapsibleKpiSection } from '../components/CollapsibleKpiSection';
 import { Badge } from '../components/Badge';
 import { showAppToast } from '../lib/appToast';
 import { confirmApp } from '../lib/appConfirm';
@@ -225,12 +226,14 @@ export function Flows() {
     <>
       <PageHeader title="Flows" />
 
-      <div className="kpi-grid four">
-        <KpiCard label="Flows ativos" value={String(flows.filter((f) => f.isActive).length)} trend={`${flows.length} no total`} tone="green" />
-        <KpiCard label="Disparo manual" value={String(flows.filter((f) => f.triggerType === 'manual').length)} trend="rodam sob demanda" tone="blue" />
-        <KpiCard label="Disparo agendado" value={String(flows.filter((f) => f.triggerType === 'cron').length)} trend="rodam sozinhos" tone="purple" />
-        <KpiCard label="Passos sensíveis" value="—" trend="ações sempre pedem confirmação" tone="orange" />
-      </div>
+      <CollapsibleKpiSection>
+        <div className="kpi-grid four">
+          <KpiCard label="Flows ativos" value={String(flows.filter((f) => f.isActive).length)} trend={`${flows.length} no total`} tone="green" />
+          <KpiCard label="Disparo manual" value={String(flows.filter((f) => f.triggerType === 'manual').length)} trend="rodam sob demanda" tone="blue" />
+          <KpiCard label="Disparo agendado" value={String(flows.filter((f) => f.triggerType === 'cron').length)} trend="rodam sozinhos" tone="purple" />
+          <KpiCard label="Passos sensíveis" value="—" trend="ações sempre pedem confirmação" tone="orange" />
+        </div>
+      </CollapsibleKpiSection>
 
       <section className="workspace-settings-panel">
         <div className="workspace-settings-header">

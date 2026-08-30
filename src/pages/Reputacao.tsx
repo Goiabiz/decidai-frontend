@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { X } from 'lucide-react';
 import { PageHeader } from '../components/PageHeader';
 import { KpiCard } from '../components/KpiCard';
+import { CollapsibleKpiSection } from '../components/CollapsibleKpiSection';
 import { Badge } from '../components/Badge';
 import { showAppToast } from '../lib/appToast';
 import { useSession } from '../contexts/SessionContext';
@@ -168,12 +169,14 @@ export function Reputacao() {
     <>
       <PageHeader title="Reputação" />
 
-      <div className="kpi-grid four">
-        <KpiCard label="Nota média" value={stats.averageRating !== null ? stats.averageRating.toFixed(1) : '—'} trend={`${stats.totalSignals} sinais no total`} tone="green" />
-        <KpiCard label="Últimos 30 dias" value={String(stats.last30Days)} trend="novos sinais" tone="blue" />
-        <KpiCard label="Fontes ativas" value={String(activeSources)} trend={`${sources.length} cadastradas`} tone="purple" />
-        <KpiCard label="Fontes suportadas" value={String(REPUTATION_SOURCES.length)} trend="leitura-só" tone="orange" />
-      </div>
+      <CollapsibleKpiSection>
+        <div className="kpi-grid four">
+          <KpiCard label="Nota média" value={stats.averageRating !== null ? stats.averageRating.toFixed(1) : '—'} trend={`${stats.totalSignals} sinais no total`} tone="green" />
+          <KpiCard label="Últimos 30 dias" value={String(stats.last30Days)} trend="novos sinais" tone="blue" />
+          <KpiCard label="Fontes ativas" value={String(activeSources)} trend={`${sources.length} cadastradas`} tone="purple" />
+          <KpiCard label="Fontes suportadas" value={String(REPUTATION_SOURCES.length)} trend="leitura-só" tone="orange" />
+        </div>
+      </CollapsibleKpiSection>
 
       <section className="workspace-settings-panel">
         <div className="workspace-settings-header">

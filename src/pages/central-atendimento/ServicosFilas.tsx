@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { X } from 'lucide-react';
 import { PageHeader } from '../../components/PageHeader';
 import { KpiCard } from '../../components/KpiCard';
+import { CollapsibleKpiSection } from '../../components/CollapsibleKpiSection';
 import { Badge } from '../../components/Badge';
 import { showAppToast } from '../../lib/appToast';
 import { FlowCanvas, type FlowCanvasHandle } from '../../components/flow/FlowCanvas';
@@ -320,12 +321,14 @@ export function ServicosFilas({ onSelectDetail }: PageProps) {
     <>
       <PageHeader title="Serviços e Filas" />
 
-      <div className="kpi-grid four">
-        <KpiCard label="Serviços ativos" value={String(servicos.filter((item) => item.status === 'Ativo').length)} trend={`${servicos.length} no total`} tone="green" />
-        <KpiCard label="Filas ativas" value={String(filas.filter((item) => item.status === 'Ativo').length)} trend={`${grupos.length} grupos`} tone="blue" />
-        <KpiCard label="Fluxos configurados" value={String(fluxos.length)} trend="editor em canvas" tone="purple" />
-        <KpiCard label="SLAs configurados" value={String(slas.length)} trend={`${prioridades.length} prioridades`} tone="orange" />
-      </div>
+      <CollapsibleKpiSection>
+        <div className="kpi-grid four">
+          <KpiCard label="Serviços ativos" value={String(servicos.filter((item) => item.status === 'Ativo').length)} trend={`${servicos.length} no total`} tone="green" />
+          <KpiCard label="Filas ativas" value={String(filas.filter((item) => item.status === 'Ativo').length)} trend={`${grupos.length} grupos`} tone="blue" />
+          <KpiCard label="Fluxos configurados" value={String(fluxos.length)} trend="editor em canvas" tone="purple" />
+          <KpiCard label="SLAs configurados" value={String(slas.length)} trend={`${prioridades.length} prioridades`} tone="orange" />
+        </div>
+      </CollapsibleKpiSection>
 
       <section className="workspace-settings-panel">
         <div className="workspace-settings-header">
