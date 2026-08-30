@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Ban,
   Briefcase,
@@ -350,8 +351,8 @@ export function Usuarios({ onSelectDetail, onOpenDetail }: PageProps) {
   const { session } = useSession();
   const clienteId = session?.activeClientId ?? null;
 
-  const [usuarios, setUsuarios] = useState<UserRecord[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
+  const USUARIOS_KEY = ['usuarios-cliente', clienteId];
   const [perfisDisponiveis, setPerfisDisponiveis] = useState<PerfilAcesso[]>([]);
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('');
@@ -374,22 +375,29 @@ export function Usuarios({ onSelectDetail, onOpenDetail }: PageProps) {
   const [quickInvitePerfilId, setQuickInvitePerfilId] = useState('');
   const [quickInviteSubmitting, setQuickInviteSubmitting] = useState(false);
 
-  const carregar = async () => {
-    if (!clienteId) { setUsuarios([]); setLoading(false); return; }
-    setLoading(true);
-    try {
-      const items = await listUsuariosClienteFull(clienteId);
-      const mapped = items.map(mapUsuarioToRecord);
-      setUsuarios(mapped);
-      setSelectedUser((current) => current ? mapped.find((item) => item.id === current.id) ?? mapped[0] ?? null : mapped[0] ?? null);
-    } catch (error) {
-      showAppToast(error instanceof Error ? error.message : 'Não foi possível carregar os usuários.', 'error');
-    } finally {
-      setLoading(false);
-    }
-  };
+  const usuariosQuery = useQuery({
+    queryKey: USUARIOS_KEY,
+    queryFn: async () => (await listUsuariosClienteFull(clienteId as string)).map(mapUsuarioToRecord),
+    enabled: !!clienteId,
+  });
+  const usuarios = usuariosQuery.data ?? [];
+  const loading = usuariosQuery.isLoading;
+  // `carregar` continua existindo com o mesmo nome porque é chamada em vários pontos da tela
+  // (após convite, edição de perfil etc.) -- agora só dispara a revalidação da consulta.
+  const carregar = async () => { await queryClient.invalidateQueries({ queryKey: USUARIOS_KEY }); };
 
-  useEffect(() => { void carregar(); }, [clienteId]);
+  useEffect(() => {
+    if (usuariosQuery.error) {
+      showAppToast(usuariosQuery.error instanceof Error ? usuariosQuery.error.message : 'Não foi possível carregar os usuários.', 'error');
+    }
+  }, [usuariosQuery.error]);
+
+  // Mantém a seleção do painel de detalhe acompanhando a lista revalidada: se o usuário
+  // selecionado ainda existir, reaponta pra versão nova (dado fresco); senão cai pro 1º.
+  useEffect(() => {
+    if (usuarios.length === 0) return;
+    setSelectedUser((current) => (current ? usuarios.find((item) => item.id === current.id) ?? usuarios[0] : usuarios[0]));
+  }, [usuarios]);
 
   useEffect(() => {
     if (!clienteId) { setPerfisDisponiveis([]); return; }
@@ -549,15 +557,29 @@ export function Usuarios({ onSelectDetail, onOpenDetail }: PageProps) {
     onSelectDetail?.(buildDetail(usuario));
   };
 
-  const updateStatus = async (id: string, nextStatus: UserStatus) => {
-    setUsuarios((current) => current.map((usuario) => usuario.id === id ? { ...usuario, status: nextStatus } : usuario));
-    setSelectedUser((current) => current?.id === id ? { ...current, status: nextStatus } : current);
-    try {
-      await setUsuarioClienteStatus(id, nextStatus);
-    } catch (error) {
+  // Ativar/inativar já era otimista (mudava a lista antes da resposta e recarregava no erro) --
+  // mantido otimista, mas com o snapshot/rollback do React Query, e agora com revalidação no
+  // final (onSettled), que o código anterior não tinha.
+  const statusMutation = useMutation({
+    mutationFn: ({ id, nextStatus }: { id: string; nextStatus: UserStatus }) => setUsuarioClienteStatus(id, nextStatus),
+    onMutate: async ({ id, nextStatus }) => {
+      await queryClient.cancelQueries({ queryKey: USUARIOS_KEY });
+      const previous = queryClient.getQueryData<UserRecord[]>(USUARIOS_KEY);
+      if (previous) {
+        queryClient.setQueryData<UserRecord[]>(USUARIOS_KEY, previous.map((u) => (u.id === id ? { ...u, status: nextStatus } : u)));
+      }
+      setSelectedUser((current) => (current?.id === id ? { ...current, status: nextStatus } : current));
+      return { previous };
+    },
+    onError: (error, _vars, context) => {
+      if (context?.previous) queryClient.setQueryData(USUARIOS_KEY, context.previous);
       showAppToast(error instanceof Error ? error.message : 'Não foi possível atualizar o status.', 'error');
-      void carregar();
-    }
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: USUARIOS_KEY }),
+  });
+
+  const updateStatus = async (id: string, nextStatus: UserStatus) => {
+    statusMutation.mutate({ id, nextStatus });
   };
 
   const validateForm = () => {
@@ -609,7 +631,7 @@ export function Usuarios({ onSelectDetail, onOpenDetail }: PageProps) {
 
     try {
       await softDeleteUsuarioCliente(usuario.id);
-      setUsuarios((current) => current.filter((item) => item.id !== usuario.id));
+      await queryClient.invalidateQueries({ queryKey: USUARIOS_KEY });
       setSelectedUser((current) => current?.id === usuario.id ? null : current);
       showAppToast('Usuário excluído.', 'success');
 
@@ -696,9 +718,7 @@ export function Usuarios({ onSelectDetail, onOpenDetail }: PageProps) {
     try {
       await approveAccessRequest(approvingUser.id, approvePerfilId);
       const perfilNome = perfisDisponiveis.find((item) => item.id === approvePerfilId)?.nome || '';
-      setUsuarios((current) => current.map((item) => item.id === approvingUser.id
-        ? { ...item, status: 'Ativo', perfilNome }
-        : item));
+      await queryClient.invalidateQueries({ queryKey: USUARIOS_KEY });
       setSelectedUser((current) => current?.id === approvingUser.id ? { ...current, status: 'Ativo', perfilNome } : current);
       showAppToast(`Acesso de ${approvingUser.nome} aprovado.`, 'success');
       setApprovingUser(null);

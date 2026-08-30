@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { X } from 'lucide-react';
 import { PageHeader } from '../../components/PageHeader';
 import { KpiCard } from '../../components/KpiCard';
@@ -34,6 +35,9 @@ import type { PageProps } from '../../App';
 import type { PanelDetail } from '../../components/RightPanel';
 
 type ItemTipo = 'Serviço' | 'Fila' | 'Grupo de filas' | 'Fluxo' | 'SLA';
+
+/** Entrada da mutação genérica de criação: o que chamar, e o que limpar/avisar quando der certo. */
+type CriarInput = { executar: () => Promise<unknown>; aoConcluir?: () => void };
 
 const PRIORIDADE_RANK: Record<Prioridade, number> = { Crítica: 0, Alta: 1, Média: 2, Baixa: 3 };
 
@@ -74,14 +78,9 @@ export function ServicosFilas({ onSelectDetail }: PageProps) {
   const { session } = useSession();
   const clienteId = session?.activeClientId ?? null;
 
-  const [servicos, setServicos] = useState<ServicoRecord[]>([]);
-  const [filas, setFilas] = useState<FilaRecord[]>([]);
-  const [grupos, setGrupos] = useState<GrupoFilaRecord[]>([]);
-  const [fluxos, setFluxos] = useState<FluxoRecord[]>([]);
-  const [slas, setSlas] = useState<SlaRecord[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
+  const SERVICOS_KEY = ['servicos-filas', clienteId];
   const [activeModal, setActiveModal] = useState<ItemTipo | null>(null);
-  const [salvando, setSalvando] = useState(false);
 
   const [formServico, setFormServico] = useState(emptyServico);
   const [formFila, setFormFila] = useState(emptyFila);
@@ -92,19 +91,36 @@ export function ServicosFilas({ onSelectDetail }: PageProps) {
   const [formSla, setFormSla] = useState(emptySla);
   const flowCanvasRef = useRef<FlowCanvasHandle>(null);
 
-  useEffect(() => {
-    if (!clienteId) { setLoading(false); return; }
-    setLoading(true);
-    Promise.all([listServicos(clienteId), listFilas(clienteId), listGrupos(clienteId), listFluxos(clienteId), listSlas(clienteId)])
-      .then(([s, f, g, fl, sl]) => {
-        setServicos(s.items);
-        setFilas(f.items);
-        setGrupos(g.items);
-        setFluxos(fl.items);
-        setSlas(sl.items);
-      })
-      .finally(() => setLoading(false));
-  }, [clienteId]);
+  const dadosQuery = useQuery({
+    queryKey: SERVICOS_KEY,
+    queryFn: async () => {
+      const [s, f, g, fl, sl] = await Promise.all([
+        listServicos(clienteId as string), listFilas(clienteId as string), listGrupos(clienteId as string),
+        listFluxos(clienteId as string), listSlas(clienteId as string),
+      ]);
+      return { servicos: s.items, filas: f.items, grupos: g.items, fluxos: fl.items, slas: sl.items };
+    },
+    enabled: !!clienteId,
+  });
+  const servicos: ServicoRecord[] = dadosQuery.data?.servicos ?? [];
+  const filas: FilaRecord[] = dadosQuery.data?.filas ?? [];
+  const grupos: GrupoFilaRecord[] = dadosQuery.data?.grupos ?? [];
+  const fluxos: FluxoRecord[] = dadosQuery.data?.fluxos ?? [];
+  const slas: SlaRecord[] = dadosQuery.data?.slas ?? [];
+  const loading = dadosQuery.isLoading;
+
+  // As 5 telas desta pagina (servico, fila, grupo, fluxo, SLA) criam em endpoints diferentes mas
+  // com a MESMA forma: cria -> fecha modal -> limpa form -> avisa. Uma mutacao generica evita
+  // repetir 5 blocos praticamente identicos; o que muda por tipo fica nos argumentos.
+  const criarMutation = useMutation({
+    mutationFn: (input: CriarInput) => input.executar(),
+    onSuccess: (_data, input) => {
+      queryClient.invalidateQueries({ queryKey: SERVICOS_KEY });
+      setActiveModal(null);
+      input.aoConcluir?.();
+    },
+    onError: (error) => showAppToast(error instanceof Error ? error.message : 'Não foi possível salvar.', 'error'),
+  });
 
   const servicoNome = (id: string) => servicos.find((item) => item.id === id)?.nome ?? '-';
   const filaNome = (id: string) => filas.find((item) => item.id === id)?.nome ?? '-';
@@ -200,87 +216,58 @@ export function ServicosFilas({ onSelectDetail }: PageProps) {
     setFluxoDraft({ id: `fluxo-${Date.now()}`, ...template.fluxo });
   };
 
-  const saveServico = async () => {
+  const saveServico = () => {
     if (!formServico.nome.trim()) return showAppToast('Informe o nome do serviço.', 'warning');
     if (!clienteId) return showAppToast('Acesse o contexto de um cliente antes de cadastrar.', 'warning');
-    setSalvando(true);
-    try {
-      const { item } = await createServico(clienteId, formServico);
-      setServicos((current) => [item, ...current]);
-      setActiveModal(null);
-      setFormServico(emptyServico);
-      showAppToast('Serviço cadastrado.', 'success');
-    } finally {
-      setSalvando(false);
-    }
+    criarMutation.mutate({
+      executar: () => createServico(clienteId, formServico),
+      aoConcluir: () => { setFormServico(emptyServico); showAppToast('Serviço cadastrado.', 'success'); },
+    });
   };
 
-  const saveFila = async () => {
+  const saveFila = () => {
     if (!formFila.nome.trim()) return showAppToast('Informe o nome da fila.', 'warning');
     if (!formFila.servicoId) return showAppToast('Selecione o serviço ao qual esta fila pertence.', 'warning');
-    setSalvando(true);
-    try {
-      const { item } = await createFila(formFila);
-      setFilas((current) => [item, ...current]);
-      setActiveModal(null);
-      setFormFila(emptyFila);
-      showAppToast('Fila cadastrada.', 'success');
-    } finally {
-      setSalvando(false);
-    }
+    criarMutation.mutate({
+      executar: () => createFila(formFila),
+      aoConcluir: () => { setFormFila(emptyFila); showAppToast('Fila cadastrada.', 'success'); },
+    });
   };
 
-  const saveGrupo = async () => {
+  const saveGrupo = () => {
     if (!formGrupo.nome.trim()) return showAppToast('Informe o nome do grupo.', 'warning');
     if (formGrupo.filaIds.length < 2) return showAppToast('Selecione ao menos 2 filas para formar um grupo.', 'warning');
     if (!clienteId) return showAppToast('Acesse o contexto de um cliente antes de cadastrar.', 'warning');
-    setSalvando(true);
-    try {
-      const { item } = await createGrupo(clienteId, formGrupo);
-      setGrupos((current) => [item, ...current]);
-      setActiveModal(null);
-      setFormGrupo(emptyGrupo);
-      showAppToast('Grupo de filas cadastrado.', 'success');
-    } finally {
-      setSalvando(false);
-    }
+    criarMutation.mutate({
+      executar: () => createGrupo(clienteId, formGrupo),
+      aoConcluir: () => { setFormGrupo(emptyGrupo); showAppToast('Grupo de filas cadastrado.', 'success'); },
+    });
   };
 
-  const saveFluxo = async () => {
+  const saveFluxo = () => {
     if (!fluxoNome.trim()) return showAppToast('Informe o nome do fluxo.', 'warning');
     const fluxo = flowCanvasRef.current?.getFluxo() ?? fluxoDraft;
     if (fluxo.statuses.length === 0) return showAppToast('Adicione ao menos um status ao fluxo.', 'warning');
     if (!clienteId) return showAppToast('Acesse o contexto de um cliente antes de cadastrar.', 'warning');
-    setSalvando(true);
-    try {
-      const { item } = await createFluxo(clienteId, { nome: fluxoNome, fluxo, status: 'Ativo' });
-      setFluxos((current) => [item, ...current]);
-      setActiveModal(null);
-      setFluxoNome('');
-      setFluxoTemplateKey('em-branco');
-      setFluxoDraft(createDefaultFluxo());
-      showAppToast('Fluxo cadastrado.', 'success');
-    } finally {
-      setSalvando(false);
-    }
+    criarMutation.mutate({
+      executar: () => createFluxo(clienteId, { nome: fluxoNome, fluxo, status: 'Ativo' }),
+      aoConcluir: () => {
+        setFluxoNome(''); setFluxoTemplateKey('em-branco'); setFluxoDraft(createDefaultFluxo());
+        showAppToast('Fluxo cadastrado.', 'success');
+      },
+    });
   };
 
-  const saveSla = async () => {
+  const saveSla = () => {
     if (!formSla.servicoId) return showAppToast('Selecione o serviço ao qual este SLA se aplica.', 'warning');
     if (!formSla.prazoHoras.trim()) return showAppToast('Informe o prazo do SLA.', 'warning');
     if (slas.some((item) => item.servicoId === formSla.servicoId && item.prioridade === formSla.prioridade)) {
       return showAppToast(`Este serviço já tem um SLA para a prioridade ${formSla.prioridade}.`, 'warning');
     }
-    setSalvando(true);
-    try {
-      const { item } = await createSla(formSla);
-      setSlas((current) => [...current, item].sort((a, b) => PRIORIDADE_RANK[a.prioridade] - PRIORIDADE_RANK[b.prioridade]));
-      setActiveModal(null);
-      setFormSla(emptySla);
-      showAppToast('SLA cadastrado.', 'success');
-    } finally {
-      setSalvando(false);
-    }
+    criarMutation.mutate({
+      executar: () => createSla(formSla),
+      aoConcluir: () => { setFormSla(emptySla); showAppToast('SLA cadastrado.', 'success'); },
+    });
   };
 
   const toggleGrupoFila = (id: string) => {
@@ -506,7 +493,7 @@ export function ServicosFilas({ onSelectDetail }: PageProps) {
             </div>
             <div className="cadastro-modal-footer">
               <button onClick={() => setActiveModal(null)}>Cancelar</button>
-              <button className="primary" onClick={saveServico} disabled={salvando}>{salvando ? 'Salvando...' : 'Salvar serviço'}</button>
+              <button className="primary" onClick={saveServico} disabled={criarMutation.isPending}>{criarMutation.isPending ? 'Salvando...' : 'Salvar serviço'}</button>
             </div>
           </div>
         </div>
@@ -540,7 +527,7 @@ export function ServicosFilas({ onSelectDetail }: PageProps) {
             </div>
             <div className="cadastro-modal-footer">
               <button onClick={() => setActiveModal(null)}>Cancelar</button>
-              <button className="primary" onClick={saveFila} disabled={salvando}>{salvando ? 'Salvando...' : 'Salvar fila'}</button>
+              <button className="primary" onClick={saveFila} disabled={criarMutation.isPending}>{criarMutation.isPending ? 'Salvando...' : 'Salvar fila'}</button>
             </div>
           </div>
         </div>
@@ -583,7 +570,7 @@ export function ServicosFilas({ onSelectDetail }: PageProps) {
             </div>
             <div className="cadastro-modal-footer">
               <button onClick={() => setActiveModal(null)}>Cancelar</button>
-              <button className="primary" onClick={saveGrupo} disabled={salvando}>{salvando ? 'Salvando...' : 'Salvar grupo'}</button>
+              <button className="primary" onClick={saveGrupo} disabled={criarMutation.isPending}>{criarMutation.isPending ? 'Salvando...' : 'Salvar grupo'}</button>
             </div>
           </div>
         </div>
@@ -621,7 +608,7 @@ export function ServicosFilas({ onSelectDetail }: PageProps) {
             </div>
             <div className="cadastro-modal-footer">
               <button onClick={() => setActiveModal(null)}>Cancelar</button>
-              <button className="primary" onClick={saveFluxo} disabled={salvando}>{salvando ? 'Salvando...' : 'Salvar fluxo'}</button>
+              <button className="primary" onClick={saveFluxo} disabled={criarMutation.isPending}>{criarMutation.isPending ? 'Salvando...' : 'Salvar fluxo'}</button>
             </div>
           </div>
         </div>
@@ -684,7 +671,7 @@ export function ServicosFilas({ onSelectDetail }: PageProps) {
             </div>
             <div className="cadastro-modal-footer">
               <button onClick={() => setActiveModal(null)}>Cancelar</button>
-              <button className="primary" onClick={saveSla} disabled={salvando}>{salvando ? 'Salvando...' : 'Salvar SLA'}</button>
+              <button className="primary" onClick={saveSla} disabled={criarMutation.isPending}>{criarMutation.isPending ? 'Salvando...' : 'Salvar SLA'}</button>
             </div>
           </div>
         </div>
