@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { AlertCircle, CheckCircle2, Clock, LayoutGrid, List, ListTodo, Pencil, Plus, Search, Trash2, TimerReset } from 'lucide-react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Badge } from '../components/Badge';
 import { KanbanBoard } from '../components/KanbanBoard';
 import { showAppToast } from '../lib/appToast';
@@ -22,8 +23,7 @@ export function Roadmap(_props: RoadmapProps) {
   const { session } = useSession();
   const clienteId = session?.activeClientId ?? null;
 
-  const [tasks, setTasks] = useState<TaskRecord[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [query, setQuery] = useState('');
   const [modal, setModal] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -43,13 +43,59 @@ export function Roadmap(_props: RoadmapProps) {
     return () => window.removeEventListener('mousedown', closeMenu);
   }, [statusMenuId]);
 
-  useEffect(() => {
-    if (!clienteId) { setLoading(false); return; }
-    setLoading(true);
-    listTasks(clienteId)
-      .then((result) => setTasks(result.items))
-      .finally(() => setLoading(false));
-  }, [clienteId]);
+  const tasksQuery = useQuery({
+    queryKey: ['tarefas', clienteId],
+    queryFn: () => listTasks(clienteId as string),
+    enabled: !!clienteId,
+  });
+  const tasks = tasksQuery.data?.items ?? [];
+  const loading = tasksQuery.isLoading;
+  const invalidarTarefas = () => queryClient.invalidateQueries({ queryKey: ['tarefas', clienteId] });
+
+  const saveMutation = useMutation({
+    mutationFn: (input: typeof emptyTask) => (editingId
+      ? updateTask(clienteId as string, editingId, input).then(() => undefined)
+      : createTask(clienteId as string, input).then(() => undefined)),
+    onSuccess: () => {
+      invalidarTarefas();
+      const editou = Boolean(editingId);
+      closeModal();
+      showAppToast(editou ? 'Tarefa atualizada.' : 'Tarefa criada.', 'success');
+    },
+    onError: (error) => showAppToast(error instanceof Error ? error.message : 'Não foi possível salvar a tarefa.', 'error'),
+  });
+
+  // Kanban: o card precisa mudar de coluna na hora, sem esperar a rede -- mesmo padrão de
+  // mutação otimista já usado em FilaChamados.tsx (onMutate aplica no cache, onError desfaz,
+  // onSettled revalida). O invalidateQueries simples faria o card "voltar" e pular de volta.
+  const categoriaMutation = useMutation({
+    mutationFn: ({ taskId, categoria }: { taskId: string; categoria: StatusCategory }) =>
+      updateTaskCategoria(clienteId as string, taskId, categoria),
+    onMutate: async ({ taskId, categoria }) => {
+      await queryClient.cancelQueries({ queryKey: ['tarefas', clienteId] });
+      const previous = queryClient.getQueryData<{ items: TaskRecord[] }>(['tarefas', clienteId]);
+      if (previous) {
+        queryClient.setQueryData(['tarefas', clienteId], {
+          ...previous,
+          items: previous.items.map((item) => (item.id === taskId ? { ...item, categoria } : item)),
+        });
+      }
+      return { previous };
+    },
+    onError: (_error, _vars, context) => {
+      if (context?.previous) queryClient.setQueryData(['tarefas', clienteId], context.previous);
+    },
+    onSettled: () => invalidarTarefas(),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (taskId: string) => deleteTaskReal(clienteId as string, taskId),
+    onSuccess: () => {
+      invalidarTarefas();
+      showAppToast('Tarefa excluída.', 'success');
+    },
+    onError: (error) => showAppToast(error instanceof Error ? error.message : 'Não foi possível excluir a tarefa.', 'error'),
+  });
 
   const filtered = useMemo(() => {
     const normalized = query.trim().toLowerCase();
@@ -87,24 +133,13 @@ export function Roadmap(_props: RoadmapProps) {
       return;
     }
 
-    if (editingId) {
-      await updateTask(clienteId, editingId, form);
-      setTasks((current) => current.map((item) => (item.id === editingId ? { ...item, ...form } : item)));
-      closeModal();
-      showAppToast('Tarefa atualizada.', 'success');
-      return;
-    }
-
-    const { item } = await createTask(clienteId, form);
-    setTasks((current) => [item, ...current]);
-    closeModal();
-    showAppToast('Tarefa criada.', 'success');
+    saveMutation.mutate(form);
   };
 
-  const setTaskCategory = async (task: TaskRecord, categoria: StatusCategory) => {
-    setTasks((current) => current.map((item) => (item.id === task.id ? { ...item, categoria } : item)));
+  const setTaskCategory = (task: TaskRecord, categoria: StatusCategory) => {
     setStatusMenuId(null);
-    if (clienteId) await updateTaskCategoria(clienteId, task.id, categoria);
+    if (!clienteId) return;
+    categoriaMutation.mutate({ taskId: task.id, categoria });
   };
 
   const deleteTask = async (task: TaskRecord) => {
@@ -116,9 +151,7 @@ export function Roadmap(_props: RoadmapProps) {
       confirmLabel: 'Excluir',
     });
     if (!confirmed) return;
-    await deleteTaskReal(clienteId, task.id);
-    setTasks((current) => current.filter((item) => item.id !== task.id));
-    showAppToast('Tarefa excluída.', 'success');
+    await deleteMutation.mutateAsync(task.id);
     void logAudit({
       usuarioNome: session?.user.displayName || 'Desconhecido',
       usuarioEmail: session?.user.email || '',
