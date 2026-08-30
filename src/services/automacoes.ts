@@ -27,31 +27,72 @@ export const entidadesDisponiveis = [
 ] as const;
 
 /**
- * Estado REAL de cada gatilho, não o catálogo aspiracional. `pronto:false` = o schema aceita a
- * regra, mas nada dispara ela ainda -- a tela avisa em vez de deixar o usuário criar algo
- * silenciosamente inerte.
+ * Estado REAL de cada gatilho, não o catálogo aspiracional.
+ *
+ * MUDANÇA DE COMPORTAMENTO (30/08, frente C — autorizada pelo usuário): itens com
+ * `pronto:false` deixaram de aparecer na tela. Antes eram oferecidos com sufixo "(em breve)"
+ * e um aviso amarelo. A matriz 7x8 medida contra o banco vivo mostrou que **só 12 das 56
+ * combinações anunciadas funcionam (21%)** -- ou seja, o "(em breve)" cobria 79% da promessa,
+ * e um catálogo em que 4 de cada 5 itens não fazem nada ensina o usuário a desconfiar também
+ * dos 12 que funcionam.
+ *
+ * O mapa continua COMPLETO de propósito (decisão da frente E, dona do motor): ele é a
+ * documentação de "o que o catálogo aceita" vs "o que está ligado", os valores seguem válidos
+ * no `check constraint` do banco, e religar um item é trocar `false` -> `true` num lugar só.
+ * Quem filtra é a tela, não este mapa.
  */
 export const gatilhosProntos: Record<GatilhoTipo, { rotulo: string; pronto: boolean; nota?: string }> = {
   mudanca_status: { rotulo: 'um registro mudar de status', pronto: true },
   registro_criado: { rotulo: 'um registro novo for criado', pronto: true },
   gatilho_manual: { rotulo: 'eu clicar em "Executar agora"', pronto: true },
-  prazo_atingido: { rotulo: 'um prazo for atingido', pronto: false, nota: 'A varredura de prazos entra no Dia 3 — a regra fica salva, mas não dispara sozinha ainda.' },
-  campo_alterado: { rotulo: 'um campo específico mudar', pronto: false, nota: 'Ainda sem gatilho ligado — previsto pro Dia 3.' },
-  agendado: { rotulo: 'chegar um horário agendado', pronto: false, nota: 'Reaproveita o agendador que já existe, mas a ligação entra no Dia 3.' },
-  webhook_recebido: { rotulo: 'chegar um evento externo (webhook)', pronto: false, nota: 'Depende de auditar o Webhook Engine — ainda não ligado.' },
+  prazo_atingido: { rotulo: 'um prazo for atingido', pronto: false, nota: 'Precisa de uma varredura de prazos, que ainda não existe.' },
+  campo_alterado: { rotulo: 'um campo específico mudar', pronto: false, nota: 'Ainda sem trigger ligado no banco.' },
+  agendado: { rotulo: 'chegar um horário agendado', pronto: false, nota: 'Reaproveitaria o agendador existente, mas a ligação não foi feita.' },
+  webhook_recebido: { rotulo: 'chegar um evento externo (webhook)', pronto: false, nota: 'Depende do Webhook Engine.' },
 };
 
-/** Mesma ideia pras ações: só 3 têm executor real hoje. */
+/**
+ * Mesma ideia pras ações: 4 das 8 têm executor real hoje (medido, não estimado).
+ *
+ * `solicitar_aprovacao` virou `pronto:true` no Dia 4 — a nota dizia "entra no Dia 4" e ficou
+ * desatualizada depois que a ação foi entregue e provada 4/4 contra o banco vivo. Ou seja, a
+ * tela estava ESCONDENDO uma ação que funciona, o inverso do problema que ela tentava evitar.
+ *
+ * As 4 restantes têm DUPLO bloqueio, e isso importa pra quem for ligá-las: não têm executor
+ * **e** não têm entrada em `TOOL_RISK`. Como o Tool Guard intercepta antes do dispatcher, a
+ * mensagem de recusa é idêntica nos dois casos — escrever só o executor não destrava, e o
+ * sintoma faz parecer que a implementação está errada. Precisa das duas coisas na mesma entrega.
+ */
 export const acoesProntas: Record<AcaoTipo, { rotulo: string; pronto: boolean; nota?: string }> = {
   criar_tarefa: { rotulo: 'criar uma tarefa', pronto: true },
   enviar_alerta: { rotulo: 'enviar um alerta', pronto: true },
   notificar_usuario: { rotulo: 'notificar uma pessoa', pronto: true },
-  mudar_status: { rotulo: 'mudar o status do registro', pronto: false, nota: 'Executor previsto pro Dia 3.' },
-  atribuir_responsavel: { rotulo: 'trocar o responsável', pronto: false, nota: 'Executor previsto pro Dia 3.' },
-  chamar_ferramenta_ia: { rotulo: 'pedir algo pra Imya (consome crédito de IA)', pronto: false, nota: 'Única ação que consome crédito de IA. Precisa escolher a ferramenta — entra depois.' },
-  webhook_saida: { rotulo: 'chamar um sistema externo (webhook)', pronto: false, nota: 'Depende de auditar o Webhook Engine.' },
-  solicitar_aprovacao: { rotulo: 'pedir aprovação de alguém', pronto: false, nota: 'Ligação real ao mecanismo de aprovação entra no Dia 4.' },
+  solicitar_aprovacao: { rotulo: 'pedir aprovação de alguém', pronto: true },
+  mudar_status: { rotulo: 'mudar o status do registro', pronto: false, nota: 'Sem executor e sem entrada em TOOL_RISK.' },
+  atribuir_responsavel: { rotulo: 'trocar o responsável', pronto: false, nota: 'Sem executor e sem entrada em TOOL_RISK.' },
+  chamar_ferramenta_ia: { rotulo: 'pedir algo pra Imya (consome crédito de IA)', pronto: false, nota: 'Única ação que consome crédito de IA. Precisa escolher a ferramenta.' },
+  webhook_saida: { rotulo: 'chamar um sistema externo (webhook)', pronto: false, nota: 'Depende do Webhook Engine.' },
 };
+
+/**
+ * Opções que a tela oferece: só o que executa de verdade.
+ *
+ * `atual` é incluído mesmo se não estiver pronto, e a razão não é cosmética: o banco ainda
+ * ACEITA os valores inertes (mantidos no `check constraint` de propósito), então uma regra
+ * criada por API/SQL pode referenciar um. Sem esta linha, o `<select>` de edição renderizaria
+ * um valor que não está na lista, o navegador mostraria outro, e **salvar trocaria o gatilho
+ * da regra sem o usuário pedir** — mutação silenciosa, a mesma família de falha que este
+ * projeto levou o dia inteiro caçando.
+ *
+ * Hoje há 0 regras nessas condições (conferido no banco vivo, 30/08). Isto é precaução contra
+ * um caminho aberto, não conserto de bug observado.
+ */
+export function opcoesVisiveis<T extends string>(
+  mapa: Record<T, { pronto: boolean }>,
+  atual: T,
+): T[] {
+  return (Object.keys(mapa) as T[]).filter((k) => mapa[k].pronto || k === atual);
+}
 
 export const operadores: { valor: Operador; rotulo: string }[] = [
   { valor: '=', rotulo: 'for igual a' },

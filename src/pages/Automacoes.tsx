@@ -11,6 +11,7 @@ import {
   getAutomationQuota,
   gatilhosProntos,
   listAutomationRules,
+  opcoesVisiveis,
   operadores,
   runAutomationNow,
   saveAutomationRule,
@@ -364,8 +365,8 @@ export function Automacoes() {
                   {entidadesDisponiveis.map((ent) => <option key={ent.valor} value={ent.valor}>{ent.rotulo}</option>)}
                 </select>
                 <select value={form.gatilhoTipo} onChange={(e) => setForm({ ...form, gatilhoTipo: e.target.value as GatilhoTipo })}>
-                  {(Object.keys(gatilhosProntos) as GatilhoTipo[]).map((tipo) => (
-                    <option key={tipo} value={tipo}>{gatilhosProntos[tipo].rotulo}{gatilhosProntos[tipo].pronto ? '' : ' (em breve)'}</option>
+                  {opcoesVisiveis(gatilhosProntos, form.gatilhoTipo).map((tipo) => (
+                    <option key={tipo} value={tipo}>{gatilhosProntos[tipo].rotulo}{gatilhosProntos[tipo].pronto ? '' : ' (não dispara)'}</option>
                   ))}
                 </select>
                 {form.gatilhoTipo === 'mudanca_status' && (
@@ -376,10 +377,17 @@ export function Automacoes() {
                 )}
               </div>
 
+              {/*
+                Este aviso NÃO ficou órfão com o corte do catálogo (30/08): ele é justamente o
+                que aparece quando uma regra já salva usa um gatilho que não é mais oferecido.
+                A tela deixou de oferecer os inertes, mas o banco continua aceitando -- então
+                uma regra criada por API pode cair aqui, e o usuário precisa entender por que
+                ela nunca dispara.
+              */}
               {gatilhoAtual && !gatilhoAtual.pronto && (
                 <div style={{ background: 'var(--amber-50, #fff7ed)', border: '1px solid #ffd8a8', borderRadius: 8, padding: '8px 12px', fontSize: 12.5 }}>
-                  <strong>Ainda não dispara sozinho.</strong> {gatilhoAtual.nota} Você pode salvar a regra e usar
-                  "Executar agora" enquanto isso.
+                  <strong>Este gatilho não dispara.</strong> {gatilhoAtual.nota} Ele não é mais oferecido em
+                  regras novas. Esta regra continua salva, e você pode acioná-la com "Executar agora".
                 </div>
               )}
 
@@ -419,17 +427,19 @@ export function Automacoes() {
                       <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                         <select value={acao.tipo}
                           onChange={(e) => { const a = [...form.acoes]; a[idx] = { tipo: e.target.value as AcaoTipo }; setForm({ ...form, acoes: a }); }}>
-                          {(Object.keys(acoesProntas) as AcaoTipo[]).map((tipo) => (
-                            <option key={tipo} value={tipo}>{acoesProntas[tipo].rotulo}{acoesProntas[tipo].pronto ? '' : ' (em breve)'}</option>
+                          {opcoesVisiveis(acoesProntas, acao.tipo).map((tipo) => (
+                            <option key={tipo} value={tipo}>{acoesProntas[tipo].rotulo}{acoesProntas[tipo].pronto ? '' : ' (não executa)'}</option>
                           ))}
                         </select>
                         {form.acoes.length > 1 && (
                           <button className="v3464-btn secondary" onClick={() => setForm({ ...form, acoes: form.acoes.filter((_, i) => i !== idx) })}>Remover</button>
                         )}
                       </div>
+                      {/* Mesmo motivo do aviso de gatilho acima: regra legada, não item de catálogo. */}
                       {!meta.pronto && (
                         <div style={{ background: 'var(--amber-50, #fff7ed)', border: '1px solid #ffd8a8', borderRadius: 8, padding: '8px 12px', fontSize: 12.5 }}>
-                          <strong>Esta ação ainda não executa.</strong> {meta.nota} A regra fica salva, mas esta ação não faz nada por enquanto.
+                          <strong>Esta ação não executa.</strong> {meta.nota} Ela não é mais oferecida em regras
+                          novas. A regra continua salva, mas esta ação não faz nada.
                         </div>
                       )}
                       {campos.map((campo) => (
