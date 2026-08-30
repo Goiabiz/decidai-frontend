@@ -358,7 +358,53 @@
   min-height: 0;
 }
 
-.chat-historico button {
+/* Busca por título -- só renderizada acima de 5 conversas (ver ChatAgente.tsx). */
+.chat-busca {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 9px;
+  border: 1px solid var(--v3464-border);
+  border-radius: 9px;
+  background: var(--v3464-input);
+  color: var(--v3464-muted);
+  flex-shrink: 0;
+}
+
+.chat-busca input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: none;
+  color: var(--v3464-text);
+  font: inherit;
+  font-size: 12.5px;
+}
+
+.chat-busca button {
+  display: grid;
+  place-items: center;
+  border: 0;
+  background: none;
+  color: var(--v3464-muted);
+  cursor: pointer;
+  padding: 0;
+}
+
+.chat-historico-item {
+  display: flex;
+  align-items: center;
+  border-radius: 8px;
+}
+
+.chat-historico-item:hover { background: var(--v3464-soft); }
+.chat-historico-item.active { background: var(--v3464-green-soft); }
+.chat-historico-item.active .chat-historico-abrir { color: var(--v3464-green); font-weight: 700; }
+
+.chat-historico-abrir {
+  flex: 1;
+  min-width: 0;
   text-align: left;
   padding: 9px 10px;
   border: 0;
@@ -373,8 +419,60 @@
   text-overflow: ellipsis;
 }
 
-.chat-historico button:hover { background: var(--v3464-soft); }
-.chat-historico button.active { background: var(--v3464-green-soft); color: var(--v3464-green); font-weight: 700; }
+.chat-historico-renomear {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  margin-right: 4px;
+  border: 0;
+  border-radius: 7px;
+  background: none;
+  color: var(--v3464-muted);
+  cursor: pointer;
+  /* Só aparece no hover/foco do item -- um lápis fixo em cada linha polui a lista inteira.
+     `:focus-within` mantém o botão alcançável por teclado, não só por mouse. */
+  opacity: 0;
+}
+
+.chat-historico-item:hover .chat-historico-renomear,
+.chat-historico-item:focus-within .chat-historico-renomear { opacity: 1; }
+.chat-historico-renomear:hover { color: var(--v3464-text); background: var(--v3464-card); }
+
+.chat-historico-editando {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 3px 4px;
+}
+
+.chat-historico-editando input {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 7px;
+  border: 1px solid var(--v3464-green);
+  border-radius: 7px;
+  background: var(--v3464-input);
+  color: var(--v3464-text);
+  font: inherit;
+  font-size: 12.5px;
+  outline: none;
+}
+
+.chat-historico-editando button {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--v3464-muted);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.chat-historico-editando button:hover { background: var(--v3464-soft); color: var(--v3464-text); }
 
 .chat-historico-vazio {
   font-size: 12.5px;

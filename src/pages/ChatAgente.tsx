@@ -1,10 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
-import { ArrowLeft, Bot, Loader2, Plus, Send, User, Volume2 } from 'lucide-react';
+import { ArrowLeft, Bot, Check, Loader2, Pencil, Plus, Search, Send, User, Volume2, X } from 'lucide-react';
 import { useSession } from '../contexts/SessionContext';
 import { runAgent, runAgentStream, type AgentMode } from '../services/agentClient';
-import { listConversations, loadConversationMessages, type AgentConversationSummary } from '../services/agentConversations';
+import { listConversations, loadConversationMessages, renameConversation, type AgentConversationSummary } from '../services/agentConversations';
 import { getClientAgentThatAnswers, type AgentRecord } from '../services/canaisAgentes';
 import assistantIcon from '../assets/assistant-icon.png';
 
@@ -52,7 +52,19 @@ export function ChatAgente() {
   const [sending, setSending] = useState(false);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [clientAgent, setClientAgent] = useState<AgentRecord | null>(null);
+  const [busca, setBusca] = useState('');
+  const [renomeandoId, setRenomeandoId] = useState<string | null>(null);
+  const [tituloEditado, setTituloEditado] = useState('');
   const threadEndRef = useRef<HTMLDivElement>(null);
+
+  // Busca é no cliente de propósito: a lista já vem limitada a 50 conversas, então filtrar
+  // aqui é instantâneo e não gasta ida ao banco a cada tecla. Se um dia a lista crescer além
+  // do teto, aí sim vira busca no servidor -- não antes.
+  const conversasFiltradas = useMemo(() => {
+    const termo = busca.trim().toLowerCase();
+    if (!termo) return conversations;
+    return conversations.filter((conversa) => conversa.title.toLowerCase().includes(termo));
+  }, [conversations, busca]);
 
   const agentName = comoAgenteDoCliente ? (clientAgent?.name || 'Agente') : 'Imya';
   const agentIconUrl = comoAgenteDoCliente ? clientAgent?.avatarUrl : '';
@@ -97,6 +109,30 @@ export function ChatAgente() {
 
   const abrirConversa = (id: string) => {
     navigate(comoAgenteDoCliente ? `/chat/${id}?agente=cliente` : `/chat/${id}`);
+  };
+
+  const comecarRenomear = (conversa: AgentConversationSummary) => {
+    setRenomeandoId(conversa.id);
+    setTituloEditado(conversa.title);
+  };
+
+  const cancelarRenomear = () => {
+    setRenomeandoId(null);
+    setTituloEditado('');
+  };
+
+  const confirmarRenomear = async (id: string) => {
+    if (!clienteId) return;
+    const novo = tituloEditado.trim();
+    // Sem mudança real ou vazio: só sai do modo edição, sem gastar ida ao banco.
+    const atual = conversations.find((c) => c.id === id)?.title;
+    if (!novo || novo === atual) { cancelarRenomear(); return; }
+
+    const salvo = await renameConversation(id, clienteId, novo);
+    if (salvo) {
+      setConversations((atuais) => atuais.map((c) => (c.id === id ? { ...c, title: salvo } : c)));
+    }
+    cancelarRenomear();
   };
 
   const enviar = async (texto: string) => {
@@ -174,18 +210,58 @@ export function ChatAgente() {
     <div className="chat-page">
       <aside className="chat-sidebar">
         <button className="chat-nova-conversa" onClick={novaConversa}><Plus size={16} /> Nova conversa</button>
+
+        {/* Busca só aparece quando já há conversa suficiente pra ela fazer diferença -- com 3
+            conversas na lista, um campo de busca é ruído. */}
+        {conversations.length > 5 && (
+          <div className="chat-busca">
+            <Search size={14} />
+            <input
+              value={busca}
+              onChange={(event) => setBusca(event.target.value)}
+              placeholder="Buscar conversa..."
+              aria-label="Buscar conversa pelo título"
+            />
+            {busca && <button onClick={() => setBusca('')} aria-label="Limpar busca"><X size={13} /></button>}
+          </div>
+        )}
+
         <nav className="chat-historico">
           {conversations.length === 0 ? (
             <p className="chat-historico-vazio">Suas conversas aparecem aqui.</p>
-          ) : conversations.map((conversa) => (
-            <button
-              key={conversa.id}
-              className={conversa.id === conversationId ? 'active' : ''}
-              onClick={() => abrirConversa(conversa.id)}
-              title={conversa.title}
-            >
-              {conversa.title}
-            </button>
+          ) : conversasFiltradas.length === 0 ? (
+            <p className="chat-historico-vazio">Nenhuma conversa com "{busca}".</p>
+          ) : conversasFiltradas.map((conversa) => (
+            renomeandoId === conversa.id ? (
+              <div key={conversa.id} className="chat-historico-editando">
+                <input
+                  value={tituloEditado}
+                  autoFocus
+                  onChange={(event) => setTituloEditado(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') void confirmarRenomear(conversa.id);
+                    if (event.key === 'Escape') cancelarRenomear();
+                  }}
+                  aria-label="Novo título da conversa"
+                />
+                <button onClick={() => void confirmarRenomear(conversa.id)} aria-label="Salvar título"><Check size={14} /></button>
+                <button onClick={cancelarRenomear} aria-label="Cancelar"><X size={14} /></button>
+              </div>
+            ) : (
+              <div key={conversa.id} className={`chat-historico-item ${conversa.id === conversationId ? 'active' : ''}`}>
+                <button className="chat-historico-abrir" onClick={() => abrirConversa(conversa.id)} title={conversa.title}>
+                  {conversa.title}
+                </button>
+                <button
+                  className="chat-historico-renomear"
+                  onClick={() => comecarRenomear(conversa)}
+                  aria-label={`Renomear "${conversa.title}"`}
+                  title="Renomear"
+                >
+                  <Pencil size={13} />
+                </button>
+              </div>
+            )
           ))}
         </nav>
       </aside>

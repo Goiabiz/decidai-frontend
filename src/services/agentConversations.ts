@@ -46,6 +46,32 @@ export async function listConversations(clienteId: string, userId: string): Prom
   }));
 }
 
+/** Renomear conversa. O `title` nasce de `left(primeira_pergunta, 80)` na
+ * `fn_persist_agent_exchange` e nunca mais muda -- com 60+ conversas, achar a certa por uma
+ * frase truncada do começo é ruim. `authenticated` já tem UPDATE + policy de tenant nesta
+ * tabela (confirmado com `has_table_privilege`, não por listagem de grants), então isto não
+ * precisou de migration.
+ *
+ * Devolve o título efetivamente salvo, pra tela não ficar mostrando algo que o banco recusou. */
+export async function renameConversation(conversationId: string, clienteId: string, title: string): Promise<string | null> {
+  const client = universoSupabase;
+  if (!client) return null;
+
+  const limpo = title.trim().slice(0, 120);
+  if (!limpo) return null;
+
+  const { data, error } = await client
+    .from('agent_conversations')
+    .update({ title: limpo })
+    .eq('id', conversationId)
+    .eq('cliente_id', clienteId)
+    .select('title')
+    .maybeSingle();
+
+  if (error || !data) return null;
+  return data.title as string;
+}
+
 export async function loadConversationMessages(conversationId: string, clienteId: string): Promise<AgentConversationMessage[]> {
   const client = universoSupabase;
   if (!client) return [];
