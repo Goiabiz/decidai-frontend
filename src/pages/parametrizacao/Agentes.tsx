@@ -20,14 +20,29 @@ const FLOW_OPTIONS = ['Atendimento padrão', 'Geração de alerta', 'Criação d
 
 // IDs reais da voz da OpenAI TTS (voice-tts.ts) -- mesmo catálogo fixo que a API aceita, sem
 // endpoint de listagem pra consultar dinamicamente.
+// Correção de bug real (30/08/2026): esta lista só tinha vozes do motor ANTIGO (OpenAI tts-1),
+// então escolher qualquer voz aqui rebaixava o agente pro motor antigo -- a única forma de ficar
+// no motor novo (Gemini, voz Kore, escolhido pelo usuário depois de ouvir 11 amostras) era não
+// escolher voz nenhuma. As vozes do Gemini abaixo foram confirmadas uma a uma contra a API real
+// (ver GEMINI_TTS_VOICES em gemini-tts.ts); as da OpenAI continuam disponíveis, mas rotuladas
+// como motor antigo pra escolha ser informada, não acidental.
 const TTS_VOICE_OPTIONS: Array<{ value: string; label: string }> = [
-  { value: '', label: 'Padrão da plataforma' },
-  { value: 'nova', label: 'Nova (feminina)' },
-  { value: 'shimmer', label: 'Shimmer (feminina, suave)' },
-  { value: 'alloy', label: 'Alloy (neutra)' },
-  { value: 'echo', label: 'Echo (masculina)' },
-  { value: 'fable', label: 'Fable (narrativa)' },
-  { value: 'onyx', label: 'Onyx (masculina, grave)' },
+  { value: '', label: 'Padrão da plataforma (Kore)' },
+  { value: 'Kore', label: 'Kore (feminina, pt-BR natural)' },
+  { value: 'Leda', label: 'Leda (feminina)' },
+  { value: 'Aoede', label: 'Aoede (feminina)' },
+  { value: 'Callirrhoe', label: 'Callirrhoe (feminina)' },
+  { value: 'Autonoe', label: 'Autonoe (feminina)' },
+  { value: 'Zephyr', label: 'Zephyr (neutra)' },
+  { value: 'Puck', label: 'Puck (masculina)' },
+  { value: 'Charon', label: 'Charon (masculina)' },
+  { value: 'Fenrir', label: 'Fenrir (masculina, grave)' },
+  { value: 'nova', label: 'Nova (feminina) — motor antigo' },
+  { value: 'shimmer', label: 'Shimmer (feminina, suave) — motor antigo' },
+  { value: 'alloy', label: 'Alloy (neutra) — motor antigo' },
+  { value: 'echo', label: 'Echo (masculina) — motor antigo' },
+  { value: 'fable', label: 'Fable (narrativa) — motor antigo' },
+  { value: 'onyx', label: 'Onyx (masculina, grave) — motor antigo' },
 ];
 
 function InfoTip({ text }: { text: string }) {
