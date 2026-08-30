@@ -12,6 +12,7 @@ import { formatCurrencyBrl as formatBrl } from '../../lib/formatCurrency';
 import {
   closeBillingPeriod,
   createGatewayCharge,
+  getActivePriceOverride,
   getPlanPricing,
   listInvoiceItems,
   listInvoices,
@@ -19,6 +20,7 @@ import {
   runDunningNow,
   type BillingInvoice,
   type BillingInvoiceItem,
+  type PriceOverride,
   type PlanPricing,
 } from '../../services/billing';
 
@@ -78,16 +80,18 @@ export function Creditos() {
   const [fechando, setFechando] = useState(false);
   const [periodo, setPeriodo] = useState(currentMonthRange());
   const [cobrando, setCobrando] = useState<string | null>(null);
+  const [desconto, setDesconto] = useState<PriceOverride | null>(null);
   const [pixAtivo, setPixAtivo] = useState<{ invoiceId: string; qrCode: string } | null>(null);
   const [baixandoPdf, setBaixandoPdf] = useState<string | null>(null);
   const [executandoDunning, setExecutandoDunning] = useState<string | null>(null);
 
   const loadFaturamento = () => {
     if (!clienteId) return;
-    Promise.all([getPlanPricing(clienteId), listInvoices(clienteId)])
-      .then(([planoResult, invoicesResult]) => {
+    Promise.all([getPlanPricing(clienteId), listInvoices(clienteId), getActivePriceOverride(clienteId)])
+      .then(([planoResult, invoicesResult, overrideResult]) => {
         setPlano(planoResult);
         setInvoices(invoicesResult);
+        setDesconto(overrideResult);
       })
       .catch((error) => showAppToast(error instanceof Error ? error.message : 'Falha ao carregar faturamento.', 'warning'));
   };
@@ -281,6 +285,25 @@ export function Creditos() {
           </div>
           <Badge tone="blue">{invoices.length} fatura(s)</Badge>
         </div>
+
+        {desconto && (
+          <p className="section-description" style={{ color: 'var(--green-700, #15803d)', marginBottom: 12 }}>
+            {desconto.motivo === 'founders' ? (
+              <>
+                <strong>Preço founders ativo</strong>
+                {desconto.foundersSeq !== null && <> — você é o assinante nº {desconto.foundersSeq} do programa</>}:
+                {' '}{desconto.descontoPercentual}% de desconto na mensalidade até {formatDate(desconto.vigenciaFim)}.
+                Depois dessa data, o plano volta ao preço cheio automaticamente.
+              </>
+            ) : (
+              <>
+                <strong>Desconto ativo</strong>: {desconto.descontoPercentual}% na mensalidade até {formatDate(desconto.vigenciaFim)}.
+              </>
+            )}
+            {' '}A fatura do período em que o desconto terminar já vem dividida — os dias com desconto e os dias
+            no preço cheio aparecem como itens separados.
+          </p>
+        )}
 
         {invoices.some((invoice) => invoice.dunningStage !== 'none') && (
           <p className="section-description" style={{ color: 'var(--red-600, #b91c1c)', marginBottom: 12 }}>

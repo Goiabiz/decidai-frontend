@@ -47,6 +47,17 @@ export type PlanPricing = {
   overagePricePerUsdBrl: number | null;
 };
 
+// Override de preço por contrato (migration 20260830023640) -- primeiro uso é o preço founders
+// (100 primeiros assinantes, 50% por 30 dias). RLS já libera leitura pro próprio tenant, então a
+// consulta é direta, sem Edge Function: o cliente ver o desconto dele não é operação privilegiada.
+export type PriceOverride = {
+  descontoPercentual: number;
+  vigenciaInicio: string;
+  vigenciaFim: string;
+  motivo: string;
+  foundersSeq: number | null;
+};
+
 export type AdminPlanPricing = {
   code: string;
   name: string;
@@ -157,6 +168,30 @@ export async function listAdminPlanPricing(): Promise<AdminPlanPricing[]> {
     overagePricePerUsdBrl: row.overage_price_per_usd_brl === null ? null : Number(row.overage_price_per_usd_brl),
     updatedAt: row.updated_at as string,
   }));
+}
+
+// Desconto vigente HOJE para este cliente, se houver. Devolve null quando não há nenhum -- o que
+// é o caso da maioria (o programa founders tem 100 vagas). A constraint de exclusão no banco
+// garante no máximo 1 override por dia por cliente, então `maybeSingle()` é seguro aqui.
+export async function getActivePriceOverride(clienteId: string): Promise<PriceOverride | null> {
+  const client = requireClient();
+  const hoje = new Date().toISOString().slice(0, 10);
+  const { data, error } = await client
+    .from('client_price_overrides')
+    .select('desconto_percentual, vigencia_inicio, vigencia_fim, motivo, founders_seq')
+    .eq('cliente_id', clienteId)
+    .lte('vigencia_inicio', hoje)
+    .gte('vigencia_fim', hoje)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) return null;
+  return {
+    descontoPercentual: Number(data.desconto_percentual),
+    vigenciaInicio: data.vigencia_inicio as string,
+    vigenciaFim: data.vigencia_fim as string,
+    motivo: data.motivo as string,
+    foundersSeq: data.founders_seq === null ? null : Number(data.founders_seq),
+  };
 }
 
 // Troca de plano (§36, migration 123) -- via função SECURITY DEFINER, não update direto: ela
