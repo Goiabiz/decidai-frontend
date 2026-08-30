@@ -272,6 +272,8 @@ export const helpContent: Record<PageKey, HelpEntry> = {
       'Gatilhos e ações marcados "(em breve)" ficam salvos mas ainda não executam; a tela avisa antes de você salvar.',
       'Se a mesma regra disparar mais de 10 vezes em 60 segundos, a plataforma pausa ela sozinha pra evitar laço infinito — revise antes de reativar.',
       '"Executar agora" roda a regra uma vez sem esperar o gatilho; como não há um registro real disparando, condições sobre campos do registro não vão bater.',
+      'Nos textos de mensagem e notificação, use {campo} para inserir um dado do registro que disparou — ex.: {titulo}, {valor}. O valor real entra no lugar na hora da execução.',
+      'Seu plano tem um limite mensal de execuções. Ao atingi-lo, as automações pausam e voltam sozinhas no próximo ciclo — nada é cobrado a mais por ultrapassar, porque o limite não é ultrapassado.',
     ],
   },
   'rel-work-items': {

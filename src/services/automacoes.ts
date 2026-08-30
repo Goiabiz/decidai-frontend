@@ -108,6 +108,29 @@ export async function listAutomationRules(clienteId: string): Promise<Automation
   return (data || []) as AutomationRule[];
 }
 
+/**
+ * Cota mensal de execuções, lida de `platform_plans.monthly_automation_limit` (Dia 3).
+ * `limite`/`restantes` null = plano sem teto (Enterprise). Política decidida pelo usuário em
+ * 30/08: ao atingir o teto a automação BLOQUEIA até o próximo ciclo — não gera excedente.
+ */
+export type AutomationQuota = {
+  limite: number | null;
+  usadas: number;
+  restantes: number | null;
+  ilimitado: boolean;
+  bloqueado: boolean;
+  bloqueado_em: string | null;
+};
+
+export async function getAutomationQuota(clienteId: string): Promise<AutomationQuota | null> {
+  const client = getClient();
+  if (!client) return null;
+  const { data, error } = await client.rpc('fn_automation_quota', { p_cliente_id: clienteId });
+  if (error) return null;
+  const rows = (data || []) as AutomationQuota[];
+  return rows[0] ?? null;
+}
+
 export type SaveAutomationInput = {
   id?: string | null;
   nome: string;

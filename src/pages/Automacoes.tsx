@@ -8,6 +8,7 @@ import {
   acoesProntas,
   deleteAutomationRule,
   entidadesDisponiveis,
+  getAutomationQuota,
   gatilhosProntos,
   listAutomationRules,
   operadores,
@@ -18,6 +19,7 @@ import {
   templatesPropostos,
   type Acao,
   type AcaoTipo,
+  type AutomationQuota,
   type AutomationRule,
   type AutomationTemplate,
   type Condicao,
@@ -80,6 +82,7 @@ export function Automacoes() {
   const clienteId = session?.activeClientId ?? null;
 
   const [items, setItems] = useState<AutomationRule[]>([]);
+  const [quota, setQuota] = useState<AutomationQuota | null>(null);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
   const [form, setForm] = useState<FormState | null>(null);
@@ -89,11 +92,13 @@ export function Automacoes() {
   const recarregar = () => {
     if (!clienteId) return;
     listAutomationRules(clienteId).then(setItems);
+    getAutomationQuota(clienteId).then(setQuota);
   };
 
   useEffect(() => {
     if (!clienteId) { setLoading(false); return; }
     setLoading(true);
+    getAutomationQuota(clienteId).then(setQuota);
     listAutomationRules(clienteId).then(setItems).finally(() => setLoading(false));
   }, [clienteId]);
 
@@ -232,6 +237,28 @@ export function Automacoes() {
           </div>
         ))}
       </div>
+
+      {quota && !quota.ilimitado && quota.limite !== null && (
+        <div className="card" style={{ padding: 14, marginBottom: 16, borderLeft: `3px solid ${quota.bloqueado ? '#d64545' : quota.usadas / quota.limite >= 0.8 ? '#ff8b22' : '#00875a'}` }}>
+          {quota.bloqueado ? (
+            <>
+              <strong>Cota mensal de automações atingida ({quota.usadas} de {quota.limite}).</strong>{' '}
+              <span style={{ color: 'var(--slate-500)' }}>
+                As automações estão pausadas e voltam a rodar sozinhas no próximo ciclo mensal. Nenhuma execução
+                extra é cobrada — o plano não permite ultrapassar o limite. Para rodar mais neste mês, é preciso
+                mudar de plano.
+              </span>
+            </>
+          ) : (
+            <>
+              <strong>{quota.usadas} de {quota.limite} execuções usadas este mês.</strong>{' '}
+              <span style={{ color: 'var(--slate-500)' }}>
+                Restam {quota.restantes}. Ao atingir o limite, as automações pausam até o próximo ciclo.
+              </span>
+            </>
+          )}
+        </div>
+      )}
 
       {items.some((r) => r.status === 'pausada_por_loop') && (
         <div className="card" style={{ padding: 14, marginBottom: 16, borderLeft: '3px solid #d64545' }}>
@@ -412,6 +439,13 @@ export function Automacoes() {
                             onChange={(e) => { const a = [...form.acoes]; a[idx] = { ...a[idx], [campo.chave]: e.target.value }; setForm({ ...form, acoes: a }); }} />
                         </label>
                       ))}
+                      {campos.length > 0 && (
+                        <span style={{ fontSize: 12, color: 'var(--slate-500)' }}>
+                          Dica: use <code>{'{campo}'}</code> para inserir um dado do registro que disparou a automação —
+                          ex.: <code>{'{titulo}'}</code>, <code>{'{valor}'}</code>, <code>{'{status}'}</code>. O valor real
+                          entra no lugar na hora que a automação rodar.
+                        </span>
+                      )}
                     </div>
                   );
                 })}
