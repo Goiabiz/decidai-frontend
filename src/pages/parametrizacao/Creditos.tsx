@@ -412,7 +412,7 @@ export function Creditos() {
             <p className="section-description">
               {plano ? (
                 <>
-                  Plano <strong>{plano.name}</strong> — mensalidade {plano.monthlyPriceBrl !== null ? formatBrl(plano.monthlyPriceBrl) : 'não confirmada'}, franquia de uso de IA {formatUsd(plano.includedCreditsUsd)}, excedente {plano.overagePricePerUsdBrl !== null ? `${formatBrl(plano.overagePricePerUsdBrl)} por US$1 consumido além da franquia` : 'não confirmado'}.
+                  Plano <strong>{plano.name}</strong> — mensalidade {plano.monthlyPriceBrl !== null ? formatBrl(plano.monthlyPriceBrl) : 'não confirmada'}, franquia de uso de IA {formatUsd(plano.includedCreditsUsd)} por mês. Ao acabar a franquia, o uso é bloqueado até você recarregar — não há cobrança de excedente.
                 </>
               ) : (
                 'Este ambiente não tem plano associado.'

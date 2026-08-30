@@ -37,7 +37,12 @@ Deno.serve(async (request) => {
 
       const planCode = body.planCode;
       const monthlyPriceBrl = body.monthlyPriceBrl;
+      // overagePricePerUsdBrl virou OPCIONAL (30/08/2026): o modelo comercial deixou de ter
+      // excedente -- é limite rígido + recarga (decisoes-usuario-29-08-rodada-noite.md). A tela
+      // de admin não edita mais esse campo. Segue aceito no corpo só pra não quebrar um chamador
+      // antigo, mas quando ausente a coluna NÃO é tocada (fica NULL, que é o estado correto).
       const overagePricePerUsdBrl = body.overagePricePerUsdBrl;
+      const temOverage = overagePricePerUsdBrl !== undefined && overagePricePerUsdBrl !== null;
 
       if (!['basic', 'team', 'pro', 'business', 'scale', 'enterprise'].includes(planCode)) {
         return jsonResponse({ ok: false, error: `planCode inválido: "${planCode}". Trial é sempre R$0 e não é editável aqui.` }, 400);
@@ -45,15 +50,15 @@ Deno.serve(async (request) => {
       if (typeof monthlyPriceBrl !== 'number' || !Number.isFinite(monthlyPriceBrl) || monthlyPriceBrl < 0) {
         return jsonResponse({ ok: false, error: 'monthlyPriceBrl precisa ser um número >= 0.' }, 400);
       }
-      if (typeof overagePricePerUsdBrl !== 'number' || !Number.isFinite(overagePricePerUsdBrl) || overagePricePerUsdBrl < 0) {
-        return jsonResponse({ ok: false, error: 'overagePricePerUsdBrl precisa ser um número >= 0.' }, 400);
+      if (temOverage && (typeof overagePricePerUsdBrl !== 'number' || !Number.isFinite(overagePricePerUsdBrl) || overagePricePerUsdBrl < 0)) {
+        return jsonResponse({ ok: false, error: 'overagePricePerUsdBrl, se enviado, precisa ser um número >= 0.' }, 400);
       }
 
       const { data: updated, error: updateError } = await supabase
         .from('platform_plans')
         .update({
           monthly_price_brl: monthlyPriceBrl,
-          overage_price_per_usd_brl: overagePricePerUsdBrl,
+          ...(temOverage ? { overage_price_per_usd_brl: overagePricePerUsdBrl } : {}),
           updated_at: new Date().toISOString(),
         })
         .eq('code', planCode)
