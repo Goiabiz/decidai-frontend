@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Building2,
   Download,
@@ -101,10 +102,8 @@ function LocationSummary({ unit }: { unit: UnidadeRecord }) {
 export function UnidadesCentrosCusto() {
   const { session } = useSession();
   const clienteId = session?.activeClientId ?? null;
+  const queryClient = useQueryClient();
 
-  const [units, setUnits] = useState<UnidadeRecord[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [salvando, setSalvando] = useState(false);
   const [search, setSearch] = useState('');
   const [type, setType] = useState('');
   const [status, setStatus] = useState('');
@@ -117,16 +116,35 @@ export function UnidadesCentrosCusto() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [cepLoading, setCepLoading] = useState(false);
 
+  const unidadesQuery = useQuery({
+    queryKey: ['unidades', clienteId],
+    queryFn: () => listUnidades(clienteId as string),
+    enabled: !!clienteId,
+  });
+  const units = unidadesQuery.data?.items ?? [];
+  const loading = unidadesQuery.isLoading;
+
+  // Seleciona a 1ª unidade só na carga inicial (sem seleção ainda) -- mesmo comportamento de
+  // antes, sem sobrescrever a escolha do usuário quando a lista é revalidada.
   useEffect(() => {
-    if (!clienteId) { setLoading(false); return; }
-    setLoading(true);
-    listUnidades(clienteId)
-      .then((result) => {
-        setUnits(result.items);
-        setSelectedUnit((current) => current ?? result.items[0] ?? null);
-      })
-      .finally(() => setLoading(false));
-  }, [clienteId]);
+    if (selectedUnit || units.length === 0) return;
+    setSelectedUnit(units[0]);
+  }, [units, selectedUnit]);
+
+  const saveMutation = useMutation({
+    mutationFn: (input: UnidadeInput) => (editingUnitId
+      ? updateUnidade(editingUnitId, clienteId as string, input)
+      : createUnidade(clienteId as string, input)),
+    onSuccess: (nextUnit) => {
+      queryClient.invalidateQueries({ queryKey: ['unidades', clienteId] });
+      setSelectedUnit(nextUnit);
+      showAppToast(editingUnitId ? 'Unidade atualizada.' : 'Unidade criada.', 'success');
+      setForm(emptyUnit);
+      setEditingUnitId(null);
+      setIsFormOpen(false);
+    },
+    onError: (error) => showAppToast(error instanceof Error ? error.message : 'Não foi possível salvar a unidade.', 'error'),
+  });
 
   const filtered = useMemo(() => {
     const query = normalizeFilterText(search);
@@ -210,28 +228,7 @@ export function UnidadesCentrosCusto() {
     }
 
     const input: UnidadeInput = { ...form, setores: form.setores.map(({ nome, responsavel }) => ({ nome, responsavel })) };
-
-    setSalvando(true);
-    try {
-      if (editingUnitId) {
-        const nextUnit = await updateUnidade(editingUnitId, clienteId, input);
-        setUnits((current) => current.map((unit) => unit.id === editingUnitId ? nextUnit : unit));
-        setSelectedUnit(nextUnit);
-        showAppToast('Unidade atualizada.', 'success');
-      } else {
-        const nextUnit = await createUnidade(clienteId, input);
-        setUnits((current) => [nextUnit, ...current]);
-        setSelectedUnit(nextUnit);
-        showAppToast('Unidade criada.', 'success');
-      }
-      setForm(emptyUnit);
-      setEditingUnitId(null);
-      setIsFormOpen(false);
-    } catch (error) {
-      showAppToast(error instanceof Error ? error.message : 'Não foi possível salvar a unidade.', 'error');
-    } finally {
-      setSalvando(false);
-    }
+    saveMutation.mutate(input);
   };
 
   if (!clienteId) {
@@ -381,7 +378,7 @@ export function UnidadesCentrosCusto() {
               </section>
             </div>
 
-            <div className="unit-modal-footer"><button onClick={() => { setIsFormOpen(false); setEditingUnitId(null); }}>Cancelar</button><button className="primary" disabled={salvando} onClick={() => void saveUnit()}>{salvando ? 'Salvando...' : editingUnitId ? 'Salvar alterações' : 'Salvar unidade'}</button></div>
+            <div className="unit-modal-footer"><button onClick={() => { setIsFormOpen(false); setEditingUnitId(null); }}>Cancelar</button><button className="primary" disabled={saveMutation.isPending} onClick={saveUnit}>{saveMutation.isPending ? 'Salvando...' : editingUnitId ? 'Salvar alterações' : 'Salvar unidade'}</button></div>
           </div>
         </div>
       )}
