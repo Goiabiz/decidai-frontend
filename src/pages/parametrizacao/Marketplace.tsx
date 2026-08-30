@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ExternalLink, Handshake, LayoutGrid, ListChecks } from 'lucide-react';
+import { ExternalLink, Handshake, LayoutGrid, ListChecks, Package } from 'lucide-react';
 import { PageHeader } from '../../components/PageHeader';
 import { Badge } from '../../components/Badge';
 import { BrandIcon } from '../../components/BrandIcon';
@@ -14,6 +14,14 @@ import {
   type MarketplaceItem,
   type PartnerSubmission,
 } from '../../services/marketplace';
+import {
+  acquireBusinessPack,
+  listBusinessPackAcquisitions,
+  listPublishedBusinessPacks,
+  revokeBusinessPack,
+  type BusinessPack,
+  type BusinessPackAcquisition,
+} from '../../services/businessPacks';
 
 const tierTone: Record<ConnectorTier, string> = {
   nativo: 'green',
@@ -45,13 +53,28 @@ const submissionStatusLabel: Record<string, string> = {
   rejeitado: 'Rejeitado',
 };
 
+const packTypeLabel: Record<string, string> = {
+  industry: 'Setor',
+  business: 'Negócio',
+  regulatory: 'Regulatório',
+  skill: 'Skill',
+  workflow: 'Workflow',
+  connector: 'Conector',
+  ontology: 'Ontologia',
+};
+
 export function Marketplace() {
-  const { isSupport } = useSession();
-  const [tab, setTab] = useState<'vitrine' | 'solicitacoes'>('vitrine');
+  const { isSupport, session } = useSession();
+  const clienteId = session?.activeClientId ?? null;
+  const [tab, setTab] = useState<'vitrine' | 'solicitacoes' | 'packs'>('vitrine');
   const [items, setItems] = useState<MarketplaceItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [submissions, setSubmissions] = useState<PartnerSubmission[]>([]);
   const [loadingSubmissions, setLoadingSubmissions] = useState(false);
+  const [packs, setPacks] = useState<BusinessPack[]>([]);
+  const [acquisitions, setAcquisitions] = useState<BusinessPackAcquisition[]>([]);
+  const [loadingPacks, setLoadingPacks] = useState(false);
+  const [acquiringPackId, setAcquiringPackId] = useState<string | null>(null);
 
   useEffect(() => {
     setLoading(true);
@@ -63,6 +86,62 @@ export function Marketplace() {
     setLoadingSubmissions(true);
     listPartnerSubmissions().then((result) => setSubmissions(result.items)).finally(() => setLoadingSubmissions(false));
   }, [tab, isSupport]);
+
+  const loadPacks = () => {
+    if (tab !== 'packs') return;
+    setLoadingPacks(true);
+    const acquisitionsPromise = clienteId ? listBusinessPackAcquisitions(clienteId) : Promise.resolve([]);
+    Promise.all([listPublishedBusinessPacks(), acquisitionsPromise])
+      .then(([packsResult, acquisitionsResult]) => {
+        setPacks(packsResult);
+        setAcquisitions(acquisitionsResult);
+      })
+      .catch((error) => showAppToast(error instanceof Error ? error.message : 'Falha ao carregar packs.', 'warning'))
+      .finally(() => setLoadingPacks(false));
+  };
+
+  useEffect(loadPacks, [tab, clienteId]);
+
+  const acquiredPackIds = useMemo(
+    () => new Set(acquisitions.filter((a) => a.status === 'ativo').map((a) => a.packId)),
+    [acquisitions],
+  );
+
+  const packsByType = useMemo(() => {
+    const map = new Map<string, BusinessPack[]>();
+    for (const pack of packs) {
+      const list = map.get(pack.packType) || [];
+      list.push(pack);
+      map.set(pack.packType, list);
+    }
+    return Array.from(map.entries());
+  }, [packs]);
+
+  const handleAcquire = async (pack: BusinessPack) => {
+    if (!clienteId) return showAppToast('Acesse o contexto de um cliente pra adquirir um pack.', 'warning');
+    setAcquiringPackId(pack.id);
+    try {
+      const result = await acquireBusinessPack(clienteId, pack.id);
+      if ('error' in result) { showAppToast(result.error, 'warning'); return; }
+      showAppToast(`Pack "${pack.nome}" adquirido.`, 'success');
+      loadPacks();
+    } finally {
+      setAcquiringPackId(null);
+    }
+  };
+
+  const handleRevoke = async (pack: BusinessPack) => {
+    if (!clienteId) return;
+    setAcquiringPackId(pack.id);
+    try {
+      const result = await revokeBusinessPack(clienteId, pack.id);
+      if ('error' in result) { showAppToast(result.error, 'warning'); return; }
+      showAppToast(`Pack "${pack.nome}" revogado.`, 'success');
+      loadPacks();
+    } finally {
+      setAcquiringPackId(null);
+    }
+  };
 
   const grouped = useMemo(() => {
     const map = new Map<string, MarketplaceItem[]>();
@@ -91,6 +170,7 @@ export function Marketplace() {
       <div className="v3464-page-head" style={{ marginBottom: 18 }}>
         <div className="view-toggle">
           <button className={tab === 'vitrine' ? 'active' : ''} onClick={() => setTab('vitrine')}><LayoutGrid size={14} /> Vitrine</button>
+          <button className={tab === 'packs' ? 'active' : ''} onClick={() => setTab('packs')}><Package size={14} /> Business Packs</button>
           {isSupport && (
             <button className={tab === 'solicitacoes' ? 'active' : ''} onClick={() => setTab('solicitacoes')}><ListChecks size={14} /> Solicitações de parceiros</button>
           )}
@@ -130,6 +210,53 @@ export function Marketplace() {
                     </span>
                   </div>
                 ))}
+              </div>
+            </div>
+          ))}
+        </section>
+      )}
+
+      {tab === 'packs' && (
+        <section className="v3464-card">
+          {!clienteId && <p className="v36-muted">Acesse o contexto de um cliente pra ver e adquirir packs.</p>}
+          {clienteId && loadingPacks && <p className="v36-muted">Carregando packs...</p>}
+          {clienteId && !loadingPacks && packsByType.length === 0 && <p className="v36-muted">Nenhum pack publicado ainda.</p>}
+          {clienteId && !loadingPacks && packsByType.map(([packType, groupPacks]) => (
+            <div className="v3464-integration-section" key={packType}>
+              <div className="v3464-section-title">
+                <h2>{packTypeLabel[packType] || packType}</h2>
+                <small className="v36-muted">{groupPacks.length} pack(s)</small>
+              </div>
+              <div className="v3464-plugin-grid">
+                {groupPacks.map((pack) => {
+                  const acquired = acquiredPackIds.has(pack.id);
+                  const busy = acquiringPackId === pack.id;
+                  return (
+                    <div className="v3464-plugin v36-provider-card" key={pack.id}>
+                      <span>
+                        <strong>{pack.nome}</strong>
+                        <small>
+                          <Badge tone={acquired ? 'green' : 'gray'}>{acquired ? 'Adquirido' : 'Disponível'}</Badge>
+                          {pack.minPlanCode && <> • Plano mínimo: {pack.minPlanCode}</>}
+                          {' '}• v{pack.versaoAtual}
+                        </small>
+                        <em>{pack.descricao || 'Sem descrição.'}</em>
+                        {pack.autorTipo === 'parceiro' && pack.autorEmpresaNome && <em>Parceiro: {pack.autorEmpresaNome}</em>}
+                      </span>
+                      {acquired ? (
+                        isSupport && (
+                          <button className="v3464-secondary-btn" disabled={busy} onClick={() => void handleRevoke(pack)}>
+                            {busy ? 'Revogando...' : 'Revogar'}
+                          </button>
+                        )
+                      ) : (
+                        <button className="v3464-btn primary" disabled={busy} onClick={() => void handleAcquire(pack)}>
+                          {busy ? 'Adquirindo...' : 'Adquirir'}
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           ))}
