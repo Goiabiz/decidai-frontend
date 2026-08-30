@@ -22,6 +22,11 @@ import assistantIcon from '../assets/assistant-icon.png';
 type ChatMessage = {
   role: 'user' | 'agent';
   content: string;
+  /** Versão falada, quando a saída estruturada (frente C) separou as duas. Só existe pra
+   * mensagens desta sessão -- `agent_conversation_messages` guarda apenas o texto exibido,
+   * então mensagem carregada do histórico nunca tem. É por isso que o controle de "ver versão
+   * falada" aparece só em algumas mensagens, e isso é esperado, não bug. */
+  spokenText?: string;
 };
 
 const AGENT_UNAVAILABLE_MESSAGE = 'Não consegui responder agora — o serviço de IA não respondeu. Tente de novo em instantes.';
@@ -190,6 +195,11 @@ export function ChatAgente() {
         proximo[indiceResposta] = {
           ...alvo,
           content: resultado.ok ? (resultado.response?.answer ?? alvo.content) : (alvo.content || resultado.error || AGENT_UNAVAILABLE_MESSAGE),
+          // Só guarda se realmente for diferente do texto exibido -- quando o modelo não segue
+          // o schema, o executor devolve os dois iguais, e aí não há distinção pra mostrar.
+          spokenText: resultado.response?.spokenText && resultado.response.spokenText !== resultado.response.answer
+            ? resultado.response.spokenText
+            : undefined,
         };
         return proximo;
       });
@@ -299,6 +309,15 @@ export function ChatAgente() {
                   ? <span className="chat-pensando"><Loader2 size={15} className="v363-spin" /> Pensando...</span>
                   : <ReactMarkdown>{item.content}</ReactMarkdown>}
               </div>
+              {/* Versão falada, quando existe e difere da exibida. Fica recolhida por padrão --
+                  a tela é pra ler; isto é apoio pra quem está ajustando prompt e quer ver os
+                  dois lados sem precisar ouvir o áudio. */}
+              {item.spokenText && (
+                <details className="chat-versao-falada">
+                  <summary>Ver o que ela falaria</summary>
+                  <p>{item.spokenText}</p>
+                </details>
+              )}
             </article>
           ))}
           <div ref={threadEndRef} />

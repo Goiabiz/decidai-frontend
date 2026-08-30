@@ -639,6 +639,38 @@
 .chat-bolha-corpo td { border: 1px solid var(--v3464-border); padding: 6px 9px; text-align: left; font-size: 13px; }
 .chat-bolha-corpo a { color: var(--v3464-green); }
 
+/* "Ver o que ela falaria" -- versão falada separada pela saída estruturada (frente C).
+   Recolhido por padrão: a tela é pra leitura, isto é apoio pra ajuste de prompt. */
+.chat-versao-falada {
+  margin-top: 8px;
+  font-size: 12.5px;
+}
+
+.chat-versao-falada summary {
+  color: var(--v3464-muted);
+  cursor: pointer;
+  list-style: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  user-select: none;
+}
+
+.chat-versao-falada summary::-webkit-details-marker { display: none; }
+.chat-versao-falada summary::before { content: "▸"; font-size: 10px; }
+.chat-versao-falada[open] summary::before { content: "▾"; }
+.chat-versao-falada summary:hover { color: var(--v3464-text); }
+
+.chat-versao-falada p {
+  margin: 7px 0 0;
+  padding: 10px 12px;
+  border-left: 2px solid var(--v3464-border);
+  background: var(--v3464-soft);
+  border-radius: 0 8px 8px 0;
+  color: var(--v3464-text);
+  line-height: 1.55;
+}
+
 .chat-pensando {
   display: inline-flex;
   align-items: center;
