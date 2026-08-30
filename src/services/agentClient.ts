@@ -33,6 +33,11 @@ export type AgentRunResponse = {
     usage?: { inputTokens: number; outputTokens: number };
     memorySnippetsUsed?: number;
     memoryPersisted?: boolean;
+    /** Versão FALADA da resposta, separada da exibida pela saída estruturada (frente C,
+     * `bf2fa5f`): o `answer` acima pode ser longo e formatado (lista, tabela); este é o texto
+     * curto e conversacional que vira áudio. Opcional de propósito -- vem ausente quando o
+     * modelo não seguiu o schema, e nesse caso o executor já usa o texto exibido pro TTS. */
+    spokenText?: string;
     /** Onda L (frente G, voz): texto reconhecido a partir do áudio, quando a pergunta veio por voz. */
     transcript?: string;
     /** Onda L (frente G, voz): resposta falada (base64), quando pedida ou quando a pergunta veio por voz. */
@@ -212,6 +217,7 @@ export async function runAgentStream(
       status: 'ok',
       fallbackUsed: false,
       answer: (finalPayload.answer as string) ?? fullAnswer,
+      spokenText: finalPayload.spokenText as string | undefined,
       usage: finalPayload.usage as { inputTokens: number; outputTokens: number } | undefined,
     },
   };
