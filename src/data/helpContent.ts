@@ -264,6 +264,16 @@ export const helpContent: Record<PageKey, HelpEntry> = {
       'Só os campos de revisão (status, decisão tomada, justificativa, resultado observado) são editáveis -- o problema/diagnóstico/recomendação são a saída do sistema automático.',
     ],
   },
+  automacoes: {
+    summary: 'Regras "quando isto acontecer, faça aquilo" — configuradas por você, sem programar.',
+    tips: [
+      'Monte a regra como uma frase: escolha o que dispara, adicione condições (todas precisam ser verdadeiras ao mesmo tempo) e diga o que fazer.',
+      'Uma automação só roda de verdade com status "Ativa" — "Rascunho" deixa você montar sem risco de disparar antes da hora.',
+      'Gatilhos e ações marcados "(em breve)" ficam salvos mas ainda não executam; a tela avisa antes de você salvar.',
+      'Se a mesma regra disparar mais de 10 vezes em 60 segundos, a plataforma pausa ela sozinha pra evitar laço infinito — revise antes de reativar.',
+      '"Executar agora" roda a regra uma vez sem esperar o gatilho; como não há um registro real disparando, condições sobre campos do registro não vão bater.',
+    ],
+  },
   'rel-work-items': {
     summary: 'Work Item Universal (§9 do Plano Mestre v4): tarefa, atendimento, alerta e decisão numa régua só.',
     tips: [

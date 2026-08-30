@@ -135,6 +135,7 @@ const navGroups: NavGroup[] = [
     children: [
       { key: 'analise', label: 'Tarefas', icon: <ClipboardList size={18} /> },
       { key: 'decisoes', label: 'Decisões', icon: <Gavel size={18} /> },
+      { key: 'automacoes', label: 'Automações', icon: <Zap size={18} /> },
     ],
   },
   {

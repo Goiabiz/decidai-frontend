@@ -36,6 +36,7 @@ import RelatorioTarefas from './pages/relatorios/RelatorioTarefas';
 import RelatorioTrabalho from './pages/relatorios/RelatorioTrabalho';
 import { RelatorioPersonalizado } from './pages/relatorios/RelatorioPersonalizado';
 import { Decisoes } from './pages/Decisoes';
+import { Automacoes } from './pages/Automacoes';
 import { SegurancaAuditoria } from './pages/parametrizacao/SegurancaAuditoria';
 import { ServicosFilas } from './pages/central-atendimento/ServicosFilas';
 import { Flows } from './pages/Flows';
@@ -80,6 +81,7 @@ export type PageKey =
   | 'crm-pipeline'
   | 'analise'
   | 'decisoes'
+  | 'automacoes'
   | 'param-admin'
   | 'param-integracoes'
   | 'param-agentes'
@@ -125,6 +127,7 @@ const rightPanelByPage: Record<PageKey, React.ComponentProps<typeof RightPanel>[
   'crm-pipeline': 'config',
   analise: 'acao',
   decisoes: 'acao',
+  automacoes: 'acao',
   'param-admin': 'config',
   'param-integracoes': 'config',
   'param-agentes': 'config',
@@ -261,6 +264,7 @@ export function App() {
     'crm-pipeline': <CrmPipeline />,
     analise: <AnaliseAcoes />,
     decisoes: <Decisoes />,
+    automacoes: <Automacoes />,
     'param-admin': <Configuracoes onNavigate={handleNavigate} />,
     'param-integracoes': <Integracoes />,
     'param-agentes': <Agentes />,
