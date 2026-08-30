@@ -1,4 +1,4 @@
-import { pocSupabase, universoSupabase } from "./supabase";
+import { universoSupabase } from "./supabase";
 
 export type ApiGuidedSaveConnectionInput = {
   name: string;
@@ -21,10 +21,13 @@ type FunctionResult<T> = T & {
 };
 
 function getSupabaseClient() {
-  const client = universoSupabase ?? pocSupabase;
+  // O fallback pro projeto "POC" saiu daqui: aquele projeto não existe mais (host sem DNS desde
+  // 28/08/2026), então cair nele nunca resolveria nada -- só trocava um erro claro de
+  // configuração por um erro de rede confuso. Ver comentário em ./supabase.ts.
+  const client = universoSupabase;
 
   if (!client) {
-    throw new Error("Supabase não configurado. Confira VITE_SUPABASE_UNIVERSO_URL/VITE_SUPABASE_UNIVERSO_ANON_KEY ou VITE_SUPABASE_POC_URL/VITE_SUPABASE_POC_ANON_KEY.");
+    throw new Error("Supabase não configurado. Confira VITE_SUPABASE_UNIVERSO_URL/VITE_SUPABASE_UNIVERSO_ANON_KEY.");
   }
 
   return client;
