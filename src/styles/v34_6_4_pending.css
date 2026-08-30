@@ -419,7 +419,7 @@
   text-overflow: ellipsis;
 }
 
-.chat-historico-renomear {
+.chat-historico-acao {
   display: grid;
   place-items: center;
   width: 26px;
@@ -435,9 +435,9 @@
   opacity: 0;
 }
 
-.chat-historico-item:hover .chat-historico-renomear,
-.chat-historico-item:focus-within .chat-historico-renomear { opacity: 1; }
-.chat-historico-renomear:hover { color: var(--v3464-text); background: var(--v3464-card); }
+.chat-historico-item:hover .chat-historico-acao,
+.chat-historico-item:focus-within .chat-historico-acao { opacity: 1; }
+.chat-historico-acao:hover { color: var(--v3464-text); background: var(--v3464-card); }
 
 .chat-historico-editando {
   display: flex;
@@ -738,3 +738,7 @@
   max-height: calc(100vh - 56px);
   overflow-y: auto;
 }
+
+/* Botão de excluir conversa -- vermelho só no hover, pra ação destrutiva não ficar gritando
+   em cada linha da lista o tempo todo. */
+.chat-historico-acao.perigo:hover { color: var(--v3464-red); background: var(--v3464-card); }
