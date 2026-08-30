@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Bot, Camera, Info, Plus, Search, SlidersHorizontal, X } from 'lucide-react';
+import { Bot, Camera, Info, Plus, Search, SlidersHorizontal, Trash2, X } from 'lucide-react';
 import { showAppToast } from '../../lib/appToast';
 import { filterAgentEnabledProviders, listV35IntegrationCatalog, providerDomain, type V35IntegrationCatalogItem } from '../../services/v35Supabase';
 import { useSession } from '../../contexts/SessionContext';
-import { createAgent, listAgents, updateAgent, type AgentRecord } from '../../services/canaisAgentes';
+import { createAgent, deleteAgent, listAgents, updateAgent, type AgentRecord } from '../../services/canaisAgentes';
+import { showAppConfirm } from '../../lib/appConfirm';
 import { uploadAvatar } from '../../services/storage';
 import { BrandIcon } from '../../components/BrandIcon';
 
@@ -153,6 +154,22 @@ export function Agentes(_props: AgentesProps) {
     },
   });
 
+  const excluirMutation = useMutation({
+    mutationFn: (agent: AgentRecord) => deleteAgent(clienteId as string, agent.id),
+    onSuccess: (ok) => {
+      if (!ok) {
+        showAppToast('Não consegui excluir o agente. Tente de novo.', 'error');
+        return;
+      }
+      invalidarAgentes();
+      setSelected(null);
+      // O ícone global do agente vive no App.tsx e reage a este evento -- sem ele, o ícone de
+      // um agente recém-excluído ficaria no ar até alguém recarregar a página.
+      window.dispatchEvent(new CustomEvent(CLIENT_AGENT_STATUS_EVENT, { detail: { clienteId } }));
+      showAppToast('Agente excluído.', 'success');
+    },
+  });
+
   const saveMutation = useMutation({
     mutationFn: async ({ activateAfter }: { activateAfter: boolean }) => {
       // "Salvar e ativar" poupa o clique extra em "Ativar agente" logo depois de configurar
@@ -188,6 +205,24 @@ export function Agentes(_props: AgentesProps) {
   const toggleAgentStatus = (agent: AgentRecord) => {
     if (!clienteId) return;
     toggleStatusMutation.mutate(agent);
+  };
+
+  const excluirAgente = async (agent: AgentRecord) => {
+    if (!clienteId) return;
+    const estavaAtivo = agent.status === 'ativo';
+    const confirmado = await showAppConfirm({
+      title: `Excluir ${agent.name}`,
+      // Diz o que acontece de verdade, sem eufemismo -- inclusive que não é apagado de fato.
+      description: [
+        estavaAtivo ? 'Este agente está ativo: ele sai do ar para os usuários imediatamente.' : null,
+        'As conversas, a auditoria e o histórico de consumo dele são preservados.',
+        'O cadastro fica oculto (recuperável pelo suporte), não é apagado de verdade.',
+      ].filter(Boolean).join(' '),
+      confirmLabel: 'Excluir agente',
+      tone: 'danger',
+    });
+    if (!confirmado) return;
+    excluirMutation.mutate(agent);
   };
 
   const openNew = () => {
@@ -273,7 +308,7 @@ export function Agentes(_props: AgentesProps) {
             <AgentIcon agent={selected} size={28} />
             <h2>{selected.name}</h2>
             <p>{selected.purpose}</p>
-            <button className="v3464-btn secondary" onClick={() => void toggleAgentStatus(selected)}>{selected.status === 'ativo' ? 'Desativar agente' : 'Ativar agente'}</button> <button className="v3464-btn secondary" onClick={() => edit(selected)}><SlidersHorizontal size={16} /> Configurar</button>
+            <button className="v3464-btn secondary" onClick={() => void toggleAgentStatus(selected)}>{selected.status === 'ativo' ? 'Desativar agente' : 'Ativar agente'}</button> <button className="v3464-btn secondary" onClick={() => edit(selected)}><SlidersHorizontal size={16} /> Configurar</button> <button className="v3464-btn secondary" onClick={() => void excluirAgente(selected)}><Trash2 size={16} /> Excluir</button>
             {[
               ['Prompt / Contexto', selected.prompt],
               ['Fluxos do agente', selected.flows],

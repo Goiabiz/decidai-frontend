@@ -269,6 +269,9 @@ export async function getActiveClientAgent(clienteId: string): Promise<AgentReco
     .select(AGENT_SELECT)
     .eq('cliente_id', clienteId)
     .eq('status', 'ativo')
+    // Defesa em profundidade: deleteAgent() já tira o agente de 'ativo', mas se algum caminho
+    // futuro marcar só `deleted_at`, o ícone global não pode continuar no ar por causa disso.
+    .is('deleted_at', null)
     .order('updated_at', { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -302,6 +305,44 @@ export async function getClientAgentThatAnswers(clienteId: string): Promise<Agen
   return mapAgentRow(data);
 }
 
+/** Excluir agente -- exclusão LÓGICA (`deleted_at`), decisão do usuário registrada em
+ * `design-excluir-agente-v1.md`.
+ *
+ * Por que lógica e não física: exclusão física dispararia `SET NULL` em `agent_usage_events`
+ * (consumo faturável), `agent_audit_events` e `agent_conversations`. As linhas sobreviveriam,
+ * mas perderiam **para sempre** qual agente atendeu -- perda irreversível justamente em
+ * auditoria e cobrança. A coluna `deleted_at` já existia e o runtime já a respeita
+ * (`resolveActiveClientAgent` no backend filtra por ela), então isto não precisou de migration.
+ *
+ * As duas limpezas manuais abaixo existem porque **`ON DELETE CASCADE` só dispara em exclusão
+ * física**. Na lógica, sem elas, sobraria um agente fantasma: invisível na tela, mas ainda
+ * sendo o agente padrão de canais e ainda com roteamento ativo apontando pra ele. */
+export async function deleteAgent(clienteId: string, agentId: string): Promise<boolean> {
+  const client = getClient();
+  if (!client) return false;
+
+  const { error } = await client
+    .from('client_agents')
+    // Sai de 'ativo' junto: o ícone global na plataforma é montado a partir do status, então
+    // marcar só `deleted_at` deixaria o ícone no ar até alguém recarregar.
+    .update({ deleted_at: new Date().toISOString(), status: 'excluido' })
+    .eq('id', agentId)
+    .eq('cliente_id', clienteId);
+
+  if (error) return false;
+
+  // Canais que tinham este agente como padrão ficariam apontando pra um agente que não existe
+  // mais na tela. Erro aqui não desfaz a exclusão -- o agente já saiu do ar, que é o essencial;
+  // o vínculo órfão é inerte (o agente nunca mais é resolvido).
+  await client.from('client_channels').update({ default_agent_id: null }).eq('cliente_id', clienteId).eq('default_agent_id', agentId);
+
+  // Roteamento por canal não pode sobreviver à exclusão -- mensagem não deve cair num agente
+  // excluído.
+  await client.from('agent_channel_bindings').delete().eq('agent_id', agentId);
+
+  return true;
+}
+
 export async function listAgents(clienteId: string): Promise<{ items: AgentRecord[]; source: CanaisAgentesLoadState }> {
   const client = getClient();
   if (client) {
@@ -309,6 +350,8 @@ export async function listAgents(clienteId: string): Promise<{ items: AgentRecor
       .from('client_agents')
       .select(AGENT_SELECT)
       .eq('cliente_id', clienteId)
+      // Agente excluído (exclusão lógica) não pode reaparecer na lista -- ver deleteAgent().
+      .is('deleted_at', null)
       .order('created_at', { ascending: false });
     if (!error) {
       return { items: (data || []).map((row) => mapAgentRow(row)), source: 'supabase' };

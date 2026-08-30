@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
-import { ArrowLeft, Bot, Check, Loader2, Pencil, Plus, Search, Send, User, Volume2, X } from 'lucide-react';
+import { ArrowLeft, Bot, Check, Loader2, Pencil, Plus, Search, Send, Trash2, User, Volume2, X } from 'lucide-react';
 import { useSession } from '../contexts/SessionContext';
 import { runAgent, runAgentStream, type AgentMode } from '../services/agentClient';
-import { listConversations, loadConversationMessages, renameConversation, type AgentConversationSummary } from '../services/agentConversations';
+import { deleteConversation, listConversations, loadConversationMessages, renameConversation, type AgentConversationSummary } from '../services/agentConversations';
+import { showAppConfirm } from '../lib/appConfirm';
 import { getClientAgentThatAnswers, type AgentRecord } from '../services/canaisAgentes';
 import assistantIcon from '../assets/assistant-icon.png';
 
@@ -124,6 +125,25 @@ export function ChatAgente() {
   const cancelarRenomear = () => {
     setRenomeandoId(null);
     setTituloEditado('');
+  };
+
+  const excluirConversa = async (conversa: AgentConversationSummary) => {
+    if (!clienteId) return;
+    const confirmado = await showAppConfirm({
+      title: 'Excluir conversa',
+      description: `"${conversa.title}" e todas as mensagens dela serão apagadas. Isso não tem desfazer.`,
+      confirmLabel: 'Excluir conversa',
+      tone: 'danger',
+    });
+    if (!confirmado) return;
+
+    const ok = await deleteConversation(conversa.id, clienteId);
+    if (!ok) return;
+
+    setConversations((atuais) => atuais.filter((c) => c.id !== conversa.id));
+    // Se a conversa aberta é a que foi excluída, volta pra tela de conversa nova -- senão a
+    // URL apontaria pra uma conversa que não existe mais.
+    if (conversa.id === conversationId) novaConversa();
   };
 
   const confirmarRenomear = async (id: string) => {
@@ -263,12 +283,20 @@ export function ChatAgente() {
                   {conversa.title}
                 </button>
                 <button
-                  className="chat-historico-renomear"
+                  className="chat-historico-acao"
                   onClick={() => comecarRenomear(conversa)}
                   aria-label={`Renomear "${conversa.title}"`}
                   title="Renomear"
                 >
                   <Pencil size={13} />
+                </button>
+                <button
+                  className="chat-historico-acao perigo"
+                  onClick={() => void excluirConversa(conversa)}
+                  aria-label={`Excluir "${conversa.title}"`}
+                  title="Excluir"
+                >
+                  <Trash2 size={13} />
                 </button>
               </div>
             )

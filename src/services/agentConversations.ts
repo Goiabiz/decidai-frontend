@@ -72,6 +72,27 @@ export async function renameConversation(conversationId: string, clienteId: stri
   return data.title as string;
 }
 
+/** Excluir conversa. Exclusão de verdade (não lógica): a conversa é conteúdo do próprio
+ * usuário, e ele pediu pra sumir -- diferente do agente, onde a exclusão é lógica pra
+ * preservar atribuição de auditoria e cobrança.
+ *
+ * As mensagens saem junto por CASCADE, e um eventual procedimento aprendido (Learn Mode) na
+ * conversa sobrevive com o vínculo nulo -- decisão do usuário: apagar um chat não deve fazer
+ * o agente esquecer o que aprendeu. GRANT/policy de DELETE e a regra da FK entraram na
+ * migration `20260830170000_excluir_conversa_do_chat.sql`. */
+export async function deleteConversation(conversationId: string, clienteId: string): Promise<boolean> {
+  const client = universoSupabase;
+  if (!client) return false;
+
+  const { error } = await client
+    .from('agent_conversations')
+    .delete()
+    .eq('id', conversationId)
+    .eq('cliente_id', clienteId);
+
+  return !error;
+}
+
 export async function loadConversationMessages(conversationId: string, clienteId: string): Promise<AgentConversationMessage[]> {
   const client = universoSupabase;
   if (!client) return [];
