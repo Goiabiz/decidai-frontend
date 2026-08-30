@@ -276,6 +276,32 @@ export async function getActiveClientAgent(clienteId: string): Promise<AgentReco
   return mapAgentRow(data);
 }
 
+/** Agente que REALMENTE vai responder numa conversa com `mode='usuario-cliente'`.
+ *
+ * Diferente de `getActiveClientAgent` de propósito, e a diferença importa: o backend
+ * (`resolveActiveClientAgent`, client-agent-identity.ts) resolve o agente do tenant **sem
+ * filtrar por `status`** -- pega o mais recente não-excluído. `status='ativo'` gate só o ÍCONE
+ * GLOBAL na plataforma, não quem responde.
+ *
+ * Usar a função errada aqui criava um descompasso real: a tela de chat mostrava "Agente"
+ * genérico no cabeçalho enquanto a SUSi (desativada, mas ainda cadastrada) era quem de fato
+ * respondia. Esta função espelha a regra do backend pra o cabeçalho nunca mentir sobre com
+ * quem a pessoa está falando. */
+export async function getClientAgentThatAnswers(clienteId: string): Promise<AgentRecord | null> {
+  const client = getClient();
+  if (!client) return null;
+  const { data, error } = await client
+    .from('client_agents')
+    .select(AGENT_SELECT)
+    .eq('cliente_id', clienteId)
+    .is('deleted_at', null)
+    .order('updated_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error || !data) return null;
+  return mapAgentRow(data);
+}
+
 export async function listAgents(clienteId: string): Promise<{ items: AgentRecord[]; source: CanaisAgentesLoadState }> {
   const client = getClient();
   if (client) {

@@ -301,6 +301,304 @@
   background: var(--v3464-green-soft);
 }
 
+/* ---------------------------------------------------------------------------
+   Tela de chat de página inteira (frente I, design-chat-tela-cheia-v1.md).
+   Fica fora do <Layout>, então define a própria altura de tela e a própria
+   coluna lateral (histórico de conversas).
+   --------------------------------------------------------------------------- */
+
+.chat-page {
+  display: grid;
+  grid-template-columns: 264px minmax(0, 1fr);
+  height: 100vh;
+  background: var(--v3464-bg);
+  color: var(--v3464-text);
+}
+
+.chat-page-empty {
+  display: grid;
+  place-items: center;
+  height: 100vh;
+  color: var(--v3464-muted);
+}
+
+.chat-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px 12px;
+  border-right: 1px solid var(--v3464-border);
+  background: var(--v3464-card);
+  min-height: 0;
+}
+
+.chat-nova-conversa {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--v3464-border);
+  border-radius: 10px;
+  background: var(--v3464-input);
+  color: var(--v3464-text);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.chat-nova-conversa:hover { border-color: var(--v3464-green); }
+
+.chat-historico {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.chat-historico button {
+  text-align: left;
+  padding: 9px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--v3464-text);
+  font-size: 12.5px;
+  cursor: pointer;
+  /* Título vem de left(pergunta, 80) -- corta em 1 linha pra lista não virar parágrafo. */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chat-historico button:hover { background: var(--v3464-soft); }
+.chat-historico button.active { background: var(--v3464-green-soft); color: var(--v3464-green); font-weight: 700; }
+
+.chat-historico-vazio {
+  font-size: 12.5px;
+  color: var(--v3464-muted);
+  padding: 8px 10px;
+  margin: 0;
+}
+
+.chat-principal {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  min-height: 0;
+}
+
+.chat-topo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--v3464-border);
+  background: var(--v3464-card);
+}
+
+.chat-topo strong { display: block; font-size: 14px; }
+.chat-topo small { color: var(--v3464-muted); font-size: 12px; }
+
+.chat-voltar {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--v3464-border);
+  border-radius: 9px;
+  background: var(--v3464-input);
+  color: var(--v3464-text);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.chat-voltar:hover { border-color: var(--v3464-green); }
+
+.chat-thread {
+  overflow-y: auto;
+  padding: 26px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  min-height: 0;
+}
+
+.chat-thread-status,
+.chat-bolha {
+  /* Largura de leitura confortável e centrada -- resposta longa esticada na tela inteira é
+     justamente o que torna o widget ruim pra texto grande. */
+  width: 100%;
+  max-width: 70ch;
+  margin: 0 auto;
+}
+
+.chat-thread-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--v3464-muted);
+  font-size: 13px;
+}
+
+.chat-thread-vazio {
+  margin: auto;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  max-width: 46ch;
+}
+
+.chat-thread-vazio h2 { margin: 0; font-size: 21px; }
+.chat-thread-vazio p { margin: 0; color: var(--v3464-muted); font-size: 13.5px; line-height: 1.5; }
+
+.chat-bolha-autor {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 7px;
+}
+
+.chat-bolha-autor strong { font-size: 12.5px; }
+
+.chat-avatar-usuario,
+.chat-avatar-agente {
+  display: inline-grid;
+  place-items: center;
+  border-radius: 50%;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.chat-avatar-usuario {
+  width: 26px;
+  height: 26px;
+  background: var(--v3464-soft);
+  color: var(--v3464-muted);
+}
+
+.chat-avatar-agente img { width: 100%; height: 100%; object-fit: contain; }
+.chat-avatar-agente-marca { object-fit: contain; flex-shrink: 0; }
+
+.chat-ouvir {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--v3464-muted);
+  cursor: pointer;
+}
+
+.chat-ouvir:hover:not(:disabled) { background: var(--v3464-soft); color: var(--v3464-text); }
+.chat-ouvir:disabled { opacity: .35; cursor: not-allowed; }
+
+.chat-bolha-corpo {
+  font-size: 14px;
+  line-height: 1.62;
+}
+
+.chat-bolha.user .chat-bolha-corpo {
+  background: var(--v3464-soft);
+  border-radius: 12px;
+  padding: 11px 14px;
+}
+
+/* Markdown renderizado (react-markdown, aprovado pelo usuário na revisão do design) -- sem
+   isso a resposta aparece com ## e ** crus, que é o incômodo que a tela grande deveria
+   resolver. Margens enxutas: o padrão do navegador deixa a conversa espaçada demais. */
+.chat-bolha-corpo > *:first-child { margin-top: 0; }
+.chat-bolha-corpo > *:last-child { margin-bottom: 0; }
+.chat-bolha-corpo p { margin: 0 0 10px; color: inherit; }
+.chat-bolha-corpo h1,
+.chat-bolha-corpo h2,
+.chat-bolha-corpo h3 { margin: 18px 0 8px; font-size: 15px; line-height: 1.35; }
+.chat-bolha-corpo ul,
+.chat-bolha-corpo ol { margin: 0 0 10px; padding-left: 22px; }
+.chat-bolha-corpo li { margin-bottom: 4px; }
+.chat-bolha-corpo code {
+  background: var(--v3464-soft);
+  border-radius: 5px;
+  padding: 1px 5px;
+  font-size: 12.5px;
+}
+.chat-bolha-corpo pre {
+  background: var(--v3464-soft);
+  border: 1px solid var(--v3464-border);
+  border-radius: 10px;
+  padding: 12px;
+  /* Bloco de código largo rola dentro do próprio bloco -- nunca empurra a página pro lado. */
+  overflow-x: auto;
+}
+.chat-bolha-corpo pre code { background: none; padding: 0; }
+.chat-bolha-corpo table { width: 100%; border-collapse: collapse; margin: 0 0 10px; }
+.chat-bolha-corpo th,
+.chat-bolha-corpo td { border: 1px solid var(--v3464-border); padding: 6px 9px; text-align: left; font-size: 13px; }
+.chat-bolha-corpo a { color: var(--v3464-green); }
+
+.chat-pensando {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--v3464-muted);
+  font-size: 13px;
+}
+
+.chat-composer {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  width: 100%;
+  max-width: 70ch;
+  margin: 0 auto;
+  padding: 14px 20px 22px;
+}
+
+.chat-composer textarea {
+  flex: 1;
+  resize: none;
+  /* Cresce com o texto até um teto, aí rola por dentro -- escrever um parágrafo aqui não
+     pode empurrar a conversa pra fora da tela. */
+  min-height: 46px;
+  max-height: 180px;
+  padding: 13px 14px;
+  border: 1px solid var(--v3464-border);
+  border-radius: 12px;
+  background: var(--v3464-input);
+  color: var(--v3464-text);
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.chat-composer textarea:focus { outline: none; border-color: var(--v3464-green); }
+
+.chat-enviar {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--v3464-green);
+  color: #fff;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.chat-enviar:disabled { opacity: .4; cursor: not-allowed; }
+
+@media (max-width: 900px) {
+  .chat-page { grid-template-columns: 1fr; }
+  /* Numa tela estreita a conversa é o que importa; o histórico volta pelo botão de voltar. */
+  .chat-sidebar { display: none; }
+}
+
 /* Achado real testando (Playwright): o modal de editar agente ganhou campos novos (tom de
    voz, voz do agente, fluxos, conectores) e passou a ficar mais alto que a viewport --
    .v3464-system-modal não tinha limite de altura nem rolagem própria, então o rodapé

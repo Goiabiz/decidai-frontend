@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { Bot, ChevronDown, Loader2, Maximize2, Mic, Minimize2, Send, Square, User, Waves, X } from 'lucide-react';
+import { Bot, ChevronDown, Expand, Loader2, Maximize2, Mic, Minimize2, Send, Square, User, Waves, X } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { useSession } from '../contexts/SessionContext';
 import { runAgent, runAgentStream, runAgentVoice } from '../services/agentClient';
 import { startVoiceActivityDetector, type VoiceActivityHandle } from '../services/voiceActivityDetector';
@@ -178,6 +179,7 @@ export function FloatingPlatformAssistant({
     : undefined;
 
   const { session } = useSession();
+  const navigate = useNavigate();
   const [open, setOpen] = useState(initialOpen);
   const [expanded, setExpanded] = useState(false);
   const [message, setMessage] = useState('');
@@ -822,6 +824,21 @@ export function FloatingPlatformAssistant({
               <small>Lendo: {context}</small>
             </div>
             <div>
+              {/* Leva a conversa em andamento pra tela cheia (frente I, 30/08). Como o
+                  `conversationId` é o mesmo identificador nos dois lados, a continuidade sai de
+                  graça -- sem "exportar conversa", sem estado duplicado. Só aparece quando já
+                  existe conversa: sem turno nenhum não há o que continuar. O botão de
+                  expandir/reduzir ao lado continua existindo (esticar o painel sem sair da
+                  tela é outro caso de uso, não foi substituído). */}
+              {conversationId && (
+                <button
+                  onClick={() => { setOpen(false); navigate(mode === 'usuario-cliente' ? `/chat/${conversationId}?agente=cliente` : `/chat/${conversationId}`); }}
+                  aria-label="Abrir em tela cheia"
+                  title="Abrir em tela cheia"
+                >
+                  <Expand size={16} />
+                </button>
+              )}
               <button onClick={() => setExpanded((value) => !value)} aria-label={expanded ? 'Reduzir' : 'Expandir'}>{expanded ? <Minimize2 size={16} /> : <Maximize2 size={16} />}</button>
               <button onClick={() => setOpen(false)} aria-label="Fechar"><X size={16} /></button>
             </div>

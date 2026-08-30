@@ -18,6 +18,7 @@ import { PlanosPrecificacao } from './pages/parametrizacao/PlanosPrecificacao';
 import { Configuracoes } from './pages/Configuracoes';
 import { Integracoes } from './pages/parametrizacao/Integracoes';
 import { Agentes, CLIENT_AGENT_STATUS_EVENT } from './pages/parametrizacao/Agentes';
+import { ChatAgente } from './pages/ChatAgente';
 import { getActiveClientAgent, type AgentRecord } from './services/canaisAgentes';
 import { ConectoresCredenciais } from './pages/parametrizacao/ConectoresCredenciais';
 import { Canais } from './pages/parametrizacao/Canais';
@@ -234,6 +235,16 @@ export function App() {
 
   if (session.user.kind === 'cliente' && session.user.status === 'Solicitação') {
     return <AguardandoAprovacao />;
+  }
+
+  // Chat de página inteira (frente I, design-chat-tela-cheia-v1.md). Fica FORA do <Layout> de
+  // propósito: a tela tem coluna própria de histórico de conversas, e somar a ela a navegação
+  // lateral do app daria duas barras laterais competindo. Precisa de sessão (por isso vem
+  // depois do gate de login, ao contrário de /portal e /criar-conta, que são públicos).
+  // `useLocation` já é a fonte de verdade da rota nesta tela (conversão da frente B), então
+  // navegar entre conversas não recarrega nada.
+  if (location.pathname.startsWith('/chat')) {
+    return <ChatAgente />;
   }
 
   const handleNavigate = (page: PageKey) => {
