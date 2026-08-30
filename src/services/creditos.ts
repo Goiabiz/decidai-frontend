@@ -56,3 +56,84 @@ export async function listCreditsLedger(clienteId: string, limit = 200): Promise
     source: 'supabase',
   };
 }
+
+// ---------------------------------------------------------------------------
+// Limite RÍGIDO de crédito de IA (frente E, 30/08/2026) -- migrations
+// 20260830122228 (gate) e 20260830122807 (recarga).
+//
+// Até essas migrations existirem, o saldo podia ficar negativo sem limite: o único mecanismo
+// era um trigger que contabilizava DEPOIS do uso. Agora a IA é bloqueada antes de executar
+// quando o saldo acaba, e a recarga é o caminho de volta.
+
+export type CreditGate = {
+  permitido: boolean;
+  motivo: string | null;
+  saldo: number | null;
+  /** Plano isento do limite (Enterprise) -- contrato negociado, faturado à parte. */
+  isento: boolean;
+  planoCode: string | null;
+};
+
+/**
+ * Mesma função que o runtime do agente consulta antes de executar IA -- de propósito.
+ * Se a tela calculasse por conta própria, ela e o motor poderiam discordar, e o usuário veria
+ * "saldo ok" numa tela cuja IA não responde.
+ */
+export async function getCreditGate(clienteId: string): Promise<CreditGate | null> {
+  const client = universoSupabase;
+  if (!client) return null;
+  const { data, error } = await client.rpc('fn_tenant_credit_gate', { p_cliente_id: clienteId });
+  if (error) return null;
+  const row = (data as Array<Record<string, unknown>> | null)?.[0];
+  if (!row) return null;
+  return {
+    permitido: row.permitido === true,
+    motivo: typeof row.motivo === 'string' ? row.motivo : null,
+    saldo: row.saldo === null || row.saldo === undefined ? null : Number(row.saldo),
+    isento: row.isento === true,
+    planoCode: typeof row.plano_code === 'string' ? row.plano_code : null,
+  };
+}
+
+export type CreditTopup = {
+  id: string;
+  valorUsd: number;
+  valorBrl: number | null;
+  status: 'pendente' | 'pago' | 'cancelado';
+  gateway: string | null;
+  criadoEm: string;
+  pagoEm: string | null;
+};
+
+export async function listCreditTopups(clienteId: string, limit = 20): Promise<CreditTopup[]> {
+  const client = universoSupabase;
+  if (!client) return [];
+  const { data, error } = await client
+    .from('credit_topups')
+    .select('id, valor_usd, valor_brl, status, gateway, criado_em, pago_em')
+    .eq('cliente_id', clienteId)
+    .order('criado_em', { ascending: false })
+    .limit(limit);
+  if (error || !data) return [];
+  return data.map((row) => ({
+    id: row.id,
+    valorUsd: Number(row.valor_usd),
+    valorBrl: row.valor_brl === null ? null : Number(row.valor_brl),
+    status: row.status as CreditTopup['status'],
+    gateway: row.gateway,
+    criadoEm: row.criado_em,
+    pagoEm: row.pago_em,
+  }));
+}
+
+/**
+ * Cria o pedido de recarga. NÃO credita nada -- quem credita é o servidor, depois que o gateway
+ * confirmar o pagamento de verdade (fn_confirm_credit_topup, service_role).
+ */
+export async function requestCreditTopup(clienteId: string, valorUsd: number): Promise<{ ok: boolean; error?: string }> {
+  const client = universoSupabase;
+  if (!client) return { ok: false, error: 'Supabase não configurado.' };
+  const { error } = await client.rpc('fn_request_credit_topup', { p_cliente_id: clienteId, p_valor_usd: valorUsd });
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}

@@ -5,7 +5,17 @@ import { Badge } from '../../components/Badge';
 import { ExportAction, type ExportFormat } from '../../components/ExportAction';
 import { showAppToast } from '../../lib/appToast';
 import { useSession, usePermission } from '../../contexts/SessionContext';
-import { getCreditsBalance, listCreditsLedger, type CreditsLedgerEntry, type CreditsLedgerTipo } from '../../services/creditos';
+import {
+  getCreditGate,
+  getCreditsBalance,
+  listCreditTopups,
+  listCreditsLedger,
+  requestCreditTopup,
+  type CreditGate,
+  type CreditTopup,
+  type CreditsLedgerEntry,
+  type CreditsLedgerTipo,
+} from '../../services/creditos';
 import { exportReportRows, exportInvoicePdf } from '../../lib/reportExport';
 import { formatDate, formatDateTime } from '../../lib/formatDate';
 import { formatCurrencyBrl as formatBrl } from '../../lib/formatCurrency';
@@ -85,6 +95,37 @@ export function Creditos() {
   const [baixandoPdf, setBaixandoPdf] = useState<string | null>(null);
   const [executandoDunning, setExecutandoDunning] = useState<string | null>(null);
 
+  // Limite rígido de crédito (30/08/2026).
+  //
+  // Permissão de RECARGA é `creditos.plano.alterar`, não `creditos.acessar.editar`. As duas
+  // existem e são coisas diferentes: `acessar.editar` é de operador (fechar período, dar baixa
+  // em fatura -- só admin_operadora/suporte), enquanto recarregar o próprio saldo é ação do
+  // cliente sobre a própria assinatura, mesma classe de trocar de plano -- e `plano.alterar` já
+  // inclui admin_cliente. Achei isso testando: a seção não aparecia pra conta de tenant real.
+  const podeRecarregar = usePermission('creditos.plano.alterar');
+  const [gate, setGate] = useState<CreditGate | null>(null);
+  const [topups, setTopups] = useState<CreditTopup[]>([]);
+  const [recarregando, setRecarregando] = useState(false);
+
+  const loadCredito = () => {
+    if (!clienteId) return;
+    getCreditGate(clienteId).then(setGate);
+    listCreditTopups(clienteId).then(setTopups);
+  };
+
+  const pedirRecarga = async (valorUsd: number) => {
+    if (!clienteId) return;
+    setRecarregando(true);
+    try {
+      const r = await requestCreditTopup(clienteId, valorUsd);
+      if (!r.ok) { showAppToast(r.error || 'Não foi possível registrar o pedido de recarga.', 'error'); return; }
+      showAppToast(`Pedido de recarga de US$ ${valorUsd} registrado. O crédito entra assim que o pagamento for confirmado.`, 'success');
+      loadCredito();
+    } finally {
+      setRecarregando(false);
+    }
+  };
+
   const loadFaturamento = () => {
     if (!clienteId) return;
     Promise.all([getPlanPricing(clienteId), listInvoices(clienteId), getActivePriceOverride(clienteId)])
@@ -106,6 +147,7 @@ export function Creditos() {
       })
       .finally(() => setLoading(false));
     loadFaturamento();
+    loadCredito();
   }, [podeVer, clienteId]);
 
   const openInvoice = async (invoiceId: string) => {
@@ -267,7 +309,101 @@ export function Creditos() {
             {formatUsd(totals.creditos)} em créditos lançados · {formatUsd(totals.debitos)} consumidos em uso de IA.
           </p>
         )}
+
+        {/* Limite rígido de crédito (30/08/2026) -- o mesmo gate que o runtime consulta antes de
+            executar IA. Sem este bloco, o usuário veria o saldo em zero sem entender que a IA
+            parou por causa disso. */}
+        {!loading && gate && !gate.isento && (
+          <div
+            style={{
+              marginTop: 14,
+              padding: '12px 16px',
+              borderRadius: 10,
+              borderLeft: `3px solid ${gate.permitido ? 'var(--green-700)' : 'var(--red-500)'}`,
+              background: 'var(--slate-50, #f8fafc)',
+            }}
+          >
+            {gate.permitido ? (
+              <span className="section-description">
+                A IA está <strong>ativa</strong> para este ambiente. Quando o saldo chegar a zero, os recursos de
+                inteligência artificial são bloqueados automaticamente — o saldo nunca fica negativo.
+              </span>
+            ) : (
+              <>
+                <strong style={{ color: 'var(--red-500)' }}>IA bloqueada: os créditos acabaram.</strong>{' '}
+                <span className="section-description">
+                  Nenhuma chamada de IA é executada até haver saldo. Recarregue abaixo para voltar a usar.
+                  Nada é cobrado a mais por uso além do saldo, porque o uso além do saldo não acontece.
+                </span>
+              </>
+            )}
+          </div>
+        )}
+
+        {!loading && gate?.isento && (
+          <p className="section-description" style={{ marginTop: 14 }}>
+            Este ambiente é <strong>isento</strong> do limite de créditos (plano {gate.planoCode ?? 'enterprise'}):
+            o uso de IA é faturado por contrato, não descontado de saldo pré-pago.
+          </p>
+        )}
       </section>
+
+      {/* Recarga -- pedido real gravado em credit_topups. O crédito só entra no saldo quando o
+          gateway confirmar o pagamento (fn_confirm_credit_topup, servidor). */}
+      {!loading && gate && !gate.isento && podeRecarregar && (
+        <section className="card audit-clean-card" style={{ marginBottom: 16 }}>
+          <div className="section-title-row">
+            <div>
+              <h3>Recarregar créditos</h3>
+              <p className="section-description">
+                O pedido fica pendente até o pagamento ser confirmado. O crédito entra no saldo automaticamente
+                nesse momento.
+              </p>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginTop: 10 }}>
+            {[5, 10, 25, 50].map((valor) => (
+              <button
+                key={valor}
+                className="v3464-btn secondary"
+                disabled={recarregando}
+                onClick={() => void pedirRecarga(valor)}
+              >
+                US$ {valor}
+              </button>
+            ))}
+            {recarregando && <span className="section-description">Registrando pedido...</span>}
+          </div>
+
+          <p className="section-description" style={{ marginTop: 10, fontSize: 12 }}>
+            O valor em reais aparece quando o meio de pagamento estiver conectado — o preço de venda do crédito
+            ainda não foi definido.
+          </p>
+
+          {topups.length > 0 && (
+            <table className="v3464-table" style={{ marginTop: 14 }}>
+              <thead>
+                <tr><th>Pedido</th><th>Valor</th><th>Situação</th><th>Meio</th></tr>
+              </thead>
+              <tbody>
+                {topups.map((t) => (
+                  <tr key={t.id}>
+                    <td>{formatDateTime(t.criadoEm)}</td>
+                    <td>{formatUsd(t.valorUsd)}</td>
+                    <td>
+                      <Badge tone={t.status === 'pago' ? 'green' : t.status === 'pendente' ? 'orange' : 'gray'}>
+                        {t.status === 'pago' ? 'Pago' : t.status === 'pendente' ? 'Aguardando pagamento' : 'Cancelado'}
+                      </Badge>
+                    </td>
+                    <td>{t.gateway ?? '-'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </section>
+      )}
 
       <section className="card audit-clean-card" style={{ marginBottom: 16 }}>
         <div className="section-title-row">
