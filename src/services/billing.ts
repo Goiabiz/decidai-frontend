@@ -254,13 +254,15 @@ export async function runDunningNow(invoiceId: string, clienteId?: string | null
 // Edge Function (fn_is_staff_sem_tenant), igual runDunningNow. platform_plans não tem GRANT de
 // UPDATE nenhum pra authenticated (só service_role) -- não dá pra fazer isso com supabase.rpc
 // direto do frontend, precisa passar pela Edge Function.
+// Só edita a mensalidade. O preço de excedente saiu do escopo em 30/08/2026: o modelo comercial
+// não tem excedente (limite rígido + recarga -- decisoes-usuario-29-08-rodada-noite.md), então
+// overage_price_per_usd_brl fica NULL de propósito e não é mais enviado daqui.
 export async function updatePlanPricing(
   planCode: string,
   monthlyPriceBrl: number,
-  overagePricePerUsdBrl: number,
 ): Promise<{ ok: true } | { error: string }> {
   const result = await callEdgeFunction('billing-admin', {
-    action: 'updatePlanPricing', planCode, monthlyPriceBrl, overagePricePerUsdBrl,
+    action: 'updatePlanPricing', planCode, monthlyPriceBrl,
   });
   if (!isEdgeFunctionOk(result)) return { error: result.error };
   return { ok: true };

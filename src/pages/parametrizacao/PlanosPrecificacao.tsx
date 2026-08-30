@@ -8,12 +8,11 @@ import { formatDateTime } from '../../lib/formatDate';
 import { formatCurrencyBrl as formatBrl } from '../../lib/formatCurrency';
 import { listAdminPlanPricing, updatePlanPricing, type AdminPlanPricing } from '../../services/billing';
 
-type DraftValue = { monthlyPriceBrl: string; overagePricePerUsdBrl: string };
+type DraftValue = { monthlyPriceBrl: string };
 
 function toDraft(plan: AdminPlanPricing): DraftValue {
   return {
     monthlyPriceBrl: plan.monthlyPriceBrl === null ? '' : String(plan.monthlyPriceBrl),
-    overagePricePerUsdBrl: plan.overagePricePerUsdBrl === null ? '' : String(plan.overagePricePerUsdBrl),
   };
 }
 
@@ -52,20 +51,15 @@ export function PlanosPrecificacao() {
   const handleSave = async (plan: AdminPlanPricing) => {
     const draft = drafts[plan.code];
     const monthlyPriceBrl = Number(draft?.monthlyPriceBrl);
-    const overagePricePerUsdBrl = Number(draft?.overagePricePerUsdBrl);
 
     if (!draft?.monthlyPriceBrl.trim() || !Number.isFinite(monthlyPriceBrl) || monthlyPriceBrl < 0) {
       showAppToast('Mensalidade precisa ser um número maior ou igual a zero.', 'warning');
       return;
     }
-    if (!draft?.overagePricePerUsdBrl.trim() || !Number.isFinite(overagePricePerUsdBrl) || overagePricePerUsdBrl < 0) {
-      showAppToast('Preço do excedente precisa ser um número maior ou igual a zero.', 'warning');
-      return;
-    }
 
     setSavingCode(plan.code);
     try {
-      const result = await updatePlanPricing(plan.code, monthlyPriceBrl, overagePricePerUsdBrl);
+      const result = await updatePlanPricing(plan.code, monthlyPriceBrl);
       if ('error' in result) { showAppToast(result.error, 'warning'); return; }
       showAppToast(`Preço do plano ${plan.name} atualizado.`, 'success');
       load();
@@ -103,7 +97,8 @@ export function PlanosPrecificacao() {
               <h3 style={{ margin: 0 }}>Planos comerciais</h3>
               <p className="section-description" style={{ margin: 0 }}>
                 Toda troca de plano e fechamento de fatura usa o valor gravado aqui. Sem SQL direto — a gravação é
-                staff-only, validada no servidor.
+                staff-only, validada no servidor. Não existe preço de excedente: o modelo é limite rígido de uso
+                mais recarga, então o consumo além da franquia é bloqueado antes, não cobrado depois.
               </p>
             </div>
           </div>
@@ -117,7 +112,6 @@ export function PlanosPrecificacao() {
                 <th>Plano</th>
                 <th>Mensalidade (R$)</th>
                 <th>Franquia de uso incluída</th>
-                <th>Excedente (R$ por US$1 além da franquia)</th>
                 <th>Última atualização</th>
                 <th></th>
               </tr>
@@ -141,17 +135,6 @@ export function PlanosPrecificacao() {
                       />
                     </td>
                     <td className="table-subtitle">{formatUsd(plan.includedCreditsUsd)}</td>
-                    <td>
-                      <input
-                        type="number"
-                        min={0}
-                        step="0.01"
-                        value={draft.overagePricePerUsdBrl}
-                        placeholder="não confirmado"
-                        onChange={(event) => updateDraft(plan.code, 'overagePricePerUsdBrl', event.target.value)}
-                        style={{ width: 120 }}
-                      />
-                    </td>
                     <td className="table-subtitle">{formatDateTime(plan.updatedAt)}</td>
                     <td>
                       <button className="secondary-btn" disabled={saving} onClick={() => void handleSave(plan)}>
@@ -166,7 +149,7 @@ export function PlanosPrecificacao() {
           {!loading && plans.length === 0 && <p className="empty-note">Nenhum plano encontrado.</p>}
         </div>
 
-        {!loading && plans.some((plan) => plan.monthlyPriceBrl === null || plan.overagePricePerUsdBrl === null) && (
+        {!loading && plans.some((plan) => plan.monthlyPriceBrl === null) && (
           <p className="section-description" style={{ marginTop: 12 }}>
             Planos com valor "não confirmado" ainda não têm preço comercial definido — fechamento de fatura trata
             como R$0 até que um valor real seja salvo aqui.
