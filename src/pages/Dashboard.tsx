@@ -47,9 +47,20 @@ function computeDrillState<T>(items: T[], levels: DonutLevel<T>[], path: string[
   return { segments, total, hasMoreLevels: path.length + 1 < levels.length };
 }
 
-const normalizeNumber = (value: unknown, fallback: number) => {
-  const parsed = Number(String(value ?? '').replace(/\D/g, ''));
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+// WP-01 (31/08/2026) -- zero legítimo permanece zero.
+// A versão anterior era `parsed > 0 ? parsed : fallback`: um KPI real valendo 0 vindo do
+// Supabase era trocado por um número inventado. Pior, a troca acontecia com a origem sendo
+// 'supabase', então o aviso de dado demonstrativo NÃO aparecia -- o usuário via um número
+// fabricado sem nenhuma indicação de que não era real.
+// Agora 0 é valor válido; ausência de verdade devolve null, e a tela mostra "—".
+const METRIC_UNAVAILABLE = '—';
+
+const parseMetric = (value: unknown): number | null => {
+  if (value === null || value === undefined) return null;
+  const digits = String(value).replace(/\D/g, '');
+  if (digits === '') return null;
+  const parsed = Number(digits);
+  return Number.isFinite(parsed) ? parsed : null;
 };
 
 const toneColor = (tone: string) => {
@@ -151,7 +162,22 @@ export function Dashboard({ onOpenDetail, onNavigate }: PageProps) {
   const dashboard = useAsyncData(fetchDashboard, kpis);
   const alertasData = useAsyncData(fetchAlertas, alertas);
   const documentosData = useAsyncData(fetchDocumentos, documentos);
-  const isDemoData = [dashboard.source, alertasData.source, documentosData.source].some((source) => source === 'mock');
+  // WP-01 -- três situações distintas que antes se misturavam numa mensagem só:
+  // carregando (ainda não sabemos), falha real (o backend não respondeu) e demonstração
+  // (respondeu, mas a origem é local). O aviso anterior dizia "não foi possível carregar"
+  // já durante o carregamento inicial, porque `useAsyncData` começa com source='mock'.
+  const fontes = [dashboard, alertasData, documentosData];
+  const isLoadingAny = fontes.some((fonte) => fonte.loading);
+  const hasBackendError = fontes.some((fonte) => Boolean(fonte.error));
+  const isDemoData = !isLoadingAny && fontes.some((fonte) => fonte.source === 'mock');
+
+  const dataNotice = isLoadingAny
+    ? 'Carregando indicadores…'
+    : hasBackendError
+      ? 'Não foi possível carregar os indicadores do servidor. Os números abaixo não refletem a situação atual.'
+      : isDemoData
+        ? 'Alguns indicadores estão exibindo dados locais de demonstração — não vieram do servidor.'
+        : undefined;
 
   const [tasks, setTasks] = useState<TaskRecord[]>([]);
   const [knowledgeEntries, setKnowledgeEntries] = useState<KnowledgeEntryRecord[]>([]);
@@ -196,15 +222,16 @@ export function Dashboard({ onOpenDetail, onNavigate }: PageProps) {
   const drillTaskInto = (label: string) => setTaskDrillPath((current) => [...current, label]);
   const drillKnowledgeInto = (label: string) => setKnowledgeDrillPath((current) => [...current, label]);
 
-  const metricValue = (labelIncludes: string[], fallback: number) => {
+  const metricValue = (labelIncludes: string[]): number | null => {
     const item = dashboard.data.find((kpi) => labelIncludes.some((label) => kpi.label.toLowerCase().includes(label)));
-    return normalizeNumber(item?.value, fallback);
+    return parseMetric(item?.value);
   };
 
   const cards = [
     {
       label: 'Conhecimentos ativos',
-      value: metricValue(['document', 'conhecimento'], documentosData.data.length || 9),
+      // KPI real quando existe; senão a contagem real da lista -- que pode ser 0 de verdade.
+      value: metricValue(['document', 'conhecimento']) ?? documentosData.data.length,
       tone: 'green',
       title: 'Conhecimentos disponíveis para consulta, análise, alertas, orientações e tarefas.',
       icon: <FileText size={20} />,
@@ -212,7 +239,8 @@ export function Dashboard({ onOpenDetail, onNavigate }: PageProps) {
     },
     {
       label: 'Alertas',
-      value: alertasData.data.length || metricValue(['alerta'], 4),
+      // Contagem real da lista. Zero alertas é uma resposta legítima -- e boa.
+      value: alertasData.data.length,
       tone: 'red',
       title: 'Sinais gerados a partir de fontes, regras, mudanças ou monitoramentos que exigem atenção.',
       icon: <AlertTriangle size={20} />,
@@ -220,7 +248,9 @@ export function Dashboard({ onOpenDetail, onNavigate }: PageProps) {
     },
     {
       label: 'Ações pendentes',
-      value: metricValue(['ação', 'ações', 'acao', 'acoes'], 1),
+      // Não há lista local que sustente este número: se o KPI não veio, não sabemos.
+      // Mostrar "—" é honesto; mostrar 1 era invenção.
+      value: metricValue(['ação', 'ações', 'acao', 'acoes']) ?? METRIC_UNAVAILABLE,
       tone: 'orange',
       title: 'Ações aguardando análise, decisão, validação ou encaminhamento.',
       icon: <ClipboardList size={20} />,
@@ -236,7 +266,8 @@ export function Dashboard({ onOpenDetail, onNavigate }: PageProps) {
     },
     {
       label: 'Fontes monitoradas',
-      value: new Set(documentosData.data.map((item) => item.fonte)).size || 4,
+      // Contagem real de fontes distintas. Nenhuma fonte cadastrada é 0, não 4.
+      value: new Set(documentosData.data.map((item) => item.fonte)).size,
       tone: 'cyan',
       title: 'Fontes cadastradas para acompanhamento, captura ou consulta de conhecimento.',
       icon: <Globe2 size={20} />,
@@ -284,7 +315,7 @@ export function Dashboard({ onOpenDetail, onNavigate }: PageProps) {
 
   return (
     <>
-      <PageHeader title="Área de Trabalho" subtitle={isDemoData ? 'Alguns indicadores estão exibindo dados locais de demonstração — não foi possível carregar do Supabase.' : undefined} />
+      <PageHeader title="Área de Trabalho" subtitle={dataNotice} />
 
       <CollapsibleKpiSection>
         <div className="kpi-grid five dashboard-kpis">
