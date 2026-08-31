@@ -174,10 +174,26 @@ export function Dashboard({ onOpenDetail, onNavigate }: PageProps) {
   const dataNotice = isLoadingAny
     ? 'Carregando indicadores…'
     : hasBackendError
-      ? 'Não foi possível carregar os indicadores do servidor. Os números abaixo não refletem a situação atual.'
+      ? 'Não foi possível carregar os indicadores do servidor. Os indicadores abaixo estão indisponíveis.'
       : isDemoData
         ? 'Alguns indicadores estão exibindo dados locais de demonstração — não vieram do servidor.'
         : undefined;
+
+  // FIND-ARCH-NEW-015, opção A (31/08/2026) -- falha de backend NÃO promove mock a indicador.
+  //
+  // `useAsyncData` restaura o mock como dado no `catch`. Antes, 4 dos 5 cards passavam a exibir
+  // números de `data/mock.ts` com o mesmo estilo de dado real, protegidos só pelo subtítulo --
+  // e a lista de alertas chegava a renderizar 4 alertas fabricados com títulos verossímeis.
+  //
+  // Só há duas origens aceitáveis para um número aqui: veio do servidor, ou é modo demonstração
+  // explicitamente rotulado (loader devolveu mock SEM erro). Erro e carregamento não produzem
+  // número -- produzem "—".
+  const indicadorUtilizavel = <T,>(fonte: { data: T; error?: string; loading: boolean }): T | null =>
+    fonte.loading || fonte.error ? null : fonte.data;
+
+  const kpisUtil = indicadorUtilizavel(dashboard);
+  const alertasUtil = indicadorUtilizavel(alertasData);
+  const documentosUtil = indicadorUtilizavel(documentosData);
 
   const [tasks, setTasks] = useState<TaskRecord[]>([]);
   const [knowledgeEntries, setKnowledgeEntries] = useState<KnowledgeEntryRecord[]>([]);
@@ -223,7 +239,8 @@ export function Dashboard({ onOpenDetail, onNavigate }: PageProps) {
   const drillKnowledgeInto = (label: string) => setKnowledgeDrillPath((current) => [...current, label]);
 
   const metricValue = (labelIncludes: string[]): number | null => {
-    const item = dashboard.data.find((kpi) => labelIncludes.some((label) => kpi.label.toLowerCase().includes(label)));
+    if (!kpisUtil) return null;
+    const item = kpisUtil.find((kpi) => labelIncludes.some((label) => kpi.label.toLowerCase().includes(label)));
     return parseMetric(item?.value);
   };
 
@@ -231,7 +248,8 @@ export function Dashboard({ onOpenDetail, onNavigate }: PageProps) {
     {
       label: 'Conhecimentos ativos',
       // KPI real quando existe; senão a contagem real da lista -- que pode ser 0 de verdade.
-      value: metricValue(['document', 'conhecimento']) ?? documentosData.data.length,
+      // `??` e não `||`: uma lista legitimamente vazia vale 0, não "indisponível".
+      value: metricValue(['document', 'conhecimento']) ?? documentosUtil?.length ?? METRIC_UNAVAILABLE,
       tone: 'green',
       title: 'Conhecimentos disponíveis para consulta, análise, alertas, orientações e tarefas.',
       icon: <FileText size={20} />,
@@ -240,7 +258,7 @@ export function Dashboard({ onOpenDetail, onNavigate }: PageProps) {
     {
       label: 'Alertas',
       // Contagem real da lista. Zero alertas é uma resposta legítima -- e boa.
-      value: alertasData.data.length,
+      value: alertasUtil?.length ?? METRIC_UNAVAILABLE,
       tone: 'red',
       title: 'Sinais gerados a partir de fontes, regras, mudanças ou monitoramentos que exigem atenção.',
       icon: <AlertTriangle size={20} />,
@@ -267,7 +285,7 @@ export function Dashboard({ onOpenDetail, onNavigate }: PageProps) {
     {
       label: 'Fontes monitoradas',
       // Contagem real de fontes distintas. Nenhuma fonte cadastrada é 0, não 4.
-      value: new Set(documentosData.data.map((item) => item.fonte)).size,
+      value: documentosUtil ? new Set(documentosUtil.map((item) => item.fonte)).size : METRIC_UNAVAILABLE,
       tone: 'cyan',
       title: 'Fontes cadastradas para acompanhamento, captura ou consulta de conhecimento.',
       icon: <Globe2 size={20} />,
@@ -275,7 +293,9 @@ export function Dashboard({ onOpenDetail, onNavigate }: PageProps) {
     }
   ];
 
-  const latestAlertas = alertasData.data.slice(0, 5);
+  // Mesma regra dos cards: sob falha a lista fica vazia em vez de renderizar os alertas
+  // fabricados do mock -- que têm título verossímil e são mais enganosos que um número errado.
+  const latestAlertas = (alertasUtil ?? []).slice(0, 5);
   const latestTasks = tasks.slice(0, 5);
 
   const openAlertModal = (alerta: (typeof latestAlertas)[number]) => {
@@ -444,7 +464,13 @@ export function Dashboard({ onOpenDetail, onNavigate }: PageProps) {
           ))}
         </div>
 
-        {latestAlertas.length === 0 && <p className="empty-note">Nenhum alerta encontrado na base.</p>}
+        {latestAlertas.length === 0 && (
+          <p className="empty-note">
+            {alertasUtil === null
+              ? 'Alertas indisponíveis — não foi possível carregar do servidor.'
+              : 'Nenhum alerta encontrado na base.'}
+          </p>
+        )}
       </section>
     </>
   );
