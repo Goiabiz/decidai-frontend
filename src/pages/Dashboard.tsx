@@ -5,7 +5,7 @@ import { KpiCard } from '../components/KpiCard';
 import { CollapsibleKpiSection } from '../components/CollapsibleKpiSection';
 import { Badge } from '../components/Badge';
 import { alertas, documentos, kpis } from '../data/mock';
-import { useAsyncData } from '../hooks/useAsyncData';
+import { useAsyncData, type ConnectionState } from '../hooks/useAsyncData';
 import { fetchAlertas, fetchDashboard, fetchDocumentos } from '../services/radarApi';
 import { useSession } from '../contexts/SessionContext';
 import { listTasks, type TaskRecord } from '../services/tarefas';
@@ -162,22 +162,29 @@ export function Dashboard({ onOpenDetail, onNavigate }: PageProps) {
   const dashboard = useAsyncData(fetchDashboard, kpis);
   const alertasData = useAsyncData(fetchAlertas, alertas);
   const documentosData = useAsyncData(fetchDocumentos, documentos);
-  // WP-01 -- três situações distintas que antes se misturavam numa mensagem só:
-  // carregando (ainda não sabemos), falha real (o backend não respondeu) e demonstração
-  // (respondeu, mas a origem é local). O aviso anterior dizia "não foi possível carregar"
-  // já durante o carregamento inicial, porque `useAsyncData` começa com source='mock'.
+  // WP-01 -- quatro situações distintas que antes se misturavam numa mensagem só: carregando,
+  // conexão lenta, falha real e demonstração. O aviso original dizia "não foi possível carregar"
+  // já durante o carregamento normal, porque `useAsyncData` começa com source='mock'.
+  // A leitura passou a ser por `connectionState`, que distingue as quatro sem inferência.
   const fontes = [dashboard, alertasData, documentosData];
-  const isLoadingAny = fontes.some((fonte) => fonte.loading);
-  const hasBackendError = fontes.some((fonte) => Boolean(fonte.error));
-  const isDemoData = !isLoadingAny && fontes.some((fonte) => fonte.source === 'mock');
+  const estados = fontes.map((fonte) => fonte.connectionState);
+  const hasBackendError = estados.some((estado) => estado === 'error');
+  const isLento = estados.some((estado) => estado === 'slow');
+  const isCarregando = estados.some((estado) => estado === 'connecting');
+  const isDemoData = !hasBackendError && !isLento && !isCarregando && estados.some((estado) => estado === 'demo');
 
-  const dataNotice = isLoadingAny
-    ? 'Carregando indicadores…'
-    : hasBackendError
-      ? 'Não foi possível carregar os indicadores do servidor. Os indicadores abaixo estão indisponíveis.'
-      : isDemoData
-        ? 'Alguns indicadores estão exibindo dados locais de demonstração — não vieram do servidor.'
-        : undefined;
+  // Ordem: erro primeiro (mais grave), depois lenta, depois carregando, depois demo.
+  // "Lenta" ganhou mensagem própria porque agora produz "—" nos cards -- sem explicação,
+  // o usuário veria indicadores vazios sem saber por quê.
+  const dataNotice = hasBackendError
+    ? 'Não foi possível carregar os indicadores do servidor. Os indicadores abaixo estão indisponíveis.'
+    : isLento
+      ? 'A conexão está lenta — os indicadores ainda não foram carregados.'
+      : isCarregando
+        ? 'Carregando indicadores…'
+        : isDemoData
+          ? 'Alguns indicadores estão exibindo dados locais de demonstração — não vieram do servidor.'
+          : undefined;
 
   // FIND-ARCH-NEW-015, opção A (31/08/2026) -- falha de backend NÃO promove mock a indicador.
   //
@@ -188,8 +195,17 @@ export function Dashboard({ onOpenDetail, onNavigate }: PageProps) {
   // Só há duas origens aceitáveis para um número aqui: veio do servidor, ou é modo demonstração
   // explicitamente rotulado (loader devolveu mock SEM erro). Erro e carregamento não produzem
   // número -- produzem "—".
-  const indicadorUtilizavel = <T,>(fonte: { data: T; error?: string; loading: boolean }): T | null =>
-    fonte.loading || fonte.error ? null : fonte.data;
+  // NOVO-2 (31/08/2026) -- o gate passou a olhar `connectionState`, não `loading || error`.
+  //
+  // Achado do QA-WHITE (frente H): o timer SLOW_CONNECTION_MS (3,5 s) do `useAsyncData` executa
+  // `setLoading(false)` SEM que o loader tenha respondido, e sem tocar em `error` nem em `data`.
+  // O gate anterior avaliava falsy nesse estado e liberava o mock inicial como indicador --
+  // rotulado como "demonstração", que é falso: conexão lenta não é modo de demonstração.
+  //
+  // `connectionState` é exaustivo e não depende de inferência: só 'connected' (veio do servidor)
+  // e 'demo' (mock deliberado, sem erro) produzem número. 'connecting', 'slow' e 'error' -> "—".
+  const indicadorUtilizavel = <T,>(fonte: { data: T; connectionState: ConnectionState }): T | null =>
+    fonte.connectionState === 'connected' || fonte.connectionState === 'demo' ? fonte.data : null;
 
   const kpisUtil = indicadorUtilizavel(dashboard);
   const alertasUtil = indicadorUtilizavel(alertasData);
