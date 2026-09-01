@@ -211,22 +211,35 @@ export function Dashboard({ onOpenDetail, onNavigate }: PageProps) {
   const alertasUtil = indicadorUtilizavel(alertasData);
   const documentosUtil = indicadorUtilizavel(documentosData);
 
-  const [tasks, setTasks] = useState<TaskRecord[]>([]);
-  const [knowledgeEntries, setKnowledgeEntries] = useState<KnowledgeEntryRecord[]>([]);
+  // FIND-QA-BLACK-01/02/03 (31/08/2026) -- `null` significa FONTE INDISPONÍVEL, distinto de
+  // `[]`, que significa "consulta funcionou e não há nada". Antes ambos eram `[]`, e a tela
+  // afirmava "nenhum conhecimento publicado ainda" com a base cheia e a consulta fora do ar.
+  //
+  // Os dois services já entregavam o sinal -- `listKnowledgeEntries` devolve `error`,
+  // `listTasks` devolve `source` -- e o Dashboard descartava os dois, consumindo só `.items`.
+  // A correção é aqui, no consumidor; nenhum service foi alterado.
+  const [tasks, setTasks] = useState<TaskRecord[] | null>(null);
+  const [knowledgeEntries, setKnowledgeEntries] = useState<KnowledgeEntryRecord[] | null>(null);
   const [taskDrillPath, setTaskDrillPath] = useState<string[]>([]);
   const [knowledgeDrillPath, setKnowledgeDrillPath] = useState<string[]>([]);
 
   useEffect(() => {
-    if (!clienteId) { setTasks([]); return; }
+    if (!clienteId) { setTasks(null); return; }
     let active = true;
-    listTasks(clienteId).then((result) => { if (active) setTasks(result.items); });
+    listTasks(clienteId)
+      // `source: 'local'` é fallback de `localStorage` -- dado do navegador, não do servidor.
+      // Exibi-lo como operacional é o que o critério absoluto proíbe.
+      .then((result) => { if (active) setTasks(result.source === 'supabase' ? result.items : null); })
+      .catch(() => { if (active) setTasks(null); });
     return () => { active = false; };
   }, [clienteId]);
 
   useEffect(() => {
-    if (!clienteId) { setKnowledgeEntries([]); return; }
+    if (!clienteId) { setKnowledgeEntries(null); return; }
     let active = true;
-    listKnowledgeEntries(undefined, clienteId).then((result) => { if (active) setKnowledgeEntries(result.items); });
+    listKnowledgeEntries(undefined, clienteId)
+      .then((result) => { if (active) setKnowledgeEntries(result.error ? null : result.items); })
+      .catch(() => { if (active) setKnowledgeEntries(null); });
     return () => { active = false; };
   }, [clienteId]);
 
@@ -243,11 +256,11 @@ export function Dashboard({ onOpenDetail, onNavigate }: PageProps) {
   ], []);
 
   const taskDrill = useMemo(
-    () => computeDrillState(tasks, taskDonutLevels, taskDrillPath),
+    () => computeDrillState(tasks ?? [], taskDonutLevels, taskDrillPath),
     [tasks, taskDonutLevels, taskDrillPath],
   );
   const knowledgeDrill = useMemo(
-    () => computeDrillState(knowledgeEntries, knowledgeDonutLevels, knowledgeDrillPath),
+    () => computeDrillState(knowledgeEntries ?? [], knowledgeDonutLevels, knowledgeDrillPath),
     [knowledgeEntries, knowledgeDonutLevels, knowledgeDrillPath],
   );
 
@@ -292,7 +305,9 @@ export function Dashboard({ onOpenDetail, onNavigate }: PageProps) {
     },
     {
       label: 'Novas tarefas',
-      value: tasks.filter((task) => task.categoria === 'novo').length,
+      // Antes: `tasks.filter(...).length`, que sob falha exibia 0 ao lado de quatro "—" --
+      // lendo-se como "esse eu consegui carregar". Era o pior dos cinco no caminho de falha.
+      value: tasks ? tasks.filter((task) => task.categoria === 'novo').length : METRIC_UNAVAILABLE,
       tone: 'blue',
       title: 'Tarefas criadas recentemente a partir de alertas, análises, orientações ou decisões.',
       icon: <ListChecks size={20} />,
@@ -312,7 +327,7 @@ export function Dashboard({ onOpenDetail, onNavigate }: PageProps) {
   // Mesma regra dos cards: sob falha a lista fica vazia em vez de renderizar os alertas
   // fabricados do mock -- que têm título verossímil e são mais enganosos que um número errado.
   const latestAlertas = (alertasUtil ?? []).slice(0, 5);
-  const latestTasks = tasks.slice(0, 5);
+  const latestTasks = (tasks ?? []).slice(0, 5);
 
   const openAlertModal = (alerta: (typeof latestAlertas)[number]) => {
     onOpenDetail?.({
@@ -404,7 +419,13 @@ export function Dashboard({ onOpenDetail, onNavigate }: PageProps) {
               ))}
             </div>
           </div>
-          {taskDrill.total === 0 && <p className="empty-note">Nenhuma tarefa registrada ainda.</p>}
+          {taskDrill.total === 0 && (
+            <p className="empty-note">
+              {tasks === null
+                ? 'Tarefas indisponíveis — não foi possível carregar do servidor.'
+                : 'Nenhuma tarefa registrada ainda.'}
+            </p>
+          )}
         </section>
 
         <section className="card dashboard-donut-card">
@@ -441,7 +462,13 @@ export function Dashboard({ onOpenDetail, onNavigate }: PageProps) {
               ))}
             </div>
           </div>
-          {knowledgeDrill.total === 0 && <p className="empty-note">Nenhum conhecimento publicado ainda.</p>}
+          {knowledgeDrill.total === 0 && (
+            <p className="empty-note">
+              {knowledgeEntries === null
+                ? 'Conhecimentos indisponíveis — não foi possível carregar do servidor.'
+                : 'Nenhum conhecimento publicado ainda.'}
+            </p>
+          )}
         </section>
       </div>
 
@@ -461,7 +488,13 @@ export function Dashboard({ onOpenDetail, onNavigate }: PageProps) {
           ))}
         </div>
 
-        {latestTasks.length === 0 && <p className="empty-note">Nenhuma tarefa registrada ainda.</p>}
+        {latestTasks.length === 0 && (
+          <p className="empty-note">
+            {tasks === null
+              ? 'Tarefas indisponíveis — não foi possível carregar do servidor.'
+              : 'Nenhuma tarefa registrada ainda.'}
+          </p>
+        )}
       </section>
 
       <section className="card dashboard-wide-list">
