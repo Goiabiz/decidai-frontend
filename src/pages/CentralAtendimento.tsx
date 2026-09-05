@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Bot, CheckCircle2, Clock, Inbox, Lock, MessageSquare, PackagePlus, Plus, Search, Send } from 'lucide-react';
 import { ConversationThread, type ThreadMessage } from '../components/ConversationThread';
 import { useSession } from '../contexts/SessionContext';
@@ -24,6 +25,8 @@ export type CentralAtendimentoProps = {
   onOpenDetail?: (detail: PanelDetail) => void;
 };
 
+type ListaAtendimentos = Awaited<ReturnType<typeof listAtendimentosAdmin>>;
+
 const statusList: AtendimentoStatus[] = ['Novo', 'Em andamento', 'Aguardando resposta', 'Concluído', 'Cancelado'];
 const canais = ['E-mail', 'WhatsApp', 'Widget', 'API', 'Manual', 'Telegram', 'Instagram', 'Messenger', 'SMS'];
 
@@ -47,10 +50,8 @@ export function CentralAtendimento({ onOpenDetail }: CentralAtendimentoProps) {
   const { session } = useSession();
   const clienteId = session?.activeClientId ?? null;
 
-  const [demandas, setDemandas] = useState<Atendimento[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [mensagens, setMensagens] = useState<AtendimentoMensagem[]>([]);
-  const [loadingMensagens, setLoadingMensagens] = useState(false);
+  const queryClient = useQueryClient();
+
   const [modal, setModal] = useState(false);
   const [query, setQuery] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -58,45 +59,57 @@ export function CentralAtendimento({ onOpenDetail }: CentralAtendimentoProps) {
   const [tipoResposta, setTipoResposta] = useState<'publica' | 'interna'>('publica');
   const [activeTab, setActiveTab] = useState<'comentarios' | 'atividade'>('comentarios');
   const [novoForm, setNovoForm] = useState({ canal: canais[0], solicitante: '', resumo: '', servico: '', prioridade: 'Média' as (typeof prioridadesAtendimento)[number] });
-  const [enviando, setEnviando] = useState(false);
-  const [salvando, setSalvando] = useState(false);
-  const [servicos, setServicos] = useState<ServicoRecord[]>([]);
 
-  useEffect(() => {
-    if (!clienteId) {
-      setServicos([]);
-      return;
-    }
-    listServicos(clienteId).then(({ items }) => setServicos(items.filter((item) => item.status === 'Ativo')));
-  }, [clienteId]);
+  const atendimentosKey = ['central-atendimento', 'atendimentos', clienteId];
+  const servicosKey = ['central-atendimento', 'servicos', clienteId];
+  const mensagensKey = (atendimentoId: string | null) => ['central-atendimento', 'mensagens', atendimentoId];
 
+  const servicosQuery = useQuery({
+    queryKey: servicosKey,
+    queryFn: async () => {
+      const { items } = await listServicos(clienteId as string);
+      return items.filter((item) => item.status === 'Ativo');
+    },
+    enabled: !!clienteId,
+  });
+  const servicos: ServicoRecord[] = servicosQuery.data ?? [];
+
+  const demandasQuery = useQuery({
+    queryKey: atendimentosKey,
+    queryFn: () => listAtendimentosAdmin(clienteId as string),
+    enabled: !!clienteId,
+  });
+  const chamados = demandasQuery.data?.chamados;
+  const demandas: Atendimento[] = chamados ?? [];
+  const loading = demandasQuery.isLoading;
+
+  // Preserva a seleção quando a lista é revalidada; só cai no primeiro item se o selecionado sumiu.
   useEffect(() => {
-    if (!clienteId) {
-      setDemandas([]);
-      setLoading(false);
-      return;
-    }
-    setLoading(true);
-    listAtendimentosAdmin(clienteId)
-      .then(({ chamados }) => {
-        setDemandas(chamados);
-        setSelectedId((current) => (current && chamados.some((item) => item.id === current) ? current : chamados[0]?.id ?? null));
-      })
-      .finally(() => setLoading(false));
-  }, [clienteId]);
+    if (!chamados) return;
+    setSelectedId((current) => (current && chamados.some((item) => item.id === current) ? current : chamados[0]?.id ?? null));
+  }, [chamados]);
 
   const selected = useMemo(() => demandas.find((item) => item.id === selectedId) || null, [demandas, selectedId]);
 
-  useEffect(() => {
-    if (!selected) {
-      setMensagens([]);
-      return;
-    }
-    setLoadingMensagens(true);
-    listMensagensAdmin(selected.id)
-      .then(({ mensagens: lista }) => setMensagens(lista))
-      .finally(() => setLoadingMensagens(false));
-  }, [selected?.id]);
+  const mensagensQuery = useQuery({
+    queryKey: mensagensKey(selectedId),
+    queryFn: () => listMensagensAdmin(selectedId as string),
+    enabled: !!selectedId,
+  });
+  const mensagens: AtendimentoMensagem[] = mensagensQuery.data?.mensagens ?? [];
+  const loadingMensagens = mensagensQuery.isLoading;
+
+  // Os services de atendimento NUNCA lançam: quando o Supabase falha eles caem no armazenamento
+  // local do navegador e devolvem source 'local'. Sem ler esse campo, falha de origem chegaria à
+  // tela como "nenhuma demanda" -- ausência de dado virando ausência de negócio, mesma classe dos
+  // FIND-QA-BLACK-01/02/03 emendados no Dashboard em ff6613a.
+  const origemLocal = demandasQuery.data?.source === 'local';
+  const falhaDeOrigem = demandasQuery.isError || origemLocal;
+  const dataNotice = demandasQuery.isError
+    ? 'Não foi possível carregar os atendimentos do servidor.'
+    : origemLocal
+      ? 'Não foi possível consultar o servidor — a lista abaixo vem do armazenamento local deste navegador e pode estar desatualizada.'
+      : undefined;
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -117,75 +130,96 @@ export function CentralAtendimento({ onOpenDetail }: CentralAtendimentoProps) {
     setActiveTab('comentarios');
   };
 
-  const changeStatus = async (nextStatus: AtendimentoStatus) => {
+  // Otimista com rollback: a fila reage na hora, mas se a escrita falhar a lista volta ao estado
+  // anterior em vez de continuar exibindo um status que o banco não tem.
+  const statusMutation = useMutation({
+    mutationFn: (vars: { id: string; anterior: AtendimentoStatus; novo: AtendimentoStatus }) =>
+      updateAtendimentoStatus(vars.id, vars.anterior, vars.novo),
+    onMutate: async (vars) => {
+      await queryClient.cancelQueries({ queryKey: atendimentosKey });
+      const previous = queryClient.getQueryData<ListaAtendimentos>(atendimentosKey);
+      if (previous) {
+        const now = new Date().toISOString();
+        queryClient.setQueryData<ListaAtendimentos>(atendimentosKey, {
+          ...previous,
+          chamados: previous.chamados.map((item) => (item.id === vars.id ? { ...item, status: vars.novo, atualizado_em: now } : item)),
+        });
+      }
+      return { previous };
+    },
+    onError: (error, _vars, context) => {
+      if (context?.previous) queryClient.setQueryData(atendimentosKey, context.previous);
+      showAppToast(error instanceof Error ? error.message : 'Não foi possível atualizar o status.', 'error');
+    },
+    onSuccess: (_data, vars) => showAppToast(`Status atualizado para ${vars.novo}.`, 'success'),
+    // O evento de sistema na timeline é gravado pelo próprio service; revalidar traz o registro real
+    // do banco no lugar da linha temporária que a tela fabricava antes.
+    onSettled: (_data, _error, vars) => {
+      queryClient.invalidateQueries({ queryKey: atendimentosKey });
+      queryClient.invalidateQueries({ queryKey: mensagensKey(vars.id) });
+    },
+  });
+
+  const changeStatus = (nextStatus: AtendimentoStatus) => {
     if (!selected || nextStatus === selected.status) return;
-    const statusAnterior = selected.status;
-    const selectedId2 = selected.id;
-    await updateAtendimentoStatus(selectedId2, statusAnterior, nextStatus);
-    const now = new Date().toISOString();
-    setDemandas((current) => current.map((item) => item.id === selectedId2 ? { ...item, status: nextStatus, atualizado_em: now } : item));
-    setMensagens((current) => [...current, {
-      id: `temp-status-${Date.now()}`,
-      atendimento_id: selectedId2,
-      tipo: 'sistema',
-      autor_nome: null,
-      texto: `Status alterado de "${statusAnterior}" para "${nextStatus}".`,
-      criado_em: now,
-    }]);
-    showAppToast(`Status atualizado para ${nextStatus}.`, 'success');
+    statusMutation.mutate({ id: selected.id, anterior: selected.status, novo: nextStatus });
   };
 
-  const enviarResposta = async () => {
+  const respostaMutation = useMutation({
+    mutationFn: (vars: { atendimentoId: string; autor: string; tipo: 'publica' | 'interna'; texto: string; autorEquipe?: Parameters<typeof postMensagemAdmin>[4] }) =>
+      postMensagemAdmin(vars.atendimentoId, vars.autor, vars.tipo, vars.texto, vars.autorEquipe),
+    onSuccess: (_data, vars) => {
+      setResposta('');
+      queryClient.invalidateQueries({ queryKey: mensagensKey(vars.atendimentoId) });
+      showAppToast(vars.tipo === 'interna' ? 'Nota interna registrada.' : 'Resposta enviada.', 'success');
+    },
+    onError: (error) => showAppToast(error instanceof Error ? error.message : 'Não foi possível enviar a mensagem.', 'error'),
+  });
+  const enviando = respostaMutation.isPending;
+
+  const enviarResposta = () => {
     const texto = resposta.trim();
     if (!texto || !selected) {
       showAppToast('Escreva uma mensagem antes de enviar.', 'warning');
       return;
     }
-    setEnviando(true);
-    try {
-      const autor = session?.user.displayName || 'Você';
-      const autorEquipe = session?.user ? { kind: session.user.kind, registroId: session.user.registroId } : undefined;
-      await postMensagemAdmin(selected.id, autor, tipoResposta, texto, autorEquipe);
-      setMensagens((current) => [...current, {
-        id: `temp-${Date.now()}`,
-        atendimento_id: selected.id,
-        tipo: tipoResposta,
-        autor_nome: autor,
-        texto,
-        criado_em: new Date().toISOString(),
-      }]);
-      setResposta('');
-      showAppToast(tipoResposta === 'interna' ? 'Nota interna registrada.' : 'Resposta enviada.', 'success');
-    } finally {
-      setEnviando(false);
-    }
+    respostaMutation.mutate({
+      atendimentoId: selected.id,
+      autor: session?.user.displayName || 'Você',
+      tipo: tipoResposta,
+      texto,
+      autorEquipe: session?.user ? { kind: session.user.kind, registroId: session.user.registroId } : undefined,
+    });
   };
 
-  const salvarAtendimento = async () => {
-    if (!novoForm.solicitante.trim() || !novoForm.resumo.trim() || !clienteId) {
-      showAppToast('Informe solicitante e resumo antes de salvar.', 'warning');
-      return;
-    }
-    setSalvando(true);
-    try {
-      const { atendimento } = await createAtendimentoManual({
-        clienteId,
-        canal: novoForm.canal,
-        solicitanteNome: novoForm.solicitante.trim(),
-        assunto: novoForm.resumo.trim(),
-        mensagem: novoForm.resumo.trim(),
-        servicoId: novoForm.servico || undefined,
-        prioridade: novoForm.prioridade,
-      });
-      setDemandas((current) => [atendimento, ...current]);
+  const criarMutation = useMutation({
+    mutationFn: (vars: Parameters<typeof createAtendimentoManual>[0]) => createAtendimentoManual(vars),
+    onSuccess: ({ atendimento }) => {
+      queryClient.invalidateQueries({ queryKey: atendimentosKey });
       setSelectedId(atendimento.id);
       setActiveTab('comentarios');
       setNovoForm({ canal: canais[0], solicitante: '', resumo: '', servico: '', prioridade: 'Média' });
       setModal(false);
       showAppToast('Atendimento criado.', 'success');
-    } finally {
-      setSalvando(false);
+    },
+    onError: (error) => showAppToast(error instanceof Error ? error.message : 'Não foi possível criar o atendimento.', 'error'),
+  });
+  const salvando = criarMutation.isPending;
+
+  const salvarAtendimento = () => {
+    if (!novoForm.solicitante.trim() || !novoForm.resumo.trim() || !clienteId) {
+      showAppToast('Informe solicitante e resumo antes de salvar.', 'warning');
+      return;
     }
+    criarMutation.mutate({
+      clienteId,
+      canal: novoForm.canal,
+      solicitanteNome: novoForm.solicitante.trim(),
+      assunto: novoForm.resumo.trim(),
+      mensagem: novoForm.resumo.trim(),
+      servicoId: novoForm.servico || undefined,
+      prioridade: novoForm.prioridade,
+    });
   };
 
   const mensagensPublicas: ThreadMessage[] = mensagens
@@ -215,6 +249,8 @@ export function CentralAtendimento({ onOpenDetail }: CentralAtendimentoProps) {
         <h1>Atendimentos</h1>
         <button className="v3464-btn primary" onClick={() => setModal(true)}><Plus size={16} />Novo atendimento</button>
       </div>
+
+      {dataNotice && <p className="atendimento-data-notice" style={{ color: 'var(--v3464-muted)', margin: '0 0 12px' }}>{dataNotice}</p>}
 
       <div className="v3464-kpis">
         {kpis.map(([title, value, Icon, color]) => (
@@ -248,7 +284,11 @@ export function CentralAtendimento({ onOpenDetail }: CentralAtendimentoProps) {
                 </button>
               );
             })}
-            {!loading && filtered.length === 0 && <p style={{ color: 'var(--v3464-muted)' }}>Nenhuma demanda encontrada.</p>}
+            {!loading && filtered.length === 0 && (
+              <p style={{ color: 'var(--v3464-muted)' }}>
+                {falhaDeOrigem ? 'Não foi possível carregar as demandas do servidor.' : 'Nenhuma demanda encontrada.'}
+              </p>
+            )}
           </div>
         </section>
 
