@@ -10,3 +10,7 @@ tsconfig.tsbuildinfo
 _payload/
 *.bak
 *.bak-*
+
+# Sessao real de teste (magic link/tokens do bootstrap-test-session.mjs) -- nunca versionar.
+.session-*.json
+.local-session-url.txt
